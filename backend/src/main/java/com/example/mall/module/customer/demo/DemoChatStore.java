@@ -438,7 +438,7 @@ public class DemoChatStore {
                 deleted TINYINT(1) NOT NULL DEFAULT 0,
                 INDEX idx_twenty_mall_conversation_order (order_id),
                 INDEX idx_twenty_mall_conversation_status (status)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='20商城客服会话'
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='万象商城客服会话'
             """);
         jdbcTemplate.execute("""
             CREATE TABLE IF NOT EXISTS twenty_mall_chat_message (
@@ -452,7 +452,7 @@ public class DemoChatStore {
                 updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 deleted TINYINT(1) NOT NULL DEFAULT 0,
                 INDEX idx_twenty_mall_chat_message_conversation (conversation_id, created_at)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='20商城聊天消息'
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='万象商城聊天消息'
             """);
     }
 
@@ -503,7 +503,7 @@ public class DemoChatStore {
         if (productName == null) {
             return "";
         }
-        return productName.replaceFirst("^20商城\\s*", "").trim();
+        return productName.replaceFirst("^万象商城\\s*", "").trim();
     }
 
     private String normalizeSender(String senderType) {

@@ -6,7 +6,7 @@ page {
 }
 
 .page {
-  padding: 24rpx;
+  padding: 24rpx 24rpx 160rpx;
   box-sizing: border-box;
 }
 

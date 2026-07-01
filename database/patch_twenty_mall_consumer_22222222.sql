@@ -4,7 +4,7 @@ SET NAMES utf8mb4;
 INSERT INTO twenty_mall_account (
   account_no, password_plain, account_role, display_name, phone, bind_status, status
 ) VALUES (
-  '22222222', '123456', 'CONSUMER', '20商城用户22222222', NULL, 'UNBOUND', 'ACTIVE'
+  '22222222', '123456', 'CONSUMER', '万象商城用户22222222', NULL, 'UNBOUND', 'ACTIVE'
 ) ON DUPLICATE KEY UPDATE
   password_plain = VALUES(password_plain),
   display_name = VALUES(display_name),
@@ -38,27 +38,27 @@ INSERT INTO twenty_mall_product (
   merchant_account_id, product_no, product_name, product_image_url, price, stock, category, description, status
 ) VALUES
   (
-    @merchant_digital, 'TM-P-DIGITAL-222201', '20商城 无线机械键盘',
+    @merchant_digital, 'TM-P-DIGITAL-222201', '万象商城 无线机械键盘',
     '/assets/products/twenty-keyboard-real.png', 459.00, 200, '数码外设',
     '无线机械键盘，适合办公输入、学习和轻度游戏场景。', 'ON_SALE'
   ),
   (
-    @merchant_digital, 'TM-P-DIGITAL-222202', '20商城 北欧护眼台灯',
+    @merchant_digital, 'TM-P-DIGITAL-222202', '万象商城 北欧护眼台灯',
     '/assets/products/twenty-lamp.png', 129.00, 180, '家居数码',
     '北欧风格护眼台灯，适合卧室阅读、书桌学习和夜间照明。', 'ON_SALE'
   ),
   (
-    @merchant_digital, 'TM-P-DIGITAL-222203', '20商城 便携钛杯',
+    @merchant_digital, 'TM-P-DIGITAL-222203', '万象商城 便携钛杯',
     '/assets/products/twenty-cup.png', 69.00, 240, '生活数码',
     '便携钛杯，适合通勤、校园和短途旅行使用。', 'ON_SALE'
   ),
   (
-    @merchant_bag, 'TM-P-BAG-222201', '20商城 旅行收纳包',
+    @merchant_bag, 'TM-P-BAG-222201', '万象商城 旅行收纳包',
     '/assets/products/twenty-backpack-real.png', 59.00, 300, '箱包配件',
     '轻量旅行收纳包，适合短途出行、通勤收纳和行李分类整理。', 'ON_SALE'
   ),
   (
-    @merchant_bag, 'TM-P-BAG-222202', '20商城 防泼水电脑内胆包',
+    @merchant_bag, 'TM-P-BAG-222202', '万象商城 防泼水电脑内胆包',
     '/assets/products/twenty-backpack-real.png', 89.00, 260, '数码收纳',
     '防泼水电脑内胆包，适合笔记本电脑和日常数码配件收纳。', 'ON_SALE'
   )

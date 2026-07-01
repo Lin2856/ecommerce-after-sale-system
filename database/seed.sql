@@ -29,23 +29,23 @@ INSERT INTO merchant_staff (id, merchant_id, user_id, staff_no, staff_name, staf
 
 INSERT INTO external_platform (id, platform_code, platform_name, api_base_url, auth_base_url, enabled, description) VALUES
   (1, 'DOUYIN', '抖音电商', 'https://openapi-fxg.jinritemai.com', 'https://op.jinritemai.com', 1, '首期接入平台，当前演示数据使用模拟授权。'),
-  (2, 'TWENTY_MALL', '20商城', 'LOCAL_DATABASE', 'LOCAL_DATABASE', 1, '自建数据库模拟真实电商平台，提供消费者账号、商家账号、订单、售后、评价等演示数据。');
+  (2, 'TWENTY_MALL', '万象商城', 'LOCAL_DATABASE', 'LOCAL_DATABASE', 1, '自建数据库模拟真实电商平台，提供消费者账号、商家账号、订单、售后、评价等演示数据。');
 
 INSERT INTO twenty_mall_account (
   id, account_no, password_plain, account_role, display_name, phone, bind_status, status
 ) VALUES
-  (1, '20230140', '123456', 'CONSUMER', '20商城演示买家', '13338907581', 'UNBOUND', 'ACTIVE'),
+  (1, '20230140', '123456', 'CONSUMER', '万象商城演示买家', '13338907581', 'UNBOUND', 'ACTIVE'),
   (2, '20230141', '123456', 'MERCHANT', '极光外设旗舰店', '13900002020', 'UNBOUND', 'ACTIVE'),
   (4, '20230142', '123456', 'MERCHANT', '黑曜通勤箱包店', '13900002021', 'UNBOUND', 'ACTIVE'),
-  (3, '20230141', '123456', 'CONSUMER', '20商城学生买家', '13338907581', 'UNBOUND', 'ACTIVE');
+  (3, '20230141', '123456', 'CONSUMER', '万象商城学生买家', '13338907581', 'UNBOUND', 'ACTIVE');
 
 INSERT INTO twenty_mall_product (
   id, merchant_account_id, product_no, product_name, product_image_url, price, stock, category, description, status
 ) VALUES
-  (1, 2, 'TM-P-10001', '20商城 青轴机械键盘', '/assets/products/twenty-keyboard.png', 459.00, 120, '电脑外设', '20商城本地数据库中的模拟机械键盘商品，用于售后、评价和客服演示。', 'ON_SALE'),
-  (2, 4, 'TM-P-10002', '20商城 城市通勤背包', '/assets/products/twenty-backpack.png', 189.00, 260, '箱包配饰', '20商城本地数据库中的模拟通勤背包商品。', 'ON_SALE'),
-  (3, 2, 'TM-P-10003', '20商城 护眼台灯', '/assets/products/twenty-lamp.png', 129.00, 180, '生活电器', '20商城本地数据库中的模拟护眼台灯商品。', 'ON_SALE'),
-  (4, 2, 'TM-P-10004', '20商城 便携保温杯', '/assets/products/twenty-cup.png', 69.00, 360, '日用百货', '20商城本地数据库中的模拟保温杯商品。', 'ON_SALE');
+  (1, 2, 'TM-P-10001', '万象商城 青轴机械键盘', '/assets/products/twenty-keyboard.png', 459.00, 120, '电脑外设', '万象商城本地数据库中的模拟机械键盘商品，用于售后、评价和客服演示。', 'ON_SALE'),
+  (2, 4, 'TM-P-10002', '万象商城 城市通勤背包', '/assets/products/twenty-backpack.png', 189.00, 260, '箱包配饰', '万象商城本地数据库中的模拟通勤背包商品。', 'ON_SALE'),
+  (3, 2, 'TM-P-10003', '万象商城 护眼台灯', '/assets/products/twenty-lamp.png', 129.00, 180, '生活电器', '万象商城本地数据库中的模拟护眼台灯商品。', 'ON_SALE'),
+  (4, 2, 'TM-P-10004', '万象商城 便携保温杯', '/assets/products/twenty-cup.png', 69.00, 360, '日用百货', '万象商城本地数据库中的模拟保温杯商品。', 'ON_SALE');
 
 INSERT INTO twenty_mall_order (
   id, order_no, consumer_account_id, merchant_account_id, order_status, pay_status, logistics_status,
@@ -59,10 +59,10 @@ INSERT INTO twenty_mall_order (
 INSERT INTO twenty_mall_order_item (
   id, order_id, product_id, product_name, sku_name, product_image_url, unit_price, quantity, total_amount, after_sale_status
 ) VALUES
-  (1, 1, 1, '20商城 青轴机械键盘', '白灰色｜87键｜热插拔', '/assets/products/twenty-keyboard.png', 459.00, 1, 459.00, 'APPLIED'),
-  (2, 2, 2, '20商城 城市通勤背包', '深海蓝｜18L｜防泼水', '/assets/products/twenty-backpack.png', 189.00, 1, 189.00, 'NONE'),
-  (3, 3, 3, '20商城 护眼台灯', '暖白光｜三档调光｜USB供电', '/assets/products/twenty-lamp.png', 129.00, 1, 129.00, 'NONE'),
-  (4, 4, 4, '20商城 便携保温杯', '米白色｜500ml｜弹盖款', '/assets/products/twenty-cup.png', 69.00, 1, 69.00, 'APPLIED');
+  (1, 1, 1, '万象商城 青轴机械键盘', '白灰色｜87键｜热插拔', '/assets/products/twenty-keyboard.png', 459.00, 1, 459.00, 'APPLIED'),
+  (2, 2, 2, '万象商城 城市通勤背包', '深海蓝｜18L｜防泼水', '/assets/products/twenty-backpack.png', 189.00, 1, 189.00, 'NONE'),
+  (3, 3, 3, '万象商城 护眼台灯', '暖白光｜三档调光｜USB供电', '/assets/products/twenty-lamp.png', 129.00, 1, 129.00, 'NONE'),
+  (4, 4, 4, '万象商城 便携保温杯', '米白色｜500ml｜弹盖款', '/assets/products/twenty-cup.png', 69.00, 1, 69.00, 'APPLIED');
 
 INSERT INTO twenty_mall_after_sale (
   id, after_sale_no, order_id, order_item_id, after_sale_type, reason_type, description, requested_amount, status
@@ -222,7 +222,15 @@ INSERT INTO faq_item (merchant_id, question, answer, category, priority, enabled
 
 INSERT INTO after_sale_rule (merchant_id, rule_name, rule_type, conditions_json, action_json, content, enabled, created_by) VALUES
   (1, '质量问题优先审核', 'PRIORITY', JSON_OBJECT('reasonType','PRODUCT_QUALITY'), JSON_OBJECT('priority','HIGH'), '商品质量问题默认标记为高优先级。', 1, 2),
-  (NULL, '七天无理由基础规则', 'RETURN_POLICY', JSON_OBJECT('days',7), JSON_OBJECT('allowReturn',true), '签收七天内符合条件的商品支持无理由退货。', 1, 4);
+  (NULL, '七天无理由基础规则', 'RETURN_POLICY', JSON_OBJECT('days',7), JSON_OBJECT('allowReturn',true), '签收七天内符合条件的商品支持无理由退货。', 1, 4),
+  (NULL, '未发货仅退款自动通过', 'REFUND_POLICY', JSON_OBJECT('orderStatus','PAID','logisticsStatus','NOT_SHIPPED'), JSON_OBJECT('allowRefund',true,'needManualReview',false), '订单已支付但商家尚未发货时，用户申请仅退款可直接进入退款处理。', 1, 4),
+  (NULL, '已发货仅退款转人工审核', 'MANUAL_REVIEW', JSON_OBJECT('logisticsStatus','SHIPPED'), JSON_OBJECT('allowRefund',false,'needManualReview',true), '商品已发货但用户申请仅退款时，需要人工核对物流轨迹、签收状态和商家举证。', 1, 4),
+  (NULL, '签收超七天退货需人工审核', 'MANUAL_REVIEW', JSON_OBJECT('days',15,'reasonType','NO_REASON'), JSON_OBJECT('allowReturn',false,'needManualReview',true), '超过七天无理由期限后发起退货退款，需要人工确认是否存在质量问题或特殊承诺。', 1, 4),
+  (NULL, '价保十五天处理规则', 'PRICE_PROTECTION', JSON_OBJECT('days',15,'reasonType','PRICE_PROTECTION'), JSON_OBJECT('priceProtectDays',15,'allowRefund',true), '订单签收后十五天内出现同款商品降价时，可按价保规则核算差价退款。', 1, 4),
+  (NULL, '运费险理赔识别规则', 'FREIGHT_INSURANCE', JSON_OBJECT('reasonType','NO_REASON'), JSON_OBJECT('needManualReview',false,'allowReturn',true), '订单包含运费险且用户按要求寄回商品时，系统记录退货物流并触发运费险理赔判断。', 1, 4),
+  (NULL, '特殊商品售后人工复核', 'MANUAL_REVIEW', JSON_OBJECT('productCategory','生鲜/定制/贴身用品'), JSON_OBJECT('needManualReview',true,'priority','HIGH'), '生鲜、定制、贴身用品等特殊商品不直接套用普通退货规则，需要平台或商家人工复核。', 1, 4),
+  (NULL, '拒收商品物流核验规则', 'RETURN_POLICY', JSON_OBJECT('logisticsStatus','REJECTED'), JSON_OBJECT('allowReturn',true,'needManualReview',true), '用户拒收商品后，需要核对物流拒收记录、包裹状态和商家责任后再继续退款流程。', 1, 4),
+  (NULL, '平台介入争议优先处理', 'PRIORITY', JSON_OBJECT('reasonType','PLATFORM_INTERVENTION'), JSON_OBJECT('priority','HIGH','needManualReview',true), '消费者申请平台介入后，该售后单进入高优先级队列，由管理员根据双方举证进行裁定。', 1, 4);
 
 INSERT INTO ai_config (
   id, merchant_id, config_name, provider, model_name, model_path, temperature, max_tokens, prompt_template, enabled, created_by

@@ -23,6 +23,10 @@ class ContextReplyRequest(TextRequest):
     user_tone: str | None = None
 
 
+class AiConfigUpdateRequest(ApiModel):
+    api_key: str = ""
+
+
 class IntentResponse(ApiModel):
     intent: str
     category: str

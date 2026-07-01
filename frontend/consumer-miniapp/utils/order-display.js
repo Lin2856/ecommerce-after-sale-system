@@ -52,7 +52,7 @@ export function enrichOrderDisplay(order) {
   return {
     ...order,
     image: extra.image || order.image,
-    merchant: extra.merchant || order.merchant || "20商城演示店铺",
+    merchant: extra.merchant || order.merchant || "万象商城演示店铺",
     status: statusText,
     orderedAt: formatDateTime(extra.orderedAt || order.orderedAt || order.orderTime || ""),
     deliveredAt: statusText === "已完成" || statusText === "已收货" ? formatDateTime(deliveredAt) : "",

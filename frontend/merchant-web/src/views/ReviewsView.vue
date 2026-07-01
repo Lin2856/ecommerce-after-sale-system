@@ -281,7 +281,7 @@ function disputeTagType(status: string) {
 }
 
 function cleanProductName(productName: string) {
-  return productName.replace(/^20商城\s*/, '').trim()
+  return productName.replace(/^万象商城\s*/, '').trim()
 }
 
 function starText(row: ReviewRow) {

@@ -3,36 +3,36 @@ SET NAMES utf8mb4;
 
 INSERT INTO twenty_mall_product (id, merchant_account_id, product_no, product_name, product_image_url, price, stock, category, description, status, deleted)
 VALUES
-  (1001, 2, 'TM-P-BULK-0001', '20商城 旗舰智能手机', '/assets/products/twenty-keyboard.png', 3999.00, 500, '手机数码', '批量演示商品，覆盖手机数码类目。', 'ON_SALE', 0),
-  (1002, 2, 'TM-P-BULK-0002', '20商城 降噪蓝牙耳机', '/assets/products/twenty-keyboard.png', 499.00, 500, '手机数码', '批量演示商品，覆盖手机数码类目。', 'ON_SALE', 0),
-  (1003, 2, 'TM-P-BULK-0003', '20商城 轻薄笔记本电脑', '/assets/products/twenty-keyboard.png', 5299.00, 500, '电脑办公', '批量演示商品，覆盖电脑办公类目。', 'ON_SALE', 0),
-  (1004, 2, 'TM-P-BULK-0004', '20商城 无线办公鼠标', '/assets/products/twenty-keyboard.png', 89.00, 500, '电脑办公', '批量演示商品，覆盖电脑办公类目。', 'ON_SALE', 0),
-  (1005, 2, 'TM-P-BULK-0005', '20商城 空气炸锅', '/assets/products/twenty-keyboard.png', 299.00, 500, '家用电器', '批量演示商品，覆盖家用电器类目。', 'ON_SALE', 0),
-  (1006, 2, 'TM-P-BULK-0006', '20商城 扫地机器人', '/assets/products/twenty-keyboard.png', 1599.00, 500, '家用电器', '批量演示商品，覆盖家用电器类目。', 'ON_SALE', 0),
-  (1007, 2, 'TM-P-BULK-0007', '20商城 纯棉短袖T恤', '/assets/products/twenty-keyboard.png', 69.00, 500, '服饰鞋包', '批量演示商品，覆盖服饰鞋包类目。', 'ON_SALE', 0),
-  (1008, 2, 'TM-P-BULK-0008', '20商城 休闲运动鞋', '/assets/products/twenty-keyboard.png', 239.00, 500, '服饰鞋包', '批量演示商品，覆盖服饰鞋包类目。', 'ON_SALE', 0),
-  (1009, 2, 'TM-P-BULK-0009', '20商城 氨基酸洁面乳', '/assets/products/twenty-keyboard.png', 79.00, 500, '美妆个护', '批量演示商品，覆盖美妆个护类目。', 'ON_SALE', 0),
-  (1010, 2, 'TM-P-BULK-0010', '20商城 修护补水面膜', '/assets/products/twenty-keyboard.png', 99.00, 500, '美妆个护', '批量演示商品，覆盖美妆个护类目。', 'ON_SALE', 0),
-  (1011, 2, 'TM-P-BULK-0011', '20商城 坚果礼盒', '/assets/products/twenty-keyboard.png', 139.00, 500, '食品生鲜', '批量演示商品，覆盖食品生鲜类目。', 'ON_SALE', 0),
-  (1012, 2, 'TM-P-BULK-0012', '20商城 黑咖啡冻干粉', '/assets/products/twenty-keyboard.png', 59.00, 500, '食品生鲜', '批量演示商品，覆盖食品生鲜类目。', 'ON_SALE', 0),
-  (1013, 2, 'TM-P-BULK-0013', '20商城 四件套床品', '/assets/products/twenty-keyboard.png', 299.00, 500, '家居日用', '批量演示商品，覆盖家居日用类目。', 'ON_SALE', 0),
-  (1014, 2, 'TM-P-BULK-0014', '20商城 收纳置物架', '/assets/products/twenty-keyboard.png', 79.00, 500, '家居日用', '批量演示商品，覆盖家居日用类目。', 'ON_SALE', 0),
-  (1015, 2, 'TM-P-BULK-0015', '20商城 婴儿纸尿裤', '/assets/products/twenty-keyboard.png', 119.00, 500, '母婴用品', '批量演示商品，覆盖母婴用品类目。', 'ON_SALE', 0),
-  (1016, 2, 'TM-P-BULK-0016', '20商城 儿童保温水杯', '/assets/products/twenty-keyboard.png', 89.00, 500, '母婴用品', '批量演示商品，覆盖母婴用品类目。', 'ON_SALE', 0),
-  (1017, 2, 'TM-P-BULK-0017', '20商城 瑜伽垫', '/assets/products/twenty-keyboard.png', 69.00, 500, '运动户外', '批量演示商品，覆盖运动户外类目。', 'ON_SALE', 0),
-  (1018, 2, 'TM-P-BULK-0018', '20商城 户外露营灯', '/assets/products/twenty-keyboard.png', 129.00, 500, '运动户外', '批量演示商品，覆盖运动户外类目。', 'ON_SALE', 0),
-  (1019, 2, 'TM-P-BULK-0019', '20商城 全价猫粮', '/assets/products/twenty-keyboard.png', 169.00, 500, '宠物生活', '批量演示商品，覆盖宠物生活类目。', 'ON_SALE', 0),
-  (1020, 2, 'TM-P-BULK-0020', '20商城 宠物自动饮水机', '/assets/products/twenty-keyboard.png', 139.00, 500, '宠物生活', '批量演示商品，覆盖宠物生活类目。', 'ON_SALE', 0),
-  (1021, 2, 'TM-P-BULK-0021', '20商城 考研英语词汇书', '/assets/products/twenty-keyboard.png', 45.00, 500, '图书文具', '批量演示商品，覆盖图书文具类目。', 'ON_SALE', 0),
-  (1022, 2, 'TM-P-BULK-0022', '20商城 中性笔套装', '/assets/products/twenty-keyboard.png', 29.00, 500, '图书文具', '批量演示商品，覆盖图书文具类目。', 'ON_SALE', 0),
-  (1023, 2, 'TM-P-BULK-0023', '20商城 车载手机支架', '/assets/products/twenty-keyboard.png', 39.00, 500, '汽车用品', '批量演示商品，覆盖汽车用品类目。', 'ON_SALE', 0),
-  (1024, 2, 'TM-P-BULK-0024', '20商城 便携充气泵', '/assets/products/twenty-keyboard.png', 199.00, 500, '汽车用品', '批量演示商品，覆盖汽车用品类目。', 'ON_SALE', 0),
-  (1025, 2, 'TM-P-BULK-0025', '20商城 电子体温计', '/assets/products/twenty-keyboard.png', 35.00, 500, '医药健康', '批量演示商品，覆盖医药健康类目。', 'ON_SALE', 0),
-  (1026, 2, 'TM-P-BULK-0026', '20商城 颈椎按摩仪', '/assets/products/twenty-keyboard.png', 199.00, 500, '医药健康', '批量演示商品，覆盖医药健康类目。', 'ON_SALE', 0),
-  (1027, 2, 'TM-P-BULK-0027', '20商城 银饰项链', '/assets/products/twenty-keyboard.png', 129.00, 500, '珠宝配饰', '批量演示商品，覆盖珠宝配饰类目。', 'ON_SALE', 0),
-  (1028, 2, 'TM-P-BULK-0028', '20商城 机械腕表', '/assets/products/twenty-keyboard.png', 399.00, 500, '珠宝配饰', '批量演示商品，覆盖珠宝配饰类目。', 'ON_SALE', 0),
-  (1029, 2, 'TM-P-BULK-0029', '20商城 LED吸顶灯', '/assets/products/twenty-keyboard.png', 159.00, 500, '家装建材', '批量演示商品，覆盖家装建材类目。', 'ON_SALE', 0),
-  (1030, 2, 'TM-P-BULK-0030', '20商城 智能门锁', '/assets/products/twenty-keyboard.png', 899.00, 500, '家装建材', '批量演示商品，覆盖家装建材类目。', 'ON_SALE', 0)
+  (1001, 2, 'TM-P-BULK-0001', '万象商城 旗舰智能手机', '/assets/products/twenty-keyboard.png', 3999.00, 500, '手机数码', '批量演示商品，覆盖手机数码类目。', 'ON_SALE', 0),
+  (1002, 2, 'TM-P-BULK-0002', '万象商城 降噪蓝牙耳机', '/assets/products/twenty-keyboard.png', 499.00, 500, '手机数码', '批量演示商品，覆盖手机数码类目。', 'ON_SALE', 0),
+  (1003, 2, 'TM-P-BULK-0003', '万象商城 轻薄笔记本电脑', '/assets/products/twenty-keyboard.png', 5299.00, 500, '电脑办公', '批量演示商品，覆盖电脑办公类目。', 'ON_SALE', 0),
+  (1004, 2, 'TM-P-BULK-0004', '万象商城 无线办公鼠标', '/assets/products/twenty-keyboard.png', 89.00, 500, '电脑办公', '批量演示商品，覆盖电脑办公类目。', 'ON_SALE', 0),
+  (1005, 2, 'TM-P-BULK-0005', '万象商城 空气炸锅', '/assets/products/twenty-keyboard.png', 299.00, 500, '家用电器', '批量演示商品，覆盖家用电器类目。', 'ON_SALE', 0),
+  (1006, 2, 'TM-P-BULK-0006', '万象商城 扫地机器人', '/assets/products/twenty-keyboard.png', 1599.00, 500, '家用电器', '批量演示商品，覆盖家用电器类目。', 'ON_SALE', 0),
+  (1007, 2, 'TM-P-BULK-0007', '万象商城 纯棉短袖T恤', '/assets/products/twenty-keyboard.png', 69.00, 500, '服饰鞋包', '批量演示商品，覆盖服饰鞋包类目。', 'ON_SALE', 0),
+  (1008, 2, 'TM-P-BULK-0008', '万象商城 休闲运动鞋', '/assets/products/twenty-keyboard.png', 239.00, 500, '服饰鞋包', '批量演示商品，覆盖服饰鞋包类目。', 'ON_SALE', 0),
+  (1009, 2, 'TM-P-BULK-0009', '万象商城 氨基酸洁面乳', '/assets/products/twenty-keyboard.png', 79.00, 500, '美妆个护', '批量演示商品，覆盖美妆个护类目。', 'ON_SALE', 0),
+  (1010, 2, 'TM-P-BULK-0010', '万象商城 修护补水面膜', '/assets/products/twenty-keyboard.png', 99.00, 500, '美妆个护', '批量演示商品，覆盖美妆个护类目。', 'ON_SALE', 0),
+  (1011, 2, 'TM-P-BULK-0011', '万象商城 坚果礼盒', '/assets/products/twenty-keyboard.png', 139.00, 500, '食品生鲜', '批量演示商品，覆盖食品生鲜类目。', 'ON_SALE', 0),
+  (1012, 2, 'TM-P-BULK-0012', '万象商城 黑咖啡冻干粉', '/assets/products/twenty-keyboard.png', 59.00, 500, '食品生鲜', '批量演示商品，覆盖食品生鲜类目。', 'ON_SALE', 0),
+  (1013, 2, 'TM-P-BULK-0013', '万象商城 四件套床品', '/assets/products/twenty-keyboard.png', 299.00, 500, '家居日用', '批量演示商品，覆盖家居日用类目。', 'ON_SALE', 0),
+  (1014, 2, 'TM-P-BULK-0014', '万象商城 收纳置物架', '/assets/products/twenty-keyboard.png', 79.00, 500, '家居日用', '批量演示商品，覆盖家居日用类目。', 'ON_SALE', 0),
+  (1015, 2, 'TM-P-BULK-0015', '万象商城 婴儿纸尿裤', '/assets/products/twenty-keyboard.png', 119.00, 500, '母婴用品', '批量演示商品，覆盖母婴用品类目。', 'ON_SALE', 0),
+  (1016, 2, 'TM-P-BULK-0016', '万象商城 儿童保温水杯', '/assets/products/twenty-keyboard.png', 89.00, 500, '母婴用品', '批量演示商品，覆盖母婴用品类目。', 'ON_SALE', 0),
+  (1017, 2, 'TM-P-BULK-0017', '万象商城 瑜伽垫', '/assets/products/twenty-keyboard.png', 69.00, 500, '运动户外', '批量演示商品，覆盖运动户外类目。', 'ON_SALE', 0),
+  (1018, 2, 'TM-P-BULK-0018', '万象商城 户外露营灯', '/assets/products/twenty-keyboard.png', 129.00, 500, '运动户外', '批量演示商品，覆盖运动户外类目。', 'ON_SALE', 0),
+  (1019, 2, 'TM-P-BULK-0019', '万象商城 全价猫粮', '/assets/products/twenty-keyboard.png', 169.00, 500, '宠物生活', '批量演示商品，覆盖宠物生活类目。', 'ON_SALE', 0),
+  (1020, 2, 'TM-P-BULK-0020', '万象商城 宠物自动饮水机', '/assets/products/twenty-keyboard.png', 139.00, 500, '宠物生活', '批量演示商品，覆盖宠物生活类目。', 'ON_SALE', 0),
+  (1021, 2, 'TM-P-BULK-0021', '万象商城 考研英语词汇书', '/assets/products/twenty-keyboard.png', 45.00, 500, '图书文具', '批量演示商品，覆盖图书文具类目。', 'ON_SALE', 0),
+  (1022, 2, 'TM-P-BULK-0022', '万象商城 中性笔套装', '/assets/products/twenty-keyboard.png', 29.00, 500, '图书文具', '批量演示商品，覆盖图书文具类目。', 'ON_SALE', 0),
+  (1023, 2, 'TM-P-BULK-0023', '万象商城 车载手机支架', '/assets/products/twenty-keyboard.png', 39.00, 500, '汽车用品', '批量演示商品，覆盖汽车用品类目。', 'ON_SALE', 0),
+  (1024, 2, 'TM-P-BULK-0024', '万象商城 便携充气泵', '/assets/products/twenty-keyboard.png', 199.00, 500, '汽车用品', '批量演示商品，覆盖汽车用品类目。', 'ON_SALE', 0),
+  (1025, 2, 'TM-P-BULK-0025', '万象商城 电子体温计', '/assets/products/twenty-keyboard.png', 35.00, 500, '医药健康', '批量演示商品，覆盖医药健康类目。', 'ON_SALE', 0),
+  (1026, 2, 'TM-P-BULK-0026', '万象商城 颈椎按摩仪', '/assets/products/twenty-keyboard.png', 199.00, 500, '医药健康', '批量演示商品，覆盖医药健康类目。', 'ON_SALE', 0),
+  (1027, 2, 'TM-P-BULK-0027', '万象商城 银饰项链', '/assets/products/twenty-keyboard.png', 129.00, 500, '珠宝配饰', '批量演示商品，覆盖珠宝配饰类目。', 'ON_SALE', 0),
+  (1028, 2, 'TM-P-BULK-0028', '万象商城 机械腕表', '/assets/products/twenty-keyboard.png', 399.00, 500, '珠宝配饰', '批量演示商品，覆盖珠宝配饰类目。', 'ON_SALE', 0),
+  (1029, 2, 'TM-P-BULK-0029', '万象商城 LED吸顶灯', '/assets/products/twenty-keyboard.png', 159.00, 500, '家装建材', '批量演示商品，覆盖家装建材类目。', 'ON_SALE', 0),
+  (1030, 2, 'TM-P-BULK-0030', '万象商城 智能门锁', '/assets/products/twenty-keyboard.png', 899.00, 500, '家装建材', '批量演示商品，覆盖家装建材类目。', 'ON_SALE', 0)
 ON DUPLICATE KEY UPDATE product_name = VALUES(product_name), product_image_url = VALUES(product_image_url), price = VALUES(price), stock = VALUES(stock), category = VALUES(category), description = VALUES(description), status = VALUES(status), deleted = 0;
 
 DROP PROCEDURE IF EXISTS seed_twenty_mall_50_accounts;
@@ -61,7 +61,7 @@ BEGIN
     SET account_no = CONCAT('2023', LPAD(200 + i, 4, '0'));
 
     INSERT INTO twenty_mall_account (id, account_no, password_plain, account_role, display_name, phone, bind_status, status, deleted)
-    VALUES (account_id, account_no, '123456', 'CONSUMER', CONCAT('20商城批量买家', i + 1), CONCAT('13620', LPAD(i, 6, '0')), 'UNBOUND', 'ACTIVE', 0)
+    VALUES (account_id, account_no, '123456', 'CONSUMER', CONCAT('万象商城批量买家', i + 1), CONCAT('13620', LPAD(i, 6, '0')), 'UNBOUND', 'ACTIVE', 0)
     ON DUPLICATE KEY UPDATE password_plain = VALUES(password_plain), display_name = VALUES(display_name), phone = VALUES(phone), status = VALUES(status), deleted = 0;
 
     SET order_count = (i MOD 5) + 1;

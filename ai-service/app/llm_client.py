@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 from openai import OpenAI
@@ -12,10 +13,14 @@ logger = logging.getLogger(__name__)
 
 class LLMClient:
     def __init__(self) -> None:
+        self.reload()
+
+    def reload(self) -> None:
         self.provider = settings.model_provider.lower()
         self.api_key = self._api_key()
         self.base_url = self._base_url()
         self.model_name = self._model_name()
+        os.environ.pop("SSLKEYLOGFILE", None)
         self.client = OpenAI(api_key=self.api_key or "sk-placeholder", base_url=self.base_url)
 
     def is_configured(self) -> bool:

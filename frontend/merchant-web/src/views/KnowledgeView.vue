@@ -1,56 +1,57 @@
 <template>
-  <div class="panel">
-    <div class="toolbar">
+  <div class="panel knowledge-page">
+    <div class="knowledge-overview">
+      <div v-for="item in knowledgeMetrics" :key="item.label" class="knowledge-stat">
+        <span>{{ item.label }}</span>
+        <strong>{{ item.value }}</strong>
+        <em>{{ item.description }}</em>
+      </div>
+    </div>
+    <div class="toolbar knowledge-toolbar">
       <el-tabs v-model="active">
-        <el-tab-pane label="常见问题解答" name="faq" />
-        <el-tab-pane label="售后政策" name="rules" />
+        <el-tab-pane :label="`常见问题解答 ${faqData.length}`" name="faq" />
+        <el-tab-pane :label="`售后政策 ${ruleData.length}`" name="rules" />
       </el-tabs>
       <el-button type="primary" @click="openCreateDialog">新增</el-button>
     </div>
-    <el-table v-loading="loading" :data="filteredTableData">
-      <el-table-column :prop="mainColumn.prop" :label="mainColumn.label" min-width="260" />
-      <el-table-column width="180" v-if="active !== 'rules'">
-        <template #header>
-          <el-dropdown trigger="click" @command="selectCategoryFilter">
-            <span class="filter-header">{{ categoryHeaderText }} <span class="filter-arrow">▼</span></span>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="ALL">全部分类</el-dropdown-item>
-                <el-dropdown-item v-for="item in categoryOptions" :key="item.value" :command="item.value">
-                  {{ item.label }}
-                </el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
+    <div class="knowledge-filter">
+      <el-input v-model="searchKeyword" clearable placeholder="搜索问题、政策名称或内容" />
+      <el-select v-model="categoryFilter" placeholder="全部分类">
+        <el-option :label="active === 'rules' ? '全部政策' : '全部分类'" value="ALL" />
+        <el-option v-for="item in categoryOptions" :key="item.value" :label="item.label" :value="item.value" />
+      </el-select>
+      <el-select v-model="enabledFilter" placeholder="启用状态">
+        <el-option label="全部状态" value="ALL" />
+        <el-option label="启用" value="ENABLED" />
+        <el-option label="停用" value="DISABLED" />
+      </el-select>
+    </div>
+    <el-table v-loading="loading" :data="filteredTableData" class="knowledge-table" height="calc(100vh - 282px)">
+      <el-table-column :label="mainColumn.label" min-width="520">
+        <template #default="{ row }">
+          <div class="knowledge-main">
+            <strong>{{ rowTitle(row) }}</strong>
+            <span>{{ rowSummary(row) }}</span>
+          </div>
         </template>
-        <template #default="{ row }">{{ categoryText(row.category) }}</template>
       </el-table-column>
-      <el-table-column width="180" v-if="active === 'rules'">
-        <template #header>
-          <el-dropdown trigger="click" @command="selectCategoryFilter">
-            <span class="filter-header">{{ categoryHeaderText }} <span class="filter-arrow">▼</span></span>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="ALL">全部政策</el-dropdown-item>
-                <el-dropdown-item v-for="item in categoryOptions" :key="item.value" :command="item.value">
-                  {{ item.label }}
-                </el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
+      <el-table-column :label="active === 'rules' ? '政策类型' : '分类'" width="180">
+        <template #default="{ row }">
+          <el-tag effect="light">{{ active === 'rules' ? ruleTypeText(row.ruleType) : categoryText(row.category) }}</el-tag>
         </template>
-        <template #default="{ row }">{{ ruleTypeText(row.ruleType) }}</template>
       </el-table-column>
       <el-table-column label="启用" width="100">
         <template #default="{ row }">
           <el-tag :type="row.enabled ? 'success' : 'info'">{{ row.enabled ? '启用' : '停用' }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="210">
+      <el-table-column label="操作" width="210" fixed="right">
         <template #default="{ row }">
-          <el-button link type="primary" @click="openDetailDialog(row)">详细</el-button>
-          <el-button link type="primary" @click="openEditDialog(row)">编辑</el-button>
-          <el-button link type="danger" @click="deleteKnowledge(row)">删除</el-button>
+          <div class="knowledge-actions">
+            <el-button link type="primary" @click="openDetailDialog(row)">详情</el-button>
+            <el-button link type="primary" @click="openEditDialog(row)">编辑</el-button>
+            <el-button link type="danger" @click="deleteKnowledge(row)">删除</el-button>
+          </div>
         </template>
       </el-table-column>
     </el-table>
@@ -118,6 +119,8 @@ const dialogMode = ref<KnowledgeMode>('create')
 const knowledgeForm = ref<KnowledgeForm>(emptyForm())
 const detailRow = ref<Record<string, unknown> | null>(null)
 const categoryFilter = ref('ALL')
+const enabledFilter = ref('ALL')
+const searchKeyword = ref('')
 
 async function loadCurrentTab() {
   loading.value = true
@@ -136,6 +139,8 @@ async function loadCurrentTab() {
 onMounted(loadCurrentTab)
 watch(active, () => {
   categoryFilter.value = 'ALL'
+  enabledFilter.value = 'ALL'
+  searchKeyword.value = ''
   loadCurrentTab()
 })
 
@@ -150,10 +155,17 @@ const tableData = computed(() => {
 })
 
 const filteredTableData = computed(() => {
-  if (categoryFilter.value === 'ALL') {
-    return tableData.value
-  }
-  return tableData.value.filter((item) => categoryValue(item) === categoryFilter.value)
+  const keyword = searchKeyword.value.trim().toLowerCase()
+  return tableData.value.filter((item) => {
+    const matchCategory = categoryFilter.value === 'ALL' || categoryValue(item) === categoryFilter.value
+    const matchEnabled = enabledFilter.value === 'ALL'
+      || (enabledFilter.value === 'ENABLED' && Boolean(item.enabled))
+      || (enabledFilter.value === 'DISABLED' && !item.enabled)
+    const matchKeyword = !keyword
+      || rowTitle(item).toLowerCase().includes(keyword)
+      || rowSummary(item).toLowerCase().includes(keyword)
+    return matchCategory && matchEnabled && matchKeyword
+  })
 })
 
 const categoryOptions = computed(() => {
@@ -171,6 +183,19 @@ const categoryHeaderText = computed(() => {
     return active.value === 'rules' ? '政策类型' : '分类'
   }
   return active.value === 'rules' ? ruleTypeText(categoryFilter.value) : categoryText(categoryFilter.value)
+})
+
+const knowledgeMetrics = computed(() => {
+  const faqTotal = faqData.value.length
+  const ruleTotal = ruleData.value.length
+  const enabled = [...faqData.value, ...ruleData.value].filter((item) => item.enabled).length
+  const disabled = faqTotal + ruleTotal - enabled
+  return [
+    { label: '常见问题', value: faqTotal, description: '面向客服回复的问答内容' },
+    { label: '售后政策', value: ruleTotal, description: '退货、退款、价保等规则' },
+    { label: '启用内容', value: enabled, description: '当前可用于业务处理' },
+    { label: '停用内容', value: disabled, description: '暂不参与客服回复' }
+  ]
 })
 
 const mainColumn = computed(() => {
@@ -243,6 +268,15 @@ function openDetailDialog(row: Record<string, unknown>) {
 
 function selectCategoryFilter(command: string | number | object) {
   categoryFilter.value = String(command)
+}
+
+function rowTitle(row: Record<string, unknown>) {
+  return String(row.question || row.ruleName || row.title || '')
+}
+
+function rowSummary(row: Record<string, unknown>) {
+  const text = String(row.answer || row.content || '暂无内容摘要')
+  return text.length > 96 ? `${text.slice(0, 96)}...` : text
 }
 
 function saveKnowledge() {
@@ -390,6 +424,118 @@ function ruleTypeText(value: string) {
 </script>
 
 <style scoped>
+.knowledge-page {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.knowledge-overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.knowledge-stat {
+  min-height: 70px;
+  padding: 10px 14px;
+  border: 1px solid #e4e8f0;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.knowledge-stat span,
+.knowledge-stat em {
+  display: block;
+}
+
+.knowledge-stat span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.knowledge-stat strong {
+  display: block;
+  margin-top: 5px;
+  color: #0f172a;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.knowledge-stat em {
+  margin-top: 6px;
+  color: #64748b;
+  font-size: 12px;
+  font-style: normal;
+}
+
+.knowledge-toolbar {
+  align-items: center;
+  margin-bottom: -4px;
+  padding: 0;
+}
+
+.knowledge-toolbar :deep(.el-tabs__header) {
+  margin: 0;
+}
+
+.knowledge-toolbar :deep(.el-tabs__nav-wrap::after) {
+  height: 1px;
+}
+
+.knowledge-filter {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) 180px 150px;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid #e4e8f0;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.knowledge-table {
+  border: 1px solid #e4e8f0;
+  border-radius: 8px;
+}
+
+.knowledge-table :deep(.el-table__header th) {
+  background: #f8fafc;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.knowledge-table :deep(.el-table__row:hover > td) {
+  background: #f6faff !important;
+}
+
+.knowledge-main {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.knowledge-main strong {
+  color: #0f172a;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.knowledge-main span {
+  overflow: hidden;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.knowledge-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .policy-meta {
   display: flex;
   gap: 8px;
@@ -413,5 +559,15 @@ function ruleTypeText(value: string) {
 .filter-arrow {
   font-size: 10px;
   color: #409eff;
+}
+
+@media (max-width: 1280px) {
+  .knowledge-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .knowledge-filter {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

@@ -1,6 +1,9 @@
+from pathlib import Path
+
 from fastapi import APIRouter
 
 from app.api.schemas import (
+    AiConfigUpdateRequest,
     ContextReplyRequest,
     IntentResponse,
     ReplyResponse,
@@ -47,7 +50,23 @@ def reply(request: ContextReplyRequest) -> ReplyResponse:
 
 @router.get("/config")
 def config() -> dict[str, object]:
+    return build_config_payload()
+
+
+@router.put("/config")
+def update_config(request: AiConfigUpdateRequest) -> dict[str, object]:
     provider = settings.model_provider.lower()
+    api_key_field = f"{provider}_api_key"
+    api_key = request.api_key.strip()
+    setattr(settings, api_key_field, api_key)
+    write_env_value(f"{provider.upper()}_API_KEY", api_key)
+    llm_client.reload()
+    return build_config_payload()
+
+
+def build_config_payload() -> dict[str, object]:
+    provider = settings.model_provider.lower()
+    api_key = str(llm_client.api_key or getattr(settings, f"{provider}_api_key", "") or "")
     model_name = getattr(settings, f"{provider}_model", "")
     base_url = getattr(settings, f"{provider}_base_url", "")
     return {
@@ -58,8 +77,35 @@ def config() -> dict[str, object]:
         "modelName": model_name,
         "baseUrl": base_url,
         "apiKeyConfigured": llm_client.is_configured(),
+        "apiKey": api_key,
+        "apiKeyMasked": mask_api_key(api_key),
         "maxTokens": settings.model_max_tokens,
         "timeoutSeconds": settings.llm_timeout,
         "replyMode": "真实大模型回复",
         "fallbackMode": "服务不可用时提示转人工",
     }
+
+
+def mask_api_key(api_key: str) -> str:
+    if not api_key:
+        return ""
+    if len(api_key) <= 8:
+        return "*" * len(api_key)
+    return f"{api_key[:5]}{'*' * max(len(api_key) - 9, 4)}{api_key[-4:]}"
+
+
+def write_env_value(key: str, value: str) -> None:
+    env_path = Path(__file__).resolve().parents[2] / ".env"
+    lines: list[str] = []
+    if env_path.exists():
+        lines = env_path.read_text(encoding="utf-8").splitlines()
+    next_line = f"{key}={value}"
+    updated = False
+    for index, line in enumerate(lines):
+        if line.startswith(f"{key}="):
+            lines[index] = next_line
+            updated = True
+            break
+    if not updated:
+        lines.append(next_line)
+    env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")

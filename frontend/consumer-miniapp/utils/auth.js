@@ -189,9 +189,9 @@ export function clearConsumerAccountData(phone = getPrimaryPhone()) {
 export function getTwentyMallBindings() {
   const stored = wx.getStorageSync(getTwentyMallBindingKey())
   if (Array.isArray(stored)) {
-    return stored.filter((item) => item && item.platform === "20商城")
+    return stored.filter((item) => item && item.platform === "万象商城")
   }
-  if (stored && stored.platform === "20商城") {
+  if (stored && stored.platform === "万象商城") {
     return [stored]
   }
   return []
@@ -212,7 +212,7 @@ export function fetchTwentyMallBindingsFromDatabase({ success, fail } = {}) {
         .map((item) => ({
           accountNo: item.secondaryAccountNo,
           role: "CONSUMER",
-          platform: item.platformName || "20商城",
+          platform: item.platformName || "万象商城",
           boundAt: item.boundAt || ""
         }))
       wx.setStorageSync(getTwentyMallBindingKey(phone), bindings)
@@ -244,9 +244,9 @@ export function canBindTwentyMallAccount(accountNo, phone = getPrimaryPhone()) {
     }
     const bindings = wx.getStorageSync(getTwentyMallBindingKey(knownPhone))
     if (Array.isArray(bindings)) {
-      return bindings.some((item) => item && item.platform === "20商城" && item.accountNo === accountNo)
+      return bindings.some((item) => item && item.platform === "万象商城" && item.accountNo === accountNo)
     }
-    return bindings && bindings.platform === "20商城" && bindings.accountNo === accountNo
+    return bindings && bindings.platform === "万象商城" && bindings.accountNo === accountNo
   })
   if (legacyOwner) {
     wx.setStorageSync(getTwentyMallBindingOwnerKey(accountNo), legacyOwner)

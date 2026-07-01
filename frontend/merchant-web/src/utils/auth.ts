@@ -119,5 +119,5 @@ function normalizeMerchantBindings(bindings: MerchantPlatformBinding[]) {
 }
 
 export function getTwentyMallMerchantName(accountNo: string) {
-  return TWENTY_MALL_MERCHANT_NAMES[accountNo] || `20商城商家店铺（${accountNo}）`
+  return TWENTY_MALL_MERCHANT_NAMES[accountNo] || `万象商城商家店铺（${accountNo}）`
 }

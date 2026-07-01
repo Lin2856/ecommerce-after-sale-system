@@ -1,77 +1,112 @@
 <template>
   <div class="conversation-grid">
-    <div class="panel">
-      <h2 class="section-title">会话列表</h2>
+    <div class="panel conversation-panel">
+      <div class="conversation-panel-header">
+        <div>
+          <h2 class="section-title">会话列表</h2>
+          <span>{{ conversationData.length }} 个咨询会话</span>
+        </div>
+      </div>
       <div
         v-for="item in conversationData"
         :key="item.id"
-        class="status-line clickable-line"
+        class="conversation-item clickable-line"
         :class="{ active: selectedConversation?.id === item.id }"
         @click="selectConversation(item)"
       >
-        <div>
-          <strong>{{ conversationTitle(item) }}</strong>
-          <div class="page-kicker">{{ item.orderNo }} · {{ cleanProductName(item.productName) }}</div>
-          <div class="page-kicker">{{ item.aiIntent }} · {{ formatStatus(item.status) }} · {{ item.lastMessageAt }}</div>
-        </div>
-        <div class="conversation-actions">
-          <el-tag>{{ formatStatus(item.status) }}</el-tag>
-          <el-button link type="primary" @click.stop="openOrderDetail(item)">详细</el-button>
+        <div class="conversation-main">
+          <div class="conversation-title-row">
+            <strong>{{ conversationTitle(item) }}</strong>
+            <el-tag size="small" :type="conversationStatusTagType(item.status)">{{ formatStatus(item.status) }}</el-tag>
+          </div>
+          <div class="conversation-meta">{{ item.orderNo }} · {{ cleanProductName(item.productName) }}</div>
+          <div class="conversation-preview">{{ item.lastMessage || '暂无最近消息' }}</div>
+          <div class="conversation-time">{{ formatMessageTime(item.lastMessageAt) || '暂无时间' }}</div>
         </div>
       </div>
     </div>
-    <div class="panel">
+    <div class="panel chat-panel">
       <div class="chat-header">
         <div>
           <h2 class="section-title">聊天窗口</h2>
-          <div class="page-kicker">
-            <template v-if="selectedConversation">
-              {{ conversationTitle(selectedConversation) }}｜{{ selectedConversation.orderNo }}｜{{ cleanProductName(selectedConversation.productName) }}
-            </template>
-            <template v-else>请选择会话</template>
+          <div class="page-kicker">{{ selectedConversation ? '正在处理消费者咨询' : '请选择会话' }}</div>
+        </div>
+      </div>
+      <div v-if="selectedConversation" class="order-strip">
+        <div class="order-strip-main">
+          <div class="order-strip-title">{{ cleanProductName(selectedConversation.productName) }}</div>
+          <div class="order-strip-meta">
+            <span>{{ selectedConversation.platformName || '万象商城' }}</span>
+            <span>{{ selectedConversation.orderNo }}</span>
+            <span>{{ selectedConversation.merchantName }}</span>
           </div>
         </div>
-        <el-button
-          v-if="selectedConversation?.status === 'AGENT_SERVING'"
-          type="warning"
-          plain
-          @click="endAgentService"
-        >
-          结束人工服务
-        </el-button>
+        <div class="order-strip-actions">
+          <el-tag :type="afterSaleStatusTagType(selectedConversation.afterSaleStatus)">{{ selectedConversation.afterSaleStatus || '暂无售后状态' }}</el-tag>
+          <el-tag :type="conversationStatusTagType(selectedConversation.status)">{{ formatStatus(selectedConversation.status) }}</el-tag>
+          <el-button @click="openOrderDetail(selectedConversation)">查看订单</el-button>
+        </div>
       </div>
-      <div ref="chatBoxRef" class="chat-box">
-        <div
-          v-for="message in chatMessages"
-          :key="message.id"
-          class="message-row"
-          :class="{ right: message.senderType === 'STAFF' }"
-        >
-          <div v-if="message.senderType !== 'STAFF'" class="chat-avatar" :class="avatarClass(message.senderType)">
-            <img v-if="messageAvatar(message.senderType)" :src="messageAvatar(message.senderType)" alt="" />
-            <span v-else>{{ avatarText(message.senderType) }}</span>
-          </div>
-          <div class="message-body">
-            <div class="speaker">{{ speakerText(message.senderType) }} <span>{{ formatMessageTime(message.createdAt) }}</span></div>
-            <div class="bubble" :class="message.senderType.toLowerCase()">
-              {{ message.content }}
+      <div v-else class="order-strip empty">
+        <span>请从左侧选择一个会话</span>
+      </div>
+      <div class="chat-window">
+        <div ref="chatBoxRef" class="chat-box">
+          <div
+            v-for="message in chatMessages"
+            :key="message.id"
+            class="message-row"
+            :class="{ right: message.senderType === 'STAFF' }"
+          >
+            <div v-if="message.senderType !== 'STAFF'" class="chat-avatar" :class="avatarClass(message.senderType)">
+              <img v-if="messageAvatar(message.senderType)" :src="messageAvatar(message.senderType)" alt="" />
+              <span v-else>{{ avatarText(message.senderType) }}</span>
+            </div>
+            <div class="message-body">
+              <div class="speaker">
+                <span class="speaker-name">{{ speakerText(message.senderType) }}</span>
+                <span class="role-badge" :class="message.senderType.toLowerCase()">{{ roleBadgeText(message.senderType) }}</span>
+                <span class="speaker-time">{{ formatMessageTime(message.createdAt) }}</span>
+              </div>
+              <div class="bubble" :class="message.senderType.toLowerCase()">
+                {{ message.content }}
+              </div>
+            </div>
+            <div v-if="message.senderType === 'STAFF'" class="chat-avatar merchant-avatar">
+              <img v-if="messageAvatar(message.senderType)" :src="messageAvatar(message.senderType)" alt="" />
+              <span v-else>{{ avatarText(message.senderType) }}</span>
             </div>
           </div>
-          <div v-if="message.senderType === 'STAFF'" class="chat-avatar merchant-avatar">
-            <img v-if="messageAvatar(message.senderType)" :src="messageAvatar(message.senderType)" alt="" />
-            <span v-else>{{ avatarText(message.senderType) }}</span>
+        </div>
+        <div class="quick-replies">
+          <button v-for="item in quickReplies" :key="item" type="button" @click="useQuickReply(item)">{{ item }}</button>
+        </div>
+        <div class="chat-input">
+          <el-input
+            v-model="replyContent"
+            type="textarea"
+            :autosize="{ minRows: 1, maxRows: 3 }"
+            resize="none"
+            placeholder="输入回复内容"
+            @keydown.enter.exact.prevent="sendReply"
+          />
+          <div class="input-actions">
+            <el-button
+              v-if="selectedConversation?.status === 'AGENT_SERVING'"
+              plain
+              @click="endAgentService"
+            >
+              结束人工服务
+            </el-button>
+            <el-button type="primary" @click="sendReply">发送</el-button>
           </div>
         </div>
-      </div>
-      <div class="chat-input">
-        <el-input v-model="replyContent" placeholder="输入回复内容" @keyup.enter="sendReply" />
-        <el-button type="primary" @click="sendReply">发送</el-button>
       </div>
     </div>
     <el-dialog v-model="orderDetailVisible" title="订单详情" width="620px">
       <el-descriptions v-if="detailConversation" :column="2" border>
         <el-descriptions-item label="订单编号">{{ detailConversation.orderNo }}</el-descriptions-item>
-        <el-descriptions-item label="所属平台">{{ detailConversation.platformName || '20商城' }}</el-descriptions-item>
+        <el-descriptions-item label="所属平台">{{ detailConversation.platformName || '万象商城' }}</el-descriptions-item>
         <el-descriptions-item label="商家名称">{{ detailConversation.merchantName }}</el-descriptions-item>
         <el-descriptions-item label="商品名称">{{ cleanProductName(detailConversation.productName) }}</el-descriptions-item>
         <el-descriptions-item label="售后状态">{{ detailConversation.afterSaleStatus }}</el-descriptions-item>
@@ -132,6 +167,12 @@ const merchantAvatar = ref('')
 const chatBoxRef = ref<HTMLElement | null>(null)
 const lastMessageKey = ref('')
 let pollingTimer = 0
+const quickReplies = [
+  '请您提供订单编号，我为您核实售后进度。',
+  '请上传商品问题照片，方便我们进一步判断。',
+  '售后专员正在核实，请您稍等。',
+  '已为您记录问题，后续处理结果会同步到订单详情。'
+]
 
 onMounted(async () => {
   await loadMerchantAvatar()
@@ -295,6 +336,10 @@ async function sendReply() {
   }
 }
 
+function useQuickReply(content: string) {
+  replyContent.value = content
+}
+
 async function endAgentService() {
   const conversation = selectedConversation.value
   if (!conversation) {
@@ -327,12 +372,39 @@ function formatStatus(status: string) {
   return statusMap[status] || status
 }
 
+function conversationStatusTagType(status: string) {
+  if (status === 'AGENT_SERVING') {
+    return 'warning'
+  }
+  if (status === 'AI_SERVING') {
+    return 'primary'
+  }
+  if (status === 'CLOSED') {
+    return 'info'
+  }
+  return 'info'
+}
+
+function afterSaleStatusTagType(status?: string) {
+  if (!status) return 'info'
+  if (status.includes('待') || status.includes('处理中')) {
+    return 'warning'
+  }
+  if (status.includes('完成') || status.includes('同意')) {
+    return 'success'
+  }
+  if (status.includes('拒绝')) {
+    return 'danger'
+  }
+  return 'info'
+}
+
 function conversationTitle(conversation: DemoConversation) {
-  return `${conversation.platformName || '20商城'} · ${conversation.merchantName}`
+  return `${conversation.platformName || '万象商城'} · ${conversation.merchantName}`
 }
 
 function cleanProductName(productName: string) {
-  return productName.replace(/^20商城\s*/, '').trim()
+  return productName.replace(/^万象商城\s*/, '').trim()
 }
 
 function formatMessageTime(value?: string) {
@@ -372,6 +444,15 @@ function speakerText(senderType: string) {
   return speakerMap[senderType] || senderType
 }
 
+function roleBadgeText(senderType: string) {
+  const roleMap: Record<string, string> = {
+    CONSUMER: '消费者',
+    AI: 'AI',
+    STAFF: '商家'
+  }
+  return roleMap[senderType] || senderType
+}
+
 function messageAvatar(senderType: string) {
   if (senderType === 'AI') return aiAvatar
   if (senderType === 'CONSUMER') return consumerAvatar.value
@@ -396,17 +477,115 @@ function avatarClass(senderType: string) {
 <style scoped>
 .conversation-grid {
   display: grid;
-  grid-template-columns: 360px minmax(0, 1fr);
+  grid-template-columns: 320px minmax(0, 1fr);
   gap: 16px;
   margin-top: 16px;
+  height: calc(100vh - 150px);
+  min-height: 660px;
+}
+
+.conversation-panel,
+.chat-panel {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.conversation-panel {
+  padding: 18px;
+  overflow: hidden;
+}
+
+.conversation-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.conversation-panel-header span {
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.conversation-item {
+  position: relative;
+  display: flex;
+  min-height: 104px;
+  padding: 14px 14px 14px 16px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: #fff;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+
+.conversation-item + .conversation-item {
+  margin-top: 8px;
+}
+
+.conversation-item:hover,
+.conversation-item.active {
+  border-color: #bfdbfe;
+  background: #f4f8ff;
+}
+
+.conversation-item.active::before {
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: 0;
+  width: 3px;
+  border-radius: 0 4px 4px 0;
+  background: #1677ff;
+  content: '';
+}
+
+.conversation-main {
+  min-width: 0;
+  width: 100%;
+}
+
+.conversation-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.conversation-title-row strong {
+  overflow: hidden;
+  color: #0f172a;
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversation-meta,
+.conversation-preview,
+.conversation-time {
+  overflow: hidden;
+  margin-top: 6px;
+  color: #64748b;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversation-preview {
+  color: #334155;
+}
+
+.conversation-time {
+  color: #94a3b8;
 }
 
 .chat-box {
-  height: 460px;
-  overflow: auto;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   border: 1px solid #e4e8f0;
-  border-radius: 8px;
-  padding: 14px;
+  border-radius: 8px 8px 0 0;
+  padding: 18px;
   background: #f8fafc;
 }
 
@@ -415,18 +594,71 @@ function avatarClass(senderType: string) {
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
 .chat-header .section-title {
   margin-bottom: 4px;
 }
 
+.order-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid #e4e8f0;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.order-strip.empty {
+  justify-content: center;
+  color: #94a3b8;
+}
+
+.order-strip-main {
+  min-width: 0;
+}
+
+.order-strip-title {
+  overflow: hidden;
+  color: #0f172a;
+  font-size: 16px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.order-strip-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: 6px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.order-strip-actions {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat-window {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  margin-top: 12px;
+}
+
 .bubble {
   display: inline-block;
   width: fit-content;
-  max-width: 100%;
-  padding: 10px 12px;
+  max-width: 68%;
+  padding: 11px 13px;
   border-radius: 12px;
   line-height: 1.6;
   text-align: left;
@@ -438,7 +670,7 @@ function avatarClass(senderType: string) {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
 }
 
 .message-row.right {
@@ -447,19 +679,20 @@ function avatarClass(senderType: string) {
 }
 
 .message-body {
-  max-width: 74%;
+  max-width: 78%;
 }
 
 .message-row.right .message-body {
   display: flex;
-  width: 74%;
+  max-width: 78%;
   flex-direction: column;
   align-items: flex-end;
   margin-left: auto;
 }
 
 .message-row.right .speaker {
-  width: 100%;
+  justify-content: flex-end;
+  align-self: flex-end;
   text-align: right;
 }
 
@@ -467,23 +700,56 @@ function avatarClass(senderType: string) {
   align-self: flex-end;
 }
 
+.message-row.right .speaker-name,
+.message-row.right .role-badge,
+.message-row.right .speaker-time {
+  flex: 0 0 auto;
+}
+
 .speaker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   color: #64748b;
   font-size: 12px;
   margin-bottom: 4px;
 }
 
-.speaker span {
-  margin-left: 6px;
+.speaker-time {
   color: #94a3b8;
+}
+
+.speaker-name {
+  color: #64748b;
+}
+
+.role-badge {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #2563eb;
+  font-size: 11px;
+  line-height: 18px;
+}
+
+.role-badge.consumer {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.role-badge.staff {
+  background: #dbeafe;
+  color: #1d4ed8;
 }
 
 .consumer {
   background: #fff;
+  color: #334155;
 }
 
 .ai {
   background: #e8f4ff;
+  color: #334155;
 }
 
 .staff {
@@ -529,8 +795,46 @@ function avatarClass(senderType: string) {
 
 .chat-input {
   display: flex;
+  align-items: flex-end;
   gap: 10px;
-  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid #e4e8f0;
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  background: #fff;
+}
+
+.input-actions {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.quick-replies {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px;
+  border-right: 1px solid #e4e8f0;
+  border-left: 1px solid #e4e8f0;
+  background: #fff;
+}
+
+.quick-replies button {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid #dbeafe;
+  border-radius: 999px;
+  background: #f8fbff;
+  color: #2563eb;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.quick-replies button:hover {
+  border-color: #93c5fd;
+  background: #eff6ff;
 }
 
 .clickable-line {
@@ -542,16 +846,14 @@ function avatarClass(senderType: string) {
   border-color: #b7d8ff;
 }
 
-.conversation-actions {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 8px;
-}
-
 @media (max-width: 1200px) {
   .conversation-grid {
-    grid-template-columns: 300px minmax(0, 1fr);
+    grid-template-columns: 280px minmax(0, 1fr);
+  }
+
+  .order-strip {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 </style>

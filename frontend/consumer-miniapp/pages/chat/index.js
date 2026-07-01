@@ -51,6 +51,9 @@ Page({
     this.applyPlatformBinding()
   },
   onShow() {
+    if (typeof this.getTabBar === "function" && this.getTabBar()) {
+      this.getTabBar().setData({ selected: 2 })
+    }
     this.applyPlatformBinding()
     this.startPolling()
   },
@@ -92,7 +95,7 @@ Page({
             title: item.title,
             status: item.status,
             afterSale: item.afterSale,
-            platform: "20商城",
+            platform: "万象商城",
             accountNo: binding.accountNo,
             merchantAccountNo: item.merchantAccountNo || "",
             merchantPrimaryAccountNo: item.merchantPrimaryAccountNo || "",

@@ -9,6 +9,10 @@ Page({
     product: null,
     afterSaleDetail: null,
     afterSaleDetailVisible: false,
+    returnTrackingNo: "",
+    disputeDialogVisible: false,
+    disputeReasonText: "",
+    disputeImages: [],
     reasonDialogVisible: false,
     reasonForm: null,
     reasonText: "",
@@ -35,7 +39,7 @@ Page({
   },
   onLoad(options) {
     const binding = getTwentyMallBinding()
-    if (binding && binding.platform === "20商城" && options.no && options.no.startsWith("TM")) {
+    if (binding && binding.platform === "万象商城" && options.no && options.no.startsWith("TM")) {
       wx.request({
         url: `http://localhost:8080/api/twenty-mall/consumer/orders/detail?orderNo=${options.no}`,
         success: (res) => {
@@ -45,9 +49,9 @@ Page({
               no: item.no,
               title: item.title,
               status: item.status,
-              afterSale: item.afterSale,
-              platform: "20商城",
-              merchant: item.merchant || "20商城演示店铺",
+              afterSale: this.afterSaleStatusText(item.afterSale),
+              platform: "万象商城",
+              merchant: item.merchant || "万象商城演示店铺",
               price: item.price,
               image: item.image,
               spec: item.spec,
@@ -55,7 +59,7 @@ Page({
               deliveredAt: item.deliveredAt,
               policyTags: item.policyTags,
               reviewed: !!item.reviewed,
-              service: item.afterSale === "未申请" ? "可申请售后" : "售后处理中"
+              service: this.afterSaleStatusText(item.afterSale) === "未申请" ? "可申请售后" : "售后处理中"
             })
             this.setData({ product, afterSaleDetail: null })
             if (product.afterSale && product.afterSale !== "未申请") {
@@ -82,7 +86,7 @@ Page({
     this.submitAfterSale(true)
   },
   closeAfterSaleDetail() {
-    this.setData({ afterSaleDetailVisible: false })
+    this.setData({ afterSaleDetailVisible: false, returnTrackingNo: "" })
   },
   submitAfterSale(isModify) {
     if (!this.data.product) return
@@ -289,6 +293,8 @@ Page({
               type,
               reason: description,
               evidenceImages: this.normalizeEvidenceImages(data.evidenceImages || evidenceImages),
+              returnTrackingNo: data.returnTrackingNo || "",
+              returnShippedAt: data.returnShippedAt || "",
               appliedAt: data.createdAt || this.formatNow()
             }
             wx.setStorageSync(`afterSaleDetail:${product.no}`, afterSaleDetail)
@@ -331,9 +337,155 @@ Page({
             type: this.afterSaleTypeText(data.afterSaleType),
             reason: data.description,
             evidenceImages: this.normalizeEvidenceImages(data.evidenceImages || []),
+            returnTrackingNo: data.returnTrackingNo || "",
+            returnShippedAt: data.returnShippedAt || "",
             appliedAt: data.createdAt
           }
         })
+      }
+    })
+  },
+  onReturnTrackingInput(event) {
+    this.setData({ returnTrackingNo: event.detail.value })
+  },
+  submitReturnTracking() {
+    if (!this.data.product) return
+    const trackingNo = this.data.returnTrackingNo.trim()
+    if (!trackingNo) {
+      wx.showToast({ title: "请输入快递单号", icon: "none" })
+      return
+    }
+    wx.showLoading({ title: "提交中" })
+    wx.request({
+      url: `${API_BASE}/consumer/after-sales/return-shipping`,
+      method: "POST",
+      header: { "Content-Type": "application/json" },
+      data: {
+        orderNo: this.data.product.no,
+        trackingNo
+      },
+      success: (response) => {
+        const payload = response.data || {}
+        if (payload.code !== "200") {
+          wx.showToast({ title: payload.message || "提交失败", icon: "none" })
+          return
+        }
+        const data = payload.data || {}
+        const product = {
+          ...this.data.product,
+          afterSale: this.afterSaleStatusText(data.status),
+          service: "售后处理中"
+        }
+        this.setData({
+          product,
+          returnTrackingNo: "",
+          afterSaleDetail: {
+            ...this.data.afterSaleDetail,
+            status: product.afterSale,
+            returnTrackingNo: data.returnTrackingNo || trackingNo,
+            returnShippedAt: data.returnShippedAt || this.formatNow()
+          }
+        })
+        wx.showToast({ title: "快递单号已同步", icon: "success" })
+      },
+      fail: () => {
+        wx.showToast({ title: "请先启动后端服务", icon: "none" })
+      },
+      complete: () => {
+        wx.hideLoading()
+      }
+    })
+  },
+  openDisputeDialog() {
+    this.setData({
+      disputeDialogVisible: true,
+      disputeReasonText: "",
+      disputeImages: []
+    })
+  },
+  closeDisputeDialog() {
+    this.setData({
+      disputeDialogVisible: false,
+      disputeReasonText: "",
+      disputeImages: []
+    })
+  },
+  onDisputeReasonInput(event) {
+    this.setData({ disputeReasonText: event.detail.value })
+  },
+  chooseDisputeImage() {
+    const remainCount = 3 - this.data.disputeImages.length
+    if (remainCount <= 0) {
+      wx.showToast({ title: "最多上传3张照片", icon: "none" })
+      return
+    }
+    const handleFiles = (paths) => {
+      this.prepareEvidenceImages(paths).then((images) => {
+        this.setData({
+          disputeImages: this.data.disputeImages.concat(images).slice(0, 3)
+        })
+      })
+    }
+    if (wx.chooseMedia) {
+      wx.chooseMedia({
+        count: remainCount,
+        mediaType: ["image"],
+        sourceType: ["album", "camera"],
+        success: (res) => handleFiles((res.tempFiles || []).map((item) => item.tempFilePath))
+      })
+      return
+    }
+    wx.chooseImage({
+      count: remainCount,
+      sourceType: ["album", "camera"],
+      success: (res) => handleFiles(res.tempFilePaths || [])
+    })
+  },
+  removeDisputeImage(event) {
+    const index = Number(event.currentTarget.dataset.index)
+    this.setData({
+      disputeImages: this.data.disputeImages.filter((_, currentIndex) => currentIndex !== index)
+    })
+  },
+  submitDisputeDialog() {
+    if (!this.data.product) return
+    const reason = this.data.disputeReasonText.trim()
+    if (!reason) {
+      wx.showToast({ title: "请填写平台介入原因", icon: "none" })
+      return
+    }
+    wx.showLoading({ title: "提交中" })
+    wx.request({
+      url: `${API_BASE}/consumer/after-sales/disputes`,
+      method: "POST",
+      header: { "Content-Type": "application/json" },
+      data: {
+        orderNo: this.data.product.no,
+        reason,
+        evidenceImages: this.data.disputeImages
+      },
+      success: (response) => {
+        const payload = response.data || {}
+        if (payload.code !== "200") {
+          wx.showToast({ title: payload.message || "提交失败", icon: "none" })
+          return
+        }
+        this.setData({
+          disputeDialogVisible: false,
+          disputeReasonText: "",
+          disputeImages: [],
+          afterSaleDetail: {
+            ...this.data.afterSaleDetail,
+            disputeStatus: "待审核"
+          }
+        })
+        wx.showToast({ title: "已提交平台介入", icon: "success" })
+      },
+      fail: () => {
+        wx.showToast({ title: "请先启动后端服务", icon: "none" })
+      },
+      complete: () => {
+        wx.hideLoading()
       }
     })
   },
@@ -357,6 +509,8 @@ Page({
     const map = {
       PENDING_REVIEW: "待审核",
       PROCESSING: "处理中",
+      WAITING_RETURN: "商家已同意退款，请寄回商品",
+      RETURN_SHIPPED: "用户已寄回商品",
       REJECTED: "已拒绝",
       COMPLETED: "已完成",
       CLOSED: "已关闭"

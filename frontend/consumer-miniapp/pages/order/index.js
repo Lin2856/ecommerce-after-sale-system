@@ -9,7 +9,7 @@ const FILTERS = [
 ]
 
 function cleanProductTitle(title) {
-  return String(title || "").replace(/^20商城\s*/, "").trim()
+  return String(title || "").replace(/^万象商城\s*/, "").trim()
 }
 
 function afterSaleTone(afterSale) {
@@ -62,6 +62,9 @@ Page({
     activeFilter: "ALL"
   },
   onShow() {
+    if (typeof this.getTabBar === "function" && this.getTabBar()) {
+      this.getTabBar().setData({ selected: 1 })
+    }
     fetchTwentyMallBindingsFromDatabase({
       success: (bindings) => this.loadOrdersByBindings(bindings),
       fail: (bindings) => this.loadOrdersByBindings(bindings)
@@ -82,7 +85,7 @@ Page({
             title: cleanProductTitle(item.title),
             status: item.status,
             afterSale: item.afterSale,
-            platform: "20商城",
+            platform: "万象商城",
             accountNo: binding.accountNo,
             merchant: item.merchant,
             price: item.price,
@@ -93,7 +96,7 @@ Page({
             afterSaleTone: afterSaleTone(item.afterSale)
           }))
           resolve({
-            platform: "20商城",
+            platform: "万象商城",
             accountNo: binding.accountNo,
             orders: groupOrders,
             shops: groupOrdersByMerchant(groupOrders)
@@ -101,7 +104,7 @@ Page({
         },
         fail: () => {
           resolve({
-            platform: "20商城",
+            platform: "万象商城",
             accountNo: binding.accountNo,
             orders: [],
             shops: []

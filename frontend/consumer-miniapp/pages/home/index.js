@@ -7,12 +7,16 @@ function buildPlatforms() {
     { name: "拼多多绑定", icon: "/assets/platforms/pinduoduo.png", status: "待绑定" },
     { name: "京东绑定", icon: "/assets/platforms/jd.png", status: "待绑定" },
     {
-      name: "20商城",
+      name: "万象商城",
       icon: "/assets/platforms/twenty-mall.png",
       status: "本地模拟平台",
       wide: true
     }
   ]
+}
+
+function buildOpenPlatforms() {
+  return buildPlatforms().filter((item) => !item.wide)
 }
 
 function splitAddress(fullAddress) {
@@ -33,6 +37,7 @@ function splitAddress(fullAddress) {
 Page({
   data: {
     platforms: buildPlatforms(),
+    openPlatforms: buildOpenPlatforms(),
     twentyMallBindings: [],
     twentyMallDialogVisible: false,
     twentyMallAccount: "",
@@ -40,6 +45,9 @@ Page({
     twentyMallBound: false
   },
   onShow() {
+    if (typeof this.getTabBar === "function" && this.getTabBar()) {
+      this.getTabBar().setData({ selected: 0 })
+    }
     this.refreshTwentyMallBindings()
   },
   refreshTwentyMallBindings() {
@@ -52,13 +60,14 @@ Page({
     bindings.forEach((binding) => occupyTwentyMallBinding(binding.accountNo))
     this.setData({
       platforms: buildPlatforms(),
+      openPlatforms: buildOpenPlatforms(),
       twentyMallBindings: bindings,
       twentyMallBound: !!bindings.length
     })
   },
   bindPlatform(e) {
     const name = e.currentTarget.dataset.name
-    if (name === "20商城") {
+    if (name === "万象商城") {
       this.setData({ twentyMallDialogVisible: true })
       return
     }
@@ -77,7 +86,7 @@ Page({
     const accountNo = this.data.twentyMallAccount.trim()
     const password = this.data.twentyMallPassword.trim()
     if (!accountNo || !password) {
-      wx.showToast({ title: "请输入20商城账号和密码", icon: "none" })
+      wx.showToast({ title: "请输入万象商城账号和密码", icon: "none" })
       return
     }
     if (!canBindTwentyMallAccount(accountNo)) {
@@ -100,12 +109,12 @@ Page({
           saveTwentyMallBinding({
             accountNo,
             role: "CONSUMER",
-            platform: "20商城"
+            platform: "万象商城"
           })
           this.refreshTwentyMallBindings()
           this.setData({ twentyMallDialogVisible: false, twentyMallAccount: "", twentyMallPassword: "" })
           this.importTwentyMallAddress(accountNo)
-          wx.showToast({ title: "20商城绑定成功", icon: "success" })
+          wx.showToast({ title: "万象商城绑定成功", icon: "success" })
           return
         }
         wx.showToast({ title: res.data.message || "账号或密码错误", icon: "none" })
@@ -126,12 +135,12 @@ Page({
         const parts = splitAddress(data.address)
         const importedAddress = {
           id: sourceId,
-          name: data.displayName || "20商城用户",
+          name: data.displayName || "万象商城用户",
           phone: data.phone || "13338907581",
           region: parts.region,
           detail: parts.detail,
           fullAddress: data.address,
-          source: "20商城",
+          source: "万象商城",
           sourceAccountNo: accountNo,
           isDefault: addresses.length === 0
         }
@@ -153,7 +162,7 @@ Page({
     const accountNo = e.currentTarget.dataset.account
     wx.showModal({
       title: "解除绑定",
-      content: `确定要解绑20商城账号 ${accountNo} 吗？解绑后该账号订单和客服会话将不再显示。`,
+      content: `确定要解绑万象商城账号 ${accountNo} 吗？解绑后该账号订单和客服会话将不再显示。`,
       confirmText: "解绑",
       confirmColor: "#d92d20",
       success: (res) => {

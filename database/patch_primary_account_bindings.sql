@@ -91,7 +91,7 @@ WHERE phone IS NULL OR phone = '';
 INSERT INTO platform_account_binding (
   primary_account_id, platform_code, platform_name, secondary_account_no, secondary_account_role, bind_status, bound_at, deleted
 )
-SELECT pa.id, 'TWENTY_MALL', '20商城', '20230140', 'CONSUMER', 'BOUND', NOW(), 0
+SELECT pa.id, 'TWENTY_MALL', '万象商城', '20230140', 'CONSUMER', 'BOUND', NOW(), 0
 FROM primary_account pa
 WHERE pa.account_no = '13338907581' AND pa.account_type = 'CONSUMER'
 ON DUPLICATE KEY UPDATE
@@ -105,7 +105,7 @@ ON DUPLICATE KEY UPDATE
 INSERT INTO platform_account_binding (
   primary_account_id, platform_code, platform_name, secondary_account_no, secondary_account_role, bind_status, bound_at, deleted
 )
-SELECT pa.id, 'TWENTY_MALL', '20商城', '20230141', 'CONSUMER', 'BOUND', NOW(), 0
+SELECT pa.id, 'TWENTY_MALL', '万象商城', '20230141', 'CONSUMER', 'BOUND', NOW(), 0
 FROM primary_account pa
 WHERE pa.account_no = '13338907581' AND pa.account_type = 'CONSUMER'
 ON DUPLICATE KEY UPDATE
@@ -119,7 +119,7 @@ ON DUPLICATE KEY UPDATE
 INSERT INTO platform_account_binding (
   primary_account_id, platform_code, platform_name, secondary_account_no, secondary_account_role, bind_status, bound_at, deleted
 )
-SELECT pa.id, 'TWENTY_MALL', '20商城', '22222222', 'CONSUMER', 'BOUND', NOW(), 0
+SELECT pa.id, 'TWENTY_MALL', '万象商城', '22222222', 'CONSUMER', 'BOUND', NOW(), 0
 FROM primary_account pa
 WHERE pa.account_no = '13338907582' AND pa.account_type = 'CONSUMER'
 ON DUPLICATE KEY UPDATE
@@ -133,7 +133,7 @@ ON DUPLICATE KEY UPDATE
 INSERT INTO platform_account_binding (
   primary_account_id, platform_code, platform_name, secondary_account_no, secondary_account_role, bind_status, bound_at, deleted
 )
-SELECT pa.id, 'TWENTY_MALL', '20商城', tm.account_no, 'MERCHANT', 'BOUND', NOW(), 0
+SELECT pa.id, 'TWENTY_MALL', '万象商城', tm.account_no, 'MERCHANT', 'BOUND', NOW(), 0
 FROM primary_account pa
 JOIN twenty_mall_account tm ON tm.account_no IN ('20230141', '20230142')
   AND tm.account_role = 'MERCHANT'
@@ -150,7 +150,7 @@ ON DUPLICATE KEY UPDATE
 INSERT INTO platform_account_binding (
   primary_account_id, platform_code, platform_name, secondary_account_no, secondary_account_role, bind_status, bound_at, deleted
 )
-SELECT pa.id, 'TWENTY_MALL', '20商城', tm.account_no, 'MERCHANT', 'BOUND', NOW(), 0
+SELECT pa.id, 'TWENTY_MALL', '万象商城', tm.account_no, 'MERCHANT', 'BOUND', NOW(), 0
 FROM primary_account pa
 JOIN twenty_mall_account tm ON tm.account_no IN ('22222223', '22222224')
   AND tm.account_role = 'MERCHANT'

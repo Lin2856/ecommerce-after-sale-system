@@ -156,7 +156,7 @@ CREATE TABLE twenty_mall_account (
   deleted TINYINT(1) NOT NULL DEFAULT 0,
   UNIQUE KEY uk_twenty_mall_account_no_role (account_no, account_role),
   KEY idx_twenty_mall_account_role (account_role)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='20商城模拟账号';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='万象商城模拟账号';
 
 CREATE TABLE twenty_mall_product (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -175,7 +175,7 @@ CREATE TABLE twenty_mall_product (
   UNIQUE KEY uk_twenty_mall_product_no (product_no),
   KEY idx_twenty_mall_product_merchant (merchant_account_id),
   CONSTRAINT fk_twenty_mall_product_merchant FOREIGN KEY (merchant_account_id) REFERENCES twenty_mall_account (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='20商城模拟商品';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='万象商城模拟商品';
 
 CREATE TABLE twenty_mall_order (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -199,7 +199,7 @@ CREATE TABLE twenty_mall_order (
   KEY idx_twenty_mall_order_merchant (merchant_account_id),
   CONSTRAINT fk_twenty_mall_order_consumer FOREIGN KEY (consumer_account_id) REFERENCES twenty_mall_account (id),
   CONSTRAINT fk_twenty_mall_order_merchant FOREIGN KEY (merchant_account_id) REFERENCES twenty_mall_account (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='20商城模拟订单';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='万象商城模拟订单';
 
 CREATE TABLE twenty_mall_order_item (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -218,7 +218,7 @@ CREATE TABLE twenty_mall_order_item (
   KEY idx_twenty_mall_order_item_order (order_id),
   CONSTRAINT fk_twenty_mall_order_item_order FOREIGN KEY (order_id) REFERENCES twenty_mall_order (id),
   CONSTRAINT fk_twenty_mall_order_item_product FOREIGN KEY (product_id) REFERENCES twenty_mall_product (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='20商城模拟订单明细';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='万象商城模拟订单明细';
 
 CREATE TABLE twenty_mall_after_sale (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -230,6 +230,8 @@ CREATE TABLE twenty_mall_after_sale (
   description TEXT NULL,
   requested_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
   status VARCHAR(32) NOT NULL,
+  return_tracking_no VARCHAR(64) NULL,
+  return_shipped_at DATETIME NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   deleted TINYINT(1) NOT NULL DEFAULT 0,
@@ -237,7 +239,7 @@ CREATE TABLE twenty_mall_after_sale (
   KEY idx_twenty_mall_after_sale_order (order_id),
   CONSTRAINT fk_twenty_mall_after_sale_order FOREIGN KEY (order_id) REFERENCES twenty_mall_order (id),
   CONSTRAINT fk_twenty_mall_after_sale_item FOREIGN KEY (order_item_id) REFERENCES twenty_mall_order_item (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='20商城模拟售后';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='万象商城模拟售后';
 
 CREATE TABLE twenty_mall_review (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -256,7 +258,7 @@ CREATE TABLE twenty_mall_review (
   CONSTRAINT fk_twenty_mall_review_order FOREIGN KEY (order_id) REFERENCES twenty_mall_order (id),
   CONSTRAINT fk_twenty_mall_review_product FOREIGN KEY (product_id) REFERENCES twenty_mall_product (id),
   CONSTRAINT fk_twenty_mall_review_consumer FOREIGN KEY (consumer_account_id) REFERENCES twenty_mall_account (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='20商城模拟评价';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='万象商城模拟评价';
 
 CREATE TABLE twenty_mall_review_dispute (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -274,7 +276,7 @@ CREATE TABLE twenty_mall_review_dispute (
   KEY idx_twenty_mall_review_dispute_status (status),
   CONSTRAINT fk_twenty_mall_review_dispute_review FOREIGN KEY (review_id) REFERENCES twenty_mall_review (id),
   CONSTRAINT fk_twenty_mall_review_dispute_merchant FOREIGN KEY (merchant_account_id) REFERENCES twenty_mall_account (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='20商城评价异议';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='万象商城评价异议';
 
 CREATE TABLE twenty_mall_conversation (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -293,7 +295,7 @@ CREATE TABLE twenty_mall_conversation (
   UNIQUE KEY uk_twenty_mall_conversation_order (order_id),
   KEY idx_twenty_mall_conversation_status (status),
   CONSTRAINT fk_twenty_mall_conversation_order FOREIGN KEY (order_id) REFERENCES twenty_mall_order (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='20商城客服会话';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='万象商城客服会话';
 
 CREATE TABLE twenty_mall_chat_message (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -307,7 +309,7 @@ CREATE TABLE twenty_mall_chat_message (
   deleted TINYINT(1) NOT NULL DEFAULT 0,
   KEY idx_twenty_mall_chat_message_conversation (conversation_id, created_at),
   CONSTRAINT fk_twenty_mall_chat_message_conversation FOREIGN KEY (conversation_id) REFERENCES twenty_mall_conversation (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='20商城聊天消息';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='万象商城聊天消息';
 
 CREATE TABLE external_shop_binding (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -860,6 +862,25 @@ CREATE TABLE after_sale_rule (
   CONSTRAINT fk_after_sale_rule_merchant FOREIGN KEY (merchant_id) REFERENCES merchant (id),
   CONSTRAINT fk_after_sale_rule_created_by FOREIGN KEY (created_by) REFERENCES sys_user (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='售后规则';
+
+CREATE TABLE twenty_mall_after_sale_dispute (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  after_sale_id BIGINT NOT NULL,
+  order_no VARCHAR(64) NOT NULL,
+  consumer_reason TEXT NOT NULL,
+  consumer_evidence_json JSON NULL,
+  merchant_evidence_text TEXT NULL,
+  merchant_evidence_json JSON NULL,
+  admin_result VARCHAR(32) NULL,
+  admin_note TEXT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted TINYINT(1) NOT NULL DEFAULT 0,
+  KEY idx_twenty_dispute_after_sale (after_sale_id),
+  KEY idx_twenty_dispute_order (order_no),
+  KEY idx_twenty_dispute_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='万象商城售后争议订单';
 
 CREATE TABLE ai_config (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,

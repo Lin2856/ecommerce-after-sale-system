@@ -1,10 +1,12 @@
 package com.example.mall.module.platform.controller;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.example.mall.common.response.ApiResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.file.Files;
@@ -135,17 +137,17 @@ public class TwentyMallDemoController {
     public ApiResponse<List<TwentyMallAdminSyncLogResponse>> adminSyncMonitor() {
         return ApiResponse.success(List.of(
             buildSyncLog(
-                "20商城订单数据同步",
+                "万象商城订单数据同步",
                 "SELECT COUNT(*) FROM twenty_mall_order WHERE deleted = 0",
                 "SELECT MAX(updated_at) FROM twenty_mall_order WHERE deleted = 0"
             ),
             buildSyncLog(
-                "20商城售后数据同步",
+                "万象商城售后数据同步",
                 "SELECT COUNT(*) FROM twenty_mall_after_sale WHERE deleted = 0",
                 "SELECT MAX(updated_at) FROM twenty_mall_after_sale WHERE deleted = 0"
             ),
             buildSyncLog(
-                "20商城评价数据同步",
+                "万象商城评价数据同步",
                 "SELECT COUNT(*) FROM twenty_mall_review WHERE deleted = 0",
                 "SELECT MAX(updated_at) FROM twenty_mall_review WHERE deleted = 0"
             )
@@ -176,7 +178,7 @@ public class TwentyMallDemoController {
             String riskLevel = reviewRiskLevel(productScore, serviceScore, content);
             return new TwentyMallAdminReviewResponse(
                 rs.getLong("id"),
-                "20商城",
+                "万象商城",
                 rs.getString("order_no"),
                 rs.getString("merchant_name"),
                 cleanProductName(rs.getString("product_name")),
@@ -682,7 +684,7 @@ public class TwentyMallDemoController {
                 UNIQUE KEY uk_twenty_mall_review_dispute_review (review_id),
                 KEY idx_twenty_mall_review_dispute_merchant (merchant_account_id),
                 KEY idx_twenty_mall_review_dispute_status (status)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='20商城评价异议'
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='万象商城评价异议'
             """);
     }
 
@@ -800,7 +802,7 @@ public class TwentyMallDemoController {
             """;
         return jdbcTemplate.query(sql, rs -> {
             if (!rs.next()) {
-                return ApiResponse.fail("401", "20商城账号或密码错误", traceId());
+                return ApiResponse.fail("401", "万象商城账号或密码错误", traceId());
             }
             TwentyMallLoginResponse response = new TwentyMallLoginResponse(
                 rs.getString("account_no"),
@@ -923,7 +925,7 @@ public class TwentyMallDemoController {
             """
             INSERT INTO platform_account_binding (
               primary_account_id, platform_code, platform_name, secondary_account_no, secondary_account_role, bind_status, bound_at, deleted
-            ) VALUES (?, 'TWENTY_MALL', '20商城', ?, ?, 'BOUND', NOW(), 0)
+            ) VALUES (?, 'TWENTY_MALL', '万象商城', ?, ?, 'BOUND', NOW(), 0)
             ON DUPLICATE KEY UPDATE
               primary_account_id = VALUES(primary_account_id),
               bind_status = 'BOUND',
@@ -1009,7 +1011,7 @@ public class TwentyMallDemoController {
             """;
         return jdbcTemplate.query(sql, rs -> {
             if (!rs.next()) {
-                return ApiResponse.fail("404", "20商城账号不存在", traceId());
+                return ApiResponse.fail("404", "万象商城账号不存在", traceId());
             }
             return ApiResponse.success(new TwentyMallProfileResponse(
                 rs.getString("account_no"),
@@ -1117,7 +1119,7 @@ public class TwentyMallDemoController {
             String riskLevel = reviewRiskLevel(productScore, serviceScore, content);
             return new TwentyMallMerchantReviewResponse(
                 rs.getLong("id"),
-                "20商城",
+                "万象商城",
                 rs.getString("order_no"),
                 rs.getString("product_name"),
                 rs.getString("merchant_name"),
@@ -1301,6 +1303,7 @@ public class TwentyMallDemoController {
         String sql = """
             SELECT a.id, a.after_sale_no, o.order_no, a.after_sale_type, a.reason_type, a.description,
                    a.requested_amount, a.status, a.created_at,
+                   a.return_tracking_no, a.return_shipped_at,
                    i.product_name, ma.display_name AS merchant_name
             FROM twenty_mall_after_sale a
             JOIN twenty_mall_order o ON o.id = a.order_id
@@ -1326,10 +1329,12 @@ public class TwentyMallDemoController {
                 formatTime(rs.getTimestamp("created_at")),
                 rs.getString("product_name"),
                 "TWENTY_MALL",
-                "20商城",
+                "万象商城",
                 rs.getString("merchant_name"),
                 description.reason(),
-                description.evidenceImages()
+                description.evidenceImages(),
+                rs.getString("return_tracking_no"),
+                formatTime(rs.getTimestamp("return_shipped_at"))
             );
         }, accountNo), traceId());
     }
@@ -1407,10 +1412,12 @@ public class TwentyMallDemoController {
                 formatTime(new Timestamp(System.currentTimeMillis())),
                 productName,
                 "TWENTY_MALL",
-                "20商城",
+                "万象商城",
                 merchantName,
                 request.description(),
-                evidenceUrls
+                evidenceUrls,
+                "",
+                ""
             ), traceId());
         }, request.orderNo());
     }
@@ -1475,7 +1482,7 @@ public class TwentyMallDemoController {
             """;
         return jdbcTemplate.query(sql, rs -> {
             if (!rs.next()) {
-                return ApiResponse.fail("404", "20商城订单不存在", traceId());
+                return ApiResponse.fail("404", "万象商城订单不存在", traceId());
             }
             return ApiResponse.success(new TwentyMallOrderResponse(
                 rs.getString("order_no"),
@@ -1503,6 +1510,7 @@ public class TwentyMallDemoController {
         String sql = """
             SELECT a.id, a.after_sale_no, o.order_no, a.after_sale_type, a.reason_type, a.description,
                    a.requested_amount, a.status, a.created_at,
+                   a.return_tracking_no, a.return_shipped_at,
                    i.product_name, ma.display_name AS merchant_name
             FROM twenty_mall_after_sale a
             JOIN twenty_mall_order o ON o.id = a.order_id
@@ -1531,17 +1539,22 @@ public class TwentyMallDemoController {
                 formatTime(rs.getTimestamp("created_at")),
                 rs.getString("product_name"),
                 "TWENTY_MALL",
-                "20商城",
+                "万象商城",
                 rs.getString("merchant_name"),
                 description.reason(),
-                description.evidenceImages()
+                description.evidenceImages(),
+                rs.getString("return_tracking_no"),
+                formatTime(rs.getTimestamp("return_shipped_at"))
             ), traceId());
         }, orderNo);
     }
 
     @PostMapping("/merchant/after-sales/review")
     public ApiResponse<TwentyMallAfterSaleResponse> reviewAfterSale(@Valid @RequestBody TwentyMallAfterSaleReviewRequest request) {
-        String nextStatus = "REJECT".equals(request.result()) ? "REJECTED" : "PROCESSING";
+        String afterSaleType = findAfterSaleType(request.afterSaleId());
+        String nextStatus = "REJECT".equals(request.result())
+            ? "REJECTED"
+            : ("REFUND_ONLY".equals(afterSaleType) ? "PROCESSING" : "WAITING_RETURN");
         String orderStatus = "REJECT".equals(request.result()) ? "REJECTED" : "AFTER_SALE";
         String itemStatus = "REJECT".equals(request.result()) ? "REJECTED" : "APPLIED";
         if ("REJECT".equals(request.result())) {
@@ -1570,6 +1583,245 @@ public class TwentyMallDemoController {
             WHERE a.id = ? AND a.deleted = 0
             """,
             itemStatus,
+            request.afterSaleId()
+        );
+        return merchantAfterSaleById(request.afterSaleId());
+    }
+
+    @PostMapping("/consumer/after-sales/return-shipping")
+    public ApiResponse<TwentyMallAfterSaleResponse> submitReturnShipping(@Valid @RequestBody TwentyMallReturnShippingRequest request) {
+        String trackingNo = request.trackingNo() == null ? "" : request.trackingNo().trim();
+        if (trackingNo.isBlank()) {
+            return ApiResponse.fail("400", "请填写退货快递单号", traceId());
+        }
+        List<Long> rows = jdbcTemplate.query(
+            """
+            SELECT a.id
+            FROM twenty_mall_after_sale a
+            JOIN twenty_mall_order o ON o.id = a.order_id
+            WHERE o.order_no = ? AND a.deleted = 0 AND o.deleted = 0
+            ORDER BY a.id DESC
+            LIMIT 1
+            """,
+            (rs, rowNum) -> rs.getLong("id"),
+            request.orderNo()
+        );
+        if (rows.isEmpty()) {
+            return ApiResponse.fail("404", "该订单暂无有效售后申请", traceId());
+        }
+        Long afterSaleId = rows.get(0);
+        jdbcTemplate.update(
+            """
+            UPDATE twenty_mall_after_sale
+            SET return_tracking_no = ?, return_shipped_at = NOW(), status = 'RETURN_SHIPPED', updated_at = NOW()
+            WHERE id = ? AND deleted = 0
+            """,
+            trackingNo,
+            afterSaleId
+        );
+        return merchantAfterSaleById(afterSaleId);
+    }
+
+    @PostMapping("/consumer/after-sales/disputes")
+    public ApiResponse<TwentyMallAfterSaleDisputeResponse> submitAfterSaleDispute(@Valid @RequestBody TwentyMallAfterSaleDisputeSubmitRequest request) {
+        List<Long> afterSaleIds = jdbcTemplate.query(
+            """
+            SELECT a.id
+            FROM twenty_mall_after_sale a
+            JOIN twenty_mall_order o ON o.id = a.order_id
+            WHERE o.order_no = ? AND a.status = 'REJECTED'
+              AND a.after_sale_type IN ('REFUND_ONLY', 'RETURN_REFUND')
+              AND a.deleted = 0 AND o.deleted = 0
+            ORDER BY a.id DESC
+            LIMIT 1
+            """,
+            (rs, rowNum) -> rs.getLong("id"),
+            request.orderNo()
+        );
+        if (afterSaleIds.isEmpty()) {
+            return ApiResponse.fail("400", "只有商家已拒绝的仅退款或退货退款申请才能申请平台介入", traceId());
+        }
+        Long afterSaleId = afterSaleIds.get(0);
+        String evidenceJson = toJsonArray(saveEvidenceImages("TMDIS-C-" + afterSaleId, request.evidenceImages()));
+        List<Long> existing = jdbcTemplate.query(
+            "SELECT id FROM twenty_mall_after_sale_dispute WHERE after_sale_id = ? AND deleted = 0 ORDER BY id DESC LIMIT 1",
+            (rs, rowNum) -> rs.getLong("id"),
+            afterSaleId
+        );
+        Long disputeId;
+        if (existing.isEmpty()) {
+            jdbcTemplate.update(
+                """
+                INSERT INTO twenty_mall_after_sale_dispute (
+                  after_sale_id, order_no, consumer_reason, consumer_evidence_json, status
+                ) VALUES (?, ?, ?, ?, 'PENDING')
+                """,
+                afterSaleId,
+                request.orderNo(),
+                request.reason(),
+                evidenceJson
+            );
+            disputeId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+        } else {
+            disputeId = existing.get(0);
+            jdbcTemplate.update(
+                """
+                UPDATE twenty_mall_after_sale_dispute
+                SET consumer_reason = ?, consumer_evidence_json = ?, status = 'PENDING',
+                    admin_result = NULL, admin_note = NULL, updated_at = NOW()
+                WHERE id = ? AND deleted = 0
+                """,
+                request.reason(),
+                evidenceJson,
+                disputeId
+            );
+        }
+        return afterSaleDisputeById(disputeId);
+    }
+
+    @PostMapping("/merchant/after-sales/disputes/{disputeId}/evidence")
+    public ApiResponse<TwentyMallAfterSaleDisputeResponse> submitMerchantDisputeEvidence(
+        @PathVariable Long disputeId,
+        @RequestBody TwentyMallMerchantDisputeEvidenceRequest request
+    ) {
+        int affected = jdbcTemplate.update(
+            """
+            UPDATE twenty_mall_after_sale_dispute
+            SET merchant_evidence_text = ?, merchant_evidence_json = ?, updated_at = NOW()
+            WHERE id = ? AND deleted = 0 AND status = 'PENDING'
+            """,
+            request.evidenceText() == null ? "" : request.evidenceText().trim(),
+            toJsonArray(saveEvidenceImages("TMDIS-M-" + disputeId, request.evidenceImages())),
+            disputeId
+        );
+        if (affected <= 0) {
+            return ApiResponse.fail("404", "待处理争议不存在或已处理完成", traceId());
+        }
+        return afterSaleDisputeById(disputeId);
+    }
+
+    @GetMapping("/merchant/after-sales/disputes")
+    public ApiResponse<List<TwentyMallAfterSaleDisputeResponse>> merchantAfterSaleDisputes(@RequestParam String accountNo) {
+        String safeAccountNo = accountNo == null ? "" : accountNo.replace("'", "''");
+        return ApiResponse.success(queryAfterSaleDisputes("WHERE ma.account_no = '" + safeAccountNo + "'"), traceId());
+    }
+
+    @GetMapping("/admin/after-sales/disputes")
+    public ApiResponse<List<TwentyMallAfterSaleDisputeResponse>> adminAfterSaleDisputes() {
+        return ApiResponse.success(queryAfterSaleDisputes(""), traceId());
+    }
+
+    @PostMapping("/admin/after-sales/disputes/{disputeId}/review")
+    public ApiResponse<TwentyMallAfterSaleDisputeResponse> reviewAfterSaleDispute(
+        @PathVariable Long disputeId,
+        @Valid @RequestBody TwentyMallAdminDisputeReviewRequest request
+    ) {
+        List<Map<String, Object>> rows = jdbcTemplate.query(
+            """
+            SELECT d.after_sale_id, d.status
+            FROM twenty_mall_after_sale_dispute d
+            WHERE d.id = ? AND d.deleted = 0
+            LIMIT 1
+            """,
+            (rs, rowNum) -> Map.of(
+                "afterSaleId", rs.getLong("after_sale_id"),
+                "status", rs.getString("status")
+            ),
+            disputeId
+        );
+        if (rows.isEmpty()) {
+            return ApiResponse.fail("404", "争议订单不存在", traceId());
+        }
+        Long afterSaleId = (Long) rows.get(0).get("afterSaleId");
+        boolean supportConsumer = "SUPPORT_CONSUMER".equals(request.result());
+        jdbcTemplate.update(
+            """
+            UPDATE twenty_mall_after_sale_dispute
+            SET status = 'RESOLVED', admin_result = ?, admin_note = ?, updated_at = NOW()
+            WHERE id = ? AND deleted = 0
+            """,
+            supportConsumer ? "支持消费者" : "支持商家",
+            request.adminNote(),
+            disputeId
+        );
+        if (supportConsumer) {
+            jdbcTemplate.update(
+                "UPDATE twenty_mall_after_sale SET status = 'COMPLETED', updated_at = NOW() WHERE id = ? AND deleted = 0",
+                afterSaleId
+            );
+            jdbcTemplate.update(
+                """
+                UPDATE twenty_mall_order o
+                JOIN twenty_mall_after_sale a ON a.order_id = o.id
+                SET o.order_status = 'REFUNDED', o.pay_status = 'REFUNDED',
+                    o.after_sale_status = 'COMPLETED', o.updated_at = NOW()
+                WHERE a.id = ? AND a.deleted = 0
+                """,
+                afterSaleId
+            );
+            jdbcTemplate.update(
+                """
+                UPDATE twenty_mall_order_item i
+                JOIN twenty_mall_after_sale a ON a.order_item_id = i.id
+                SET i.after_sale_status = 'COMPLETED', i.updated_at = NOW()
+                WHERE a.id = ? AND a.deleted = 0
+                """,
+                afterSaleId
+            );
+        }
+        return afterSaleDisputeById(disputeId);
+    }
+
+    @PostMapping("/merchant/after-sales/refund")
+    public ApiResponse<TwentyMallAfterSaleResponse> agreeRefundAfterReturn(@Valid @RequestBody TwentyMallAfterSaleRefundRequest request) {
+        List<Map<String, String>> rows = jdbcTemplate.query(
+            "SELECT status, after_sale_type FROM twenty_mall_after_sale WHERE id = ? AND deleted = 0 LIMIT 1",
+            (rs, rowNum) -> Map.of(
+                "status", rs.getString("status"),
+                "afterSaleType", rs.getString("after_sale_type")
+            ),
+            request.afterSaleId()
+        );
+        if (rows.isEmpty()) {
+            return ApiResponse.fail("404", "售后申请不存在", traceId());
+        }
+        String currentStatus = rows.get(0).get("status");
+        String afterSaleType = rows.get(0).get("afterSaleType");
+        boolean canFinishReturnRefund = "RETURN_SHIPPED".equals(currentStatus);
+        boolean canFinishRefundOnly = "REFUND_ONLY".equals(afterSaleType)
+            && List.of("PROCESSING", "WAITING_RETURN", "RETURN_SHIPPED").contains(currentStatus);
+        if (!canFinishReturnRefund && !canFinishRefundOnly) {
+            return ApiResponse.fail("400", "当前售后状态不支持直接同意退款", traceId());
+        }
+        jdbcTemplate.update(
+            """
+            UPDATE twenty_mall_after_sale
+            SET status = 'COMPLETED',
+                updated_at = NOW()
+            WHERE id = ? AND deleted = 0
+            """,
+            request.afterSaleId()
+        );
+        jdbcTemplate.update(
+            """
+            UPDATE twenty_mall_order o
+            JOIN twenty_mall_after_sale a ON a.order_id = o.id
+            SET o.order_status = 'REFUNDED',
+                o.pay_status = 'REFUNDED',
+                o.after_sale_status = 'COMPLETED',
+                o.updated_at = NOW()
+            WHERE a.id = ? AND a.deleted = 0
+            """,
+            request.afterSaleId()
+        );
+        jdbcTemplate.update(
+            """
+            UPDATE twenty_mall_order_item i
+            JOIN twenty_mall_after_sale a ON a.order_item_id = i.id
+            SET i.after_sale_status = 'COMPLETED',
+                i.updated_at = NOW()
+            WHERE a.id = ? AND a.deleted = 0
+            """,
             request.afterSaleId()
         );
         return merchantAfterSaleById(request.afterSaleId());
@@ -1998,6 +2250,43 @@ public class TwentyMallDemoController {
     ) {
     }
 
+    public record TwentyMallReturnShippingRequest(
+        @NotBlank(message = "订单号不能为空")
+        String orderNo,
+        @NotBlank(message = "退货快递单号不能为空")
+        String trackingNo
+    ) {
+    }
+
+    public record TwentyMallAfterSaleRefundRequest(
+        @NotNull(message = "售后申请ID不能为空")
+        Long afterSaleId
+    ) {
+    }
+
+    public record TwentyMallAfterSaleDisputeSubmitRequest(
+        @NotBlank(message = "订单号不能为空")
+        String orderNo,
+        @NotBlank(message = "平台介入原因不能为空")
+        String reason,
+        List<String> evidenceImages
+    ) {
+    }
+
+    public record TwentyMallMerchantDisputeEvidenceRequest(
+        String evidenceText,
+        List<String> evidenceImages
+    ) {
+    }
+
+    public record TwentyMallAdminDisputeReviewRequest(
+        @NotBlank(message = "处理结果不能为空")
+        String result,
+        @NotBlank(message = "处理说明不能为空")
+        String adminNote
+    ) {
+    }
+
     public record TwentyMallReviewSubmitRequest(
         @NotBlank(message = "订单号不能为空")
         String orderNo,
@@ -2027,7 +2316,30 @@ public class TwentyMallDemoController {
         String platformName,
         String shopName,
         String description,
-        List<String> evidenceImages
+        List<String> evidenceImages,
+        String returnTrackingNo,
+        String returnShippedAt
+    ) {
+    }
+
+    public record TwentyMallAfterSaleDisputeResponse(
+        Long id,
+        Long afterSaleId,
+        String orderNo,
+        String afterSaleType,
+        String afterSaleStatus,
+        String productName,
+        String platformName,
+        String shopName,
+        String consumerReason,
+        List<String> consumerEvidenceImages,
+        String merchantEvidenceText,
+        List<String> merchantEvidenceImages,
+        String adminResult,
+        String adminNote,
+        String status,
+        String createdAt,
+        String updatedAt
     ) {
     }
 
@@ -2153,6 +2465,8 @@ public class TwentyMallDemoController {
     private String afterSaleStatusText(String status) {
         return switch (status) {
             case "AFTER_SALE", "PROCESSING" -> "处理中";
+            case "WAITING_RETURN" -> "商家已同意退款，请寄回商品";
+            case "RETURN_SHIPPED" -> "用户已寄回商品";
             case "PENDING_REVIEW" -> "待审核";
             case "NONE" -> "未申请";
             case "COMPLETED" -> "已完成";
@@ -2178,8 +2492,35 @@ public class TwentyMallDemoController {
             case "PENDING" -> "待审核";
             case "APPROVED" -> "已通过";
             case "REJECTED" -> "已拒绝";
+            case "RESOLVED" -> "已处理";
             default -> "";
         };
+    }
+
+    private String toJsonArray(List<String> values) {
+        try {
+            return objectMapper.writeValueAsString(values == null ? List.of() : values);
+        } catch (JsonProcessingException e) {
+            return "[]";
+        }
+    }
+
+    private List<String> parseStringList(String json) {
+        if (json == null || json.isBlank()) {
+            return List.of();
+        }
+        try {
+            return objectMapper.readValue(json, new TypeReference<List<String>>() {});
+        } catch (JsonProcessingException e) {
+            return List.of();
+        }
+    }
+
+    private String removeTwentyMallPrefix(String productName) {
+        if (productName == null) {
+            return "";
+        }
+        return productName.replaceFirst("^万象商城\\s*", "").trim();
     }
 
     private String notificationTypeText(String type) {
@@ -2204,6 +2545,8 @@ public class TwentyMallDemoController {
             .replace("OTHER", "其他原因")
             .replace("PENDING_REVIEW", "待审核")
             .replace("PROCESSING", "处理中")
+            .replace("WAITING_RETURN", "商家已同意退款，请寄回商品")
+            .replace("RETURN_SHIPPED", "用户已寄回商品")
             .replace("APPROVED", "已通过")
             .replace("REJECTED", "已拒绝")
             .replace("COMPLETED", "已完成")
@@ -2477,7 +2820,7 @@ public class TwentyMallDemoController {
         if (productName == null) {
             return "";
         }
-        return productName.replaceFirst("^20商城\\s*", "").trim();
+        return productName.replaceFirst("^万象商城\\s*", "").trim();
     }
 
     private String existingAfterSaleNo(long orderId, long itemId) {
@@ -2579,6 +2922,7 @@ public class TwentyMallDemoController {
         String sql = """
             SELECT a.id, a.after_sale_no, o.order_no, a.after_sale_type, a.reason_type, a.description,
                    a.requested_amount, a.status, a.created_at,
+                   a.return_tracking_no, a.return_shipped_at,
                    i.product_name, ma.display_name AS merchant_name
             FROM twenty_mall_after_sale a
             JOIN twenty_mall_order o ON o.id = a.order_id
@@ -2606,12 +2950,71 @@ public class TwentyMallDemoController {
                 formatTime(rs.getTimestamp("created_at")),
                 rs.getString("product_name"),
                 "TWENTY_MALL",
-                "20商城",
+                "万象商城",
                 rs.getString("merchant_name"),
                 description.reason(),
-                description.evidenceImages()
+                description.evidenceImages(),
+                rs.getString("return_tracking_no"),
+                formatTime(rs.getTimestamp("return_shipped_at"))
             ), traceId());
         }, afterSaleId);
+    }
+
+    private String findAfterSaleType(Long afterSaleId) {
+        List<String> rows = jdbcTemplate.query(
+            "SELECT after_sale_type FROM twenty_mall_after_sale WHERE id = ? AND deleted = 0 LIMIT 1",
+            (rs, rowNum) -> rs.getString("after_sale_type"),
+            afterSaleId
+        );
+        return rows.isEmpty() ? "" : rows.get(0);
+    }
+
+    private ApiResponse<TwentyMallAfterSaleDisputeResponse> afterSaleDisputeById(Long disputeId) {
+        List<TwentyMallAfterSaleDisputeResponse> rows = queryAfterSaleDisputes("WHERE d.id = " + disputeId);
+        if (rows.isEmpty()) {
+            return ApiResponse.fail("404", "争议订单不存在", traceId());
+        }
+        return ApiResponse.success(rows.get(0), traceId());
+    }
+
+    private List<TwentyMallAfterSaleDisputeResponse> queryAfterSaleDisputes(String whereClause) {
+        String sql = """
+            SELECT d.id, d.after_sale_id, d.order_no, d.consumer_reason, d.consumer_evidence_json,
+                   d.merchant_evidence_text, d.merchant_evidence_json, d.admin_result, d.admin_note,
+                   d.status AS dispute_status, d.created_at, d.updated_at,
+                   a.after_sale_type, a.status AS after_sale_status,
+                   i.product_name, ma.display_name AS merchant_name
+            FROM twenty_mall_after_sale_dispute d
+            JOIN twenty_mall_after_sale a ON a.id = d.after_sale_id
+            JOIN twenty_mall_order o ON o.id = a.order_id
+            JOIN twenty_mall_order_item i ON i.id = a.order_item_id
+            JOIN twenty_mall_account ma ON ma.id = o.merchant_account_id
+            %s
+              %s d.deleted = 0 AND a.deleted = 0 AND o.deleted = 0 AND i.deleted = 0
+            ORDER BY d.updated_at DESC, d.id DESC
+            """.formatted(
+                whereClause == null || whereClause.isBlank() ? "WHERE" : whereClause,
+                whereClause == null || whereClause.isBlank() ? "" : "AND"
+            );
+        return jdbcTemplate.query(sql, (rs, rowNum) -> new TwentyMallAfterSaleDisputeResponse(
+            rs.getLong("id"),
+            rs.getLong("after_sale_id"),
+            rs.getString("order_no"),
+            rs.getString("after_sale_type"),
+            afterSaleStatusText(rs.getString("after_sale_status")),
+            removeTwentyMallPrefix(rs.getString("product_name")),
+            "万象商城",
+            rs.getString("merchant_name"),
+            rs.getString("consumer_reason"),
+            parseStringList(rs.getString("consumer_evidence_json")),
+            rs.getString("merchant_evidence_text"),
+            parseStringList(rs.getString("merchant_evidence_json")),
+            rs.getString("admin_result"),
+            rs.getString("admin_note"),
+            disputeStatusText(rs.getString("dispute_status")),
+            formatTime(rs.getTimestamp("created_at")),
+            formatTime(rs.getTimestamp("updated_at"))
+        ));
     }
 
     private String afterSalePriority(String reasonType) {
@@ -2635,6 +3038,12 @@ public class TwentyMallDemoController {
             }
             return "商家已拒绝售后申请";
         }
+        if ("WAITING_RETURN".equals(status)) {
+            return "商家已同意退款，请消费者寄回商品并填写退货快递单号";
+        }
+        if ("RETURN_SHIPPED".equals(status)) {
+            return "消费者已填写退货快递单号，等待商家收货验收";
+        }
         if ("COMPLETED".equals(status)) {
             return "售后已处理完成";
         }
@@ -2655,8 +3064,8 @@ public class TwentyMallDemoController {
 
     private String profileAddress(String accountNo) {
         if ("20230141".equals(accountNo)) {
-            return "重庆市沙坪坝区大学城20商城学生公寓 41号";
+            return "重庆市沙坪坝区大学城万象商城学生公寓 41号";
         }
-        return "四川省成都市高新区20商城模拟社区 2023号";
+        return "四川省成都市高新区万象商城模拟社区 2023号";
     }
 }

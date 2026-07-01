@@ -95,18 +95,19 @@
 
   <view wx:if="{{afterSaleDetailVisible}}" class="after-sale-mask">
     <view class="after-sale-dialog">
-      <view class="review-title">售后详情</view>
-      <view class="after-sale-row">
-        <text class="muted">订单编号</text>
-        <text>{{product.no}}</text>
+      <view class="after-sale-header">
+        <view>
+          <view class="review-title">售后详情</view>
+          <view class="after-sale-subtitle">{{product.platform}} · {{product.merchant}}</view>
+        </view>
+        <text class="after-sale-close" bindtap="closeAfterSaleDetail">×</text>
       </view>
-      <view class="after-sale-row">
-        <text class="muted">商品名称</text>
-        <text>{{product.title}}</text>
-      </view>
-      <view class="after-sale-row">
-        <text class="muted">商家名称</text>
-        <text>{{product.merchant}}</text>
+      <view class="after-sale-summary">
+        <image class="after-sale-product-image" src="{{product.image}}" mode="aspectFill" />
+        <view class="after-sale-product-main">
+          <view class="after-sale-product-title">{{product.title}}</view>
+          <view class="after-sale-product-no">订单编号：{{product.no}}</view>
+        </view>
       </view>
       <view class="after-sale-row">
         <text class="muted">售后类型</text>
@@ -114,7 +115,15 @@
       </view>
       <view class="after-sale-row">
         <text class="muted">售后状态</text>
-        <text>{{product.afterSale}}</text>
+        <text>{{afterSaleDetail.status === '商家已同意退款，请寄回商品' ? '商家已同意退款，请寄回商品' : product.afterSale}}</text>
+      </view>
+      <view class="after-sale-row" wx:if="{{afterSaleDetail.returnTrackingNo}}">
+        <text class="muted">退货单号</text>
+        <text>{{afterSaleDetail.returnTrackingNo}}</text>
+      </view>
+      <view class="after-sale-row" wx:if="{{afterSaleDetail.returnShippedAt}}">
+        <text class="muted">寄回时间</text>
+        <text>{{afterSaleDetail.returnShippedAt}}</text>
       </view>
       <view class="after-sale-row" wx:if="{{afterSaleDetail.reason}}">
         <text class="muted">申请原因</text>
@@ -132,8 +141,53 @@
         <text class="muted">申请时间</text>
         <text>{{afterSaleDetail.appliedAt || '2026.6.29 10:35:23'}}</text>
       </view>
-      <view class="after-sale-tip">售后申请已提交，商家将在后台审核并处理。你可以返回本页修改售后类型。</view>
-      <button class="review-submit" bindtap="closeAfterSaleDetail">知道了</button>
+      <view wx:if="{{afterSaleDetail.status !== '商家已同意退款，请寄回商品'}}" class="after-sale-tip">售后申请已提交，商家将在后台审核并处理。你可以返回本页修改售后类型。</view>
+      <view wx:if="{{afterSaleDetail.status === '已拒绝' && afterSaleDetail.type !== '价保'}}" class="dispute-entry">
+        <view class="dispute-entry-title">对商家处理结果有异议？</view>
+        <view class="return-tip">你可以填写二次售后表单并联系平台处理，平台管理员将结合双方材料进行裁决。</view>
+        <button class="dispute-submit" bindtap="openDisputeDialog">申请平台介入</button>
+      </view>
+      <button wx:if="{{afterSaleDetail.status !== '商家已同意退款，请寄回商品'}}" class="detail-close-btn" bindtap="closeAfterSaleDetail">知道了</button>
+      <view wx:if="{{afterSaleDetail.status === '商家已同意退款，请寄回商品'}}" class="return-shipping-block">
+        <view class="return-title">寄回商品</view>
+        <view class="return-tip">商家已同意本次退货退款申请。</view>
+        <view class="return-tip">请在寄回商品后填写退货快递单号，商家收到商品并验收后会继续处理退款。</view>
+        <input
+          class="return-input"
+          placeholder="请输入退货快递单号"
+          value="{{returnTrackingNo}}"
+          bindinput="onReturnTrackingInput"
+        />
+        <button class="return-submit" bindtap="submitReturnTracking">提交快递单号</button>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{disputeDialogVisible}}" class="reason-mask">
+    <view class="reason-dialog">
+      <view class="review-title">申请平台介入</view>
+      <view class="reason-subtitle">请说明你不同意商家处理结果的原因，平台管理员将进行人工审核。</view>
+      <textarea
+        class="reason-textarea"
+        placeholder="例如：商品确实存在质量问题，商家拒绝理由不合理，希望平台介入处理"
+        maxlength="300"
+        value="{{disputeReasonText}}"
+        bindinput="onDisputeReasonInput"
+      />
+      <view class="upload-row">
+        <button class="upload-btn" bindtap="chooseDisputeImage">上传照片</button>
+        <text class="upload-tip">最多3张，用于平台审核</text>
+      </view>
+      <view class="image-list" wx:if="{{disputeImages.length}}">
+        <view wx:for="{{disputeImages}}" wx:key="index" class="image-item">
+          <image src="{{item}}" mode="aspectFill" />
+          <text data-index="{{index}}" bindtap="removeDisputeImage">×</text>
+        </view>
+      </view>
+      <view class="review-actions">
+        <button class="review-cancel" bindtap="closeDisputeDialog">取消</button>
+        <button class="review-submit" bindtap="submitDisputeDialog">提交平台介入</button>
+      </view>
     </view>
   </view>
 

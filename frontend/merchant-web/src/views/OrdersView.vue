@@ -156,7 +156,7 @@ async function loadBoundMerchantOrders() {
       const list = await loadTwentyMallMerchantOrders(binding.accountNo as string) as MerchantOrder[]
       return list.map((item) => ({
         ...item,
-        buyerMaskedName: item.buyerMaskedName || '20商城买家'
+        buyerMaskedName: item.buyerMaskedName || '万象商城买家'
       }))
     } catch {
       return []

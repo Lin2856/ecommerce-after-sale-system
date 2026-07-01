@@ -1,41 +1,79 @@
 <view class="page">
-  <view class="hero card">
-    <view class="title">外部电商平台绑定</view>
-    <view class="muted">绑定平台账号后，可同步订单并发起售后服务。</view>
+  <view class="hero">
+    <view>
+      <view class="title">绑定电商平台账号</view>
+    </view>
+    <view class="hero-badge">{{twentyMallBindings.length ? '已绑定' : '待绑定'}}</view>
   </view>
 
-  <view class="platform-grid">
+  <view class="section-head">
+    <view>
+      <view class="section-title">开放平台</view>
+    </view>
+  </view>
+
+  <view class="platform-grid compact-platform-grid">
     <view
-      wx:for="{{platforms}}"
+      wx:for="{{openPlatforms}}"
       wx:key="name"
-      class="platform-card {{item.wide ? 'platform-card-wide' : ''}}"
+      class="platform-card"
       bindtap="bindPlatform"
       data-name="{{item.name}}"
     >
-      <view class="platform-main">
-        <image class="platform-icon" src="{{item.icon}}" mode="aspectFill" />
-        <view class="platform-info">
-          <view class="sub-title">{{item.name}}</view>
-          <view class="muted">{{item.status}}</view>
-        </view>
-        <button wx:if="{{item.name === '20商城'}}" class="bind-btn" catchtap="bindPlatform" data-name="{{item.name}}">绑定</button>
-        <view class="arrow">›</view>
+      <image class="platform-icon small-icon" src="{{item.icon}}" mode="aspectFill" />
+      <view class="platform-name">{{item.name}}</view>
+      <view class="platform-status">{{item.status}}</view>
+    </view>
+  </view>
+
+  <view class="section-head twenty-head">
+    <view>
+      <view class="section-title">本地模拟平台</view>
+    </view>
+  </view>
+
+  <view class="twenty-card">
+    <view class="twenty-main">
+      <view class="twenty-logo-wrap">
+        <image class="twenty-logo" src="/assets/platforms/twenty-mall.png" mode="aspectFit" />
       </view>
-      <view wx:if="{{item.name === '20商城' && twentyMallBindings.length}}" class="bound-panel">
-        <view class="bound-title">已绑定账号</view>
+      <view class="twenty-info">
+        <view class="twenty-title-row">
+          <view>
+            <view class="twenty-title">万象商城</view>
+            <view class="twenty-subtitle">本地数据库模拟平台</view>
+          </view>
+          <view class="twenty-status {{twentyMallBindings.length ? 'status-bound' : ''}}">{{twentyMallBindings.length ? '已绑定' : '未绑定'}}</view>
+        </view>
+      </view>
+    </view>
+    <button class="bind-btn" bindtap="bindPlatform" data-name="万象商城">继续绑定</button>
+
+    <view class="bound-panel">
+      <view class="bound-title-row">
+        <view>
+          <view class="bound-title">已绑定账号</view>
+        </view>
+        <view class="bound-count">{{twentyMallBindings.length}}</view>
+      </view>
+      <view wx:if="{{twentyMallBindings.length}}" class="bound-list">
         <view wx:for="{{twentyMallBindings}}" wx:key="accountNo" class="bound-account">
-          <text>{{item.accountNo}}</text>
+          <view class="account-mark">20</view>
+          <view class="account-info">
+            <text>{{item.accountNo}}</text>
+          </view>
           <button class="unbind-btn" catchtap="unbindTwentyMall" data-account="{{item.accountNo}}">解绑</button>
         </view>
       </view>
+      <view wx:else class="empty-bind">绑定后，这里会展示对应平台账号。</view>
     </view>
   </view>
 
   <view wx:if="{{twentyMallDialogVisible}}" class="dialog-mask">
     <view class="dialog">
-      <view class="sub-title">绑定20商城账号</view>
+      <view class="sub-title">绑定万象商城账号</view>
       <view class="muted">消费者演示账号：20230140 / 123456</view>
-      <input class="dialog-input" placeholder="请输入20商城账号" value="{{twentyMallAccount}}" bindinput="onTwentyMallAccountInput" />
+      <input class="dialog-input" placeholder="请输入万象商城账号" value="{{twentyMallAccount}}" bindinput="onTwentyMallAccountInput" />
       <input class="dialog-input" password placeholder="请输入密码" value="{{twentyMallPassword}}" bindinput="onTwentyMallPasswordInput" />
       <view class="dialog-actions">
         <button class="cancel-btn" bindtap="closeTwentyMallDialog">取消</button>

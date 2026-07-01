@@ -33,7 +33,7 @@ EXECUTE add_new_account_index_stmt;
 DEALLOCATE PREPARE add_new_account_index_stmt;
 
 INSERT INTO twenty_mall_account (id, account_no, password_plain, account_role, display_name, phone, bind_status, status, deleted)
-VALUES (3, '20230141', '123456', 'CONSUMER', '20商城学生买家', '13338907581', 'UNBOUND', 'ACTIVE', 0)
+VALUES (3, '20230141', '123456', 'CONSUMER', '万象商城学生买家', '13338907581', 'UNBOUND', 'ACTIVE', 0)
 ON DUPLICATE KEY UPDATE
   password_plain = VALUES(password_plain),
   display_name = VALUES(display_name),
@@ -43,8 +43,8 @@ ON DUPLICATE KEY UPDATE
 
 INSERT INTO twenty_mall_product (id, merchant_account_id, product_no, product_name, product_image_url, price, stock, category, description, status, deleted)
 VALUES
-  (3, 2, 'TM-P-10003', '20商城 护眼台灯', '/assets/products/twenty-lamp.png', 129.00, 180, '生活电器', '20商城本地数据库中的模拟护眼台灯商品。', 'ON_SALE', 0),
-  (4, 2, 'TM-P-10004', '20商城 便携保温杯', '/assets/products/twenty-cup.png', 69.00, 360, '日用百货', '20商城本地数据库中的模拟保温杯商品。', 'ON_SALE', 0)
+  (3, 2, 'TM-P-10003', '万象商城 护眼台灯', '/assets/products/twenty-lamp.png', 129.00, 180, '生活电器', '万象商城本地数据库中的模拟护眼台灯商品。', 'ON_SALE', 0),
+  (4, 2, 'TM-P-10004', '万象商城 便携保温杯', '/assets/products/twenty-cup.png', 69.00, 360, '日用百货', '万象商城本地数据库中的模拟保温杯商品。', 'ON_SALE', 0)
 ON DUPLICATE KEY UPDATE
   product_name = VALUES(product_name),
   product_image_url = VALUES(product_image_url),
@@ -73,8 +73,8 @@ ON DUPLICATE KEY UPDATE
 
 INSERT INTO twenty_mall_order_item (id, order_id, product_id, product_name, sku_name, product_image_url, unit_price, quantity, total_amount, after_sale_status, deleted)
 VALUES
-  (3, 3, 3, '20商城 护眼台灯', '暖白光｜三档调光｜USB供电', '/assets/products/twenty-lamp.png', 129.00, 1, 129.00, 'NONE', 0),
-  (4, 4, 4, '20商城 便携保温杯', '米白色｜500ml｜弹盖款', '/assets/products/twenty-cup.png', 69.00, 1, 69.00, 'APPLIED', 0)
+  (3, 3, 3, '万象商城 护眼台灯', '暖白光｜三档调光｜USB供电', '/assets/products/twenty-lamp.png', 129.00, 1, 129.00, 'NONE', 0),
+  (4, 4, 4, '万象商城 便携保温杯', '米白色｜500ml｜弹盖款', '/assets/products/twenty-cup.png', 69.00, 1, 69.00, 'APPLIED', 0)
 ON DUPLICATE KEY UPDATE
   product_name = VALUES(product_name),
   sku_name = VALUES(sku_name),

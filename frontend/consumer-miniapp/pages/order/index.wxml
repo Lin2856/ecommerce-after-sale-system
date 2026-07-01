@@ -2,7 +2,7 @@
   <view class="page-title">我的订单</view>
   <view wx:if="{{!platformBound}}" class="empty-card">
     <view class="empty-title">请先绑定电商平台</view>
-    <view class="empty-text">绑定 20商城 或其他平台账号后，这里会同步展示对应订单。</view>
+    <view class="empty-text">绑定 万象商城 或其他平台账号后，这里会同步展示对应订单。</view>
     <button class="empty-btn" bindtap="goBind">去绑定</button>
   </view>
   <view wx:if="{{platformBound}}" class="filter-tabs">
@@ -18,14 +18,18 @@
   </view>
   <block wx:for="{{filteredOrderGroups}}" wx:key="accountNo" wx:for-item="group">
     <view class="source-banner">
-      <view class="source-title">{{group.platform}} · 账号 {{group.accountNo}}</view>
-      <view class="source-account">{{group.orders.length}} 个订单</view>
+      <view>
+        <view class="source-title">{{group.platform}}</view>
+        <view class="source-account">{{group.accountNo}}</view>
+      </view>
+      <view class="source-count">{{group.orders.length}}</view>
     </view>
     <view wx:if="{{!group.orders.length}}" class="empty-mini">该账号暂无同步订单</view>
     <block wx:for="{{group.shops}}" wx:key="merchant" wx:for-item="shop">
       <view class="shop-banner">
+        <view class="shop-dot"></view>
         <view class="shop-title">{{shop.merchant}}</view>
-        <view class="shop-count">{{shop.orders.length}} 个订单</view>
+        <view class="shop-count">{{shop.orders.length}}</view>
       </view>
       <view wx:for="{{shop.orders}}" wx:key="no" wx:for-item="item" class="order-card" bindtap="goDetail" data-no="{{item.no}}">
         <image class="product-thumb" src="{{item.image}}" mode="aspectFill" />
@@ -34,12 +38,12 @@
             <view class="order-title">{{item.title}}</view>
             <view class="price">￥{{item.price}}</view>
           </view>
-          <view class="order-no">{{item.no}} · {{item.status}}</view>
           <view class="spec-line">{{item.spec}}</view>
           <view class="order-bottom">
             <view class="after-sale-tag {{item.afterSaleTone}}">售后：{{item.afterSale}}</view>
             <view class="detail-link" catchtap="goDetail" data-no="{{item.no}}">详情</view>
           </view>
+          <view class="order-no">{{item.no}} · {{item.status}}</view>
         </view>
       </view>
     </block>

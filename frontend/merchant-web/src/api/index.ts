@@ -32,6 +32,21 @@ export async function reviewTwentyMallAfterSale(afterSaleId: number, result: 'AP
   return unwrap(await api.post('/twenty-mall/merchant/after-sales/review', { afterSaleId, result, reason }))
 }
 
+export async function refundTwentyMallAfterSale(afterSaleId: number) {
+  return unwrap(await api.post('/twenty-mall/merchant/after-sales/refund', { afterSaleId }))
+}
+
+export async function loadTwentyMallMerchantAfterSaleDisputes(accountNo: string) {
+  return unwrap(await api.get('/twenty-mall/merchant/after-sales/disputes', { params: { accountNo } }))
+}
+
+export async function submitTwentyMallMerchantDisputeEvidence(disputeId: number, evidenceText: string, evidenceImages: string[] = []) {
+  return unwrap(await api.post(`/twenty-mall/merchant/after-sales/disputes/${disputeId}/evidence`, {
+    evidenceText,
+    evidenceImages
+  }))
+}
+
 export async function loadConversations() {
   return unwrap(await api.get('/merchant/conversations'))
 }

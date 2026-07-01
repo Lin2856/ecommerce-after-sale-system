@@ -1,18 +1,33 @@
 .page {
-  padding-bottom: 150rpx;
+  min-height: 100vh;
+  padding: 24rpx 24rpx 34rpx;
+  background: #f5f7fb;
+  box-sizing: border-box;
 }
 
 .profile-card {
+  padding: 30rpx;
+  margin-bottom: 20rpx;
+  border-radius: 26rpx;
+  background: linear-gradient(135deg, #ffffff 0%, #f7fbff 100%);
+  border: 1rpx solid #e6edf7;
+  box-shadow: 0 12rpx 30rpx rgba(15, 23, 42, 0.05);
+  box-sizing: border-box;
+}
+
+.profile-top {
   display: flex;
   align-items: center;
+  gap: 22rpx;
 }
 
 .avatar {
-  width: 112rpx;
-  height: 112rpx;
-  border-radius: 36rpx;
-  margin-right: 22rpx;
+  width: 122rpx;
+  height: 122rpx;
+  border-radius: 34rpx;
   flex-shrink: 0;
+  background: #eef2f7;
+  box-shadow: 0 8rpx 20rpx rgba(15, 23, 42, 0.08);
 }
 
 .avatar-empty {
@@ -22,66 +37,215 @@
 
 .profile-main {
   flex: 1;
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  color: #0f172a;
+  font-size: 38rpx;
+  font-weight: 900;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.phone {
+  margin-top: 10rpx;
+  color: #64748b;
+  font-size: 26rpx;
+  font-weight: 600;
 }
 
 .edit-btn {
-  width: 120rpx;
-  height: 60rpx;
-  line-height: 60rpx;
+  width: 112rpx;
+  height: 56rpx;
+  line-height: 56rpx;
+  margin: 0;
   border-radius: 999rpx;
-  background: #eef4ff;
-  color: #1f7ae0;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 24rpx;
+  font-weight: 800;
+}
+
+.status-strip {
+  display: flex;
+  align-items: center;
+  margin-top: 26rpx;
+  padding: 22rpx;
+  border-radius: 20rpx;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1rpx solid #edf2f7;
+}
+
+.status-item {
+  flex: 1;
+  min-width: 0;
+}
+
+.status-label {
+  display: block;
+  color: #94a3b8;
+  font-size: 22rpx;
+  font-weight: 700;
+}
+
+.status-value {
+  display: block;
+  margin-top: 8rpx;
+  color: #0f172a;
+  font-size: 27rpx;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-line {
+  width: 1rpx;
+  height: 54rpx;
+  margin: 0 22rpx;
+  background: #e6edf7;
+}
+
+.section-card {
+  margin-bottom: 20rpx;
+  padding: 28rpx;
+  border-radius: 22rpx;
+  background: #ffffff;
+  border: 1rpx solid #e8eef6;
+  box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.035);
+  box-sizing: border-box;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+  margin-bottom: 20rpx;
+}
+
+.sub-title {
+  color: #0f172a;
+  font-size: 31rpx;
+  font-weight: 900;
+}
+
+.section-dot {
+  width: 14rpx;
+  height: 14rpx;
+  border-radius: 50%;
+  background: #2563eb;
+  box-shadow: 0 0 0 8rpx #eff6ff;
+}
+
+.info-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+}
+
+.info-cell {
+  width: calc(50% - 8rpx);
+  padding: 20rpx;
+  border-radius: 18rpx;
+  background: #f8fafc;
+  box-sizing: border-box;
+}
+
+.info-cell.wide {
+  width: 100%;
+}
+
+.muted {
+  display: block;
+  color: #64748b;
   font-size: 24rpx;
 }
 
-.info-row {
-  display: flex;
-  justify-content: space-between;
-  padding: 20rpx 0;
-  border-bottom: 1rpx solid #eef2f7;
+.info-value {
+  display: block;
+  margin-top: 10rpx;
+  color: #0f172a;
+  font-size: 28rpx;
+  font-weight: 800;
+  line-height: 1.35;
+  word-break: break-all;
 }
 
-.info-row:last-child {
-  border-bottom: 0;
+.address-card {
+  padding: 30rpx 28rpx;
+}
+
+.between {
+  align-items: center;
+}
+
+.address-main {
+  flex: 1;
+  min-width: 0;
 }
 
 .address {
-  margin-top: 10rpx;
-  max-width: 560rpx;
+  margin-top: 12rpx;
+  max-width: 510rpx;
+  color: #475569;
+  font-size: 27rpx;
+  line-height: 1.45;
+}
+
+.address-action {
+  display: flex;
+  align-items: center;
+  gap: 4rpx;
+  flex-shrink: 0;
+  margin-left: 18rpx;
+  color: #2563eb;
+  font-size: 25rpx;
+  font-weight: 800;
 }
 
 .arrow {
-  color: #98a2b3;
-  font-size: 44rpx;
+  color: #94a3b8;
+  font-size: 38rpx;
+  line-height: 1;
 }
 
 .account-actions {
-  position: fixed;
-  left: 30rpx;
-  right: 30rpx;
-  bottom: 70rpx;
   display: flex;
+  flex-wrap: wrap;
   gap: 18rpx;
-  z-index: 5;
+  margin-top: 28rpx;
+  margin-bottom: 14rpx;
+}
+
+.account-actions .sub-title {
+  width: 100%;
+  margin-bottom: 2rpx;
 }
 
 .logout-btn,
 .cancel-account-btn {
   flex: 1;
-  height: 78rpx;
-  line-height: 78rpx;
-  border-radius: 16rpx;
+  min-width: 0;
+  height: 82rpx;
+  line-height: 82rpx;
+  margin: 0;
+  border-radius: 18rpx;
   font-size: 28rpx;
-  font-weight: 700;
+  font-weight: 800;
 }
 
 .logout-btn {
-  background: #eef4ff;
-  color: #1f7ae0;
+  background: #eff6ff;
+  color: #2563eb;
 }
 
 .cancel-account-btn {
-  background: #fff1f0;
+  background: #fef2f2;
   color: #d92d20;
 }
 

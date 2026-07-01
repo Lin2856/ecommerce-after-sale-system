@@ -1,8 +1,19 @@
 <template>
   <el-container class="shell">
     <el-aside width="230px" class="aside">
-      <div class="brand">平台管理后台</div>
-      <button v-for="item in sections" :key="item" :class="{ active: active === item }" @click="active = item">{{ item }}</button>
+      <div class="brand">
+        <img class="brand-logo" :src="adminBrandIcon" alt="" />
+        <div>
+          <strong>平台管理后台</strong>
+          <span>融合电商治理中心</span>
+        </div>
+      </div>
+      <nav class="admin-nav">
+        <button v-for="item in sections" :key="item.label" :class="{ active: active === item.label }" @click="active = item.label">
+          <span class="nav-symbol">{{ item.icon }}</span>
+          <span>{{ item.label }}</span>
+        </button>
+      </nav>
     </el-aside>
     <el-container>
       <el-header class="header">
@@ -117,133 +128,405 @@
             </div>
           </div>
         </section>
-        <section v-else-if="active === '外部平台'" class="card">
-          <el-table :data="platforms">
-            <el-table-column label="图标" width="88">
-              <template #default="{ row }">
-                <img class="platform-icon" :src="row.icon" :alt="row.name" />
-              </template>
-            </el-table-column>
-            <el-table-column prop="code" label="平台编码" />
-            <el-table-column prop="name" label="平台名称" />
-            <el-table-column prop="description" label="说明" />
-            <el-table-column prop="status" label="状态" />
-            <el-table-column prop="shops" label="绑定店铺数" />
-          </el-table>
+        <section v-else-if="active === '外部平台'" class="external-platform-page">
+          <div class="platform-overview-grid">
+            <div v-for="item in platformMetrics" :key="item.label" class="card platform-overview-card">
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }}</strong>
+              <em>{{ item.description }}</em>
+            </div>
+          </div>
+          <div class="platform-card-grid">
+            <div v-for="item in platforms" :key="item.code" class="card platform-access-card">
+              <div class="platform-access-head">
+                <img class="platform-large-icon" :src="item.icon" :alt="item.name" />
+                <div>
+                  <strong>{{ item.name }}</strong>
+                  <span>{{ item.code }}</span>
+                </div>
+                <el-tag :type="platformStatusTagType(item.status)">{{ item.status }}</el-tag>
+              </div>
+              <p>{{ item.description }}</p>
+              <div class="platform-access-meta">
+                <div>
+                  <span>绑定店铺</span>
+                  <strong>{{ item.shops }}</strong>
+                </div>
+                <div>
+                  <span>接入类型</span>
+                  <strong>{{ item.code === 'TWENTY_MALL' ? '自建数据库' : '开放平台' }}</strong>
+                </div>
+              </div>
+              <div class="platform-access-footer">
+                <span>{{ platformStatusDescription(item.status) }}</span>
+                <el-button :type="item.status === '启用' ? 'primary' : 'info'" plain @click="selectedPlatform = item">查看配置</el-button>
+              </div>
+            </div>
+          </div>
+          <el-dialog v-model="platformDetailVisible" title="平台接入配置" width="680px">
+            <template v-if="selectedPlatform">
+              <div class="platform-dialog-head">
+                <img class="platform-large-icon" :src="selectedPlatform.icon" :alt="selectedPlatform.name" />
+                <div>
+                  <strong>{{ selectedPlatform.name }}</strong>
+                  <span>{{ selectedPlatform.code }}</span>
+                </div>
+                <el-tag :type="platformStatusTagType(selectedPlatform.status)">{{ selectedPlatform.status }}</el-tag>
+              </div>
+              <div class="platform-config-grid">
+                <div>
+                  <span>接入类型</span>
+                  <strong>{{ selectedPlatform.code === 'TWENTY_MALL' ? '自建数据库' : '开放平台' }}</strong>
+                </div>
+                <div>
+                  <span>绑定店铺数</span>
+                  <strong>{{ selectedPlatform.shops }}</strong>
+                </div>
+                <div>
+                  <span>当前状态</span>
+                  <strong>{{ selectedPlatform.status }}</strong>
+                </div>
+                <div>
+                  <span>数据范围</span>
+                  <strong>{{ selectedPlatform.code === 'TWENTY_MALL' ? '订单、售后、评价' : '待开放平台授权' }}</strong>
+                </div>
+              </div>
+              <div class="platform-config-section">
+                <h3>平台说明</h3>
+                <p>{{ selectedPlatform.description }}</p>
+              </div>
+              <div class="platform-config-section">
+                <h3>接入状态说明</h3>
+                <p>{{ platformStatusDescription(selectedPlatform.status) }}</p>
+              </div>
+              <div class="platform-config-section">
+                <h3>后续处理建议</h3>
+                <p>{{ platformNextStep(selectedPlatform) }}</p>
+              </div>
+            </template>
+            <template #footer>
+              <el-button type="primary" @click="platformDetailVisible = false">知道了</el-button>
+            </template>
+          </el-dialog>
         </section>
-        <section v-else-if="active === '同步监控'" class="card">
-          <el-table :data="syncLogs">
-            <el-table-column prop="task" label="任务" />
-            <el-table-column prop="status" label="状态" />
-            <el-table-column prop="count" label="数量" />
-            <el-table-column prop="time" label="时间" />
-          </el-table>
-        </section>
-        <section v-else-if="active === '用户管理'" class="card">
-          <el-table :data="consumerBindings" border>
-            <el-table-column label="头像" width="80">
-              <template #default="{ row, $index }">
-                <template v-if="shouldShowPrimaryCell(consumerBindings, row, $index)">
-                  <el-avatar v-if="row.primaryAvatar" :size="36" :src="row.primaryAvatar" />
-                  <el-avatar v-else :size="36">{{ avatarText(row.primaryDisplayName, row.primaryAccountNo) }}</el-avatar>
+        <section v-else-if="active === '同步监控'" class="sync-monitor-page">
+          <div class="sync-metric-grid">
+            <div v-for="item in syncMetrics" :key="item.label" class="card sync-metric-card">
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }}</strong>
+              <em>{{ item.description }}</em>
+            </div>
+          </div>
+          <div class="sync-card-grid">
+            <div v-for="item in syncOverview" :key="item.task" class="card sync-task-card">
+              <div class="sync-task-head">
+                <div>
+                  <strong>{{ item.task }}</strong>
+                  <span>{{ item.time || '暂无同步时间' }}</span>
+                </div>
+                <el-tag :type="item.status === '正常' ? 'success' : 'info'">{{ item.status }}</el-tag>
+              </div>
+              <div class="sync-task-value">
+                <span>同步数量</span>
+                <strong>{{ formatNumber(item.count) }}</strong>
+              </div>
+              <el-progress :percentage="syncProgress(item.count)" :status="item.status === '正常' ? 'success' : undefined" />
+              <div class="sync-task-footer">
+                <span>{{ syncTaskDescription(item.task, item.count) }}</span>
+                <el-button plain @click="selectedSyncLog = item">查看详情</el-button>
+              </div>
+            </div>
+          </div>
+          <div class="card sync-detail-panel">
+            <div class="panel-title">
+              <h2>同步记录明细</h2>
+              <span class="panel-subtitle">读取后端数据库统计结果</span>
+            </div>
+            <el-table :data="syncLogs">
+              <el-table-column prop="task" label="任务" min-width="220" />
+              <el-table-column prop="status" label="状态" width="120">
+                <template #default="{ row }">
+                  <el-tag :type="row.status === '正常' ? 'success' : 'info'">{{ row.status }}</el-tag>
                 </template>
-              </template>
-            </el-table-column>
-            <el-table-column label="一级账号" min-width="160">
-              <template #default="{ row, $index }">
-                <span v-if="shouldShowPrimaryCell(consumerBindings, row, $index)">{{ row.primaryAccountNo }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="一级账号名称" min-width="180">
-              <template #default="{ row, $index }">
-                <span v-if="shouldShowPrimaryCell(consumerBindings, row, $index)">{{ row.primaryDisplayName }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column prop="platformName" label="绑定平台" width="120" />
-            <el-table-column prop="secondaryAccountNo" label="二级平台账号" min-width="160" />
-            <el-table-column prop="secondaryDisplayName" label="二级账号名称" min-width="200" />
-            <el-table-column prop="boundAt" label="绑定时间" min-width="180" />
-          </el-table>
+              </el-table-column>
+              <el-table-column prop="count" label="数量" width="140" />
+              <el-table-column prop="time" label="时间" min-width="180" />
+            </el-table>
+          </div>
+          <el-dialog v-model="syncDetailVisible" title="同步任务详情" width="560px">
+            <template v-if="selectedSyncLog">
+              <div class="sync-dialog-title">
+                <strong>{{ selectedSyncLog.task }}</strong>
+                <el-tag :type="selectedSyncLog.status === '正常' ? 'success' : 'info'">{{ selectedSyncLog.status }}</el-tag>
+              </div>
+              <div class="platform-config-grid">
+                <div>
+                  <span>同步数量</span>
+                  <strong>{{ formatNumber(selectedSyncLog.count) }}</strong>
+                </div>
+                <div>
+                  <span>同步时间</span>
+                  <strong>{{ selectedSyncLog.time || '暂无时间' }}</strong>
+                </div>
+                <div>
+                  <span>数据来源</span>
+                  <strong>万象商城数据库</strong>
+                </div>
+                <div>
+                  <span>同步结果</span>
+                  <strong>{{ selectedSyncLog.status }}</strong>
+                </div>
+              </div>
+              <div class="platform-config-section">
+                <h3>任务说明</h3>
+                <p>{{ syncTaskDescription(selectedSyncLog.task, selectedSyncLog.count) }}</p>
+              </div>
+            </template>
+            <template #footer>
+              <el-button type="primary" @click="syncDetailVisible = false">知道了</el-button>
+            </template>
+          </el-dialog>
         </section>
-        <section v-else-if="active === '商家管理'" class="card">
-          <el-table :data="merchantBindings" border>
-            <el-table-column label="头像" width="80">
-              <template #default="{ row, $index }">
-                <template v-if="shouldShowPrimaryCell(merchantBindings, row, $index)">
-                  <el-avatar v-if="row.primaryAvatar" :size="36" :src="row.primaryAvatar" />
-                  <el-avatar v-else :size="36">{{ avatarText(row.primaryDisplayName, row.primaryAccountNo) }}</el-avatar>
-                </template>
-              </template>
-            </el-table-column>
-            <el-table-column label="一级商家账号" min-width="180">
-              <template #default="{ row, $index }">
-                <span v-if="shouldShowPrimaryCell(merchantBindings, row, $index)">{{ row.primaryAccountNo }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="一级账号名称" min-width="180">
-              <template #default="{ row, $index }">
-                <span v-if="shouldShowPrimaryCell(merchantBindings, row, $index)">{{ row.primaryDisplayName }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column prop="platformName" label="绑定平台" width="120" />
-            <el-table-column prop="secondaryAccountNo" label="二级平台账号" min-width="160" />
-            <el-table-column prop="secondaryDisplayName" label="店铺名称" min-width="220" />
-            <el-table-column prop="boundAt" label="绑定时间" min-width="180" />
-          </el-table>
+        <section v-else-if="active === '用户管理'" class="user-management-page">
+          <div class="user-metrics">
+            <div v-for="item in consumerBindingMetrics" :key="item.label" class="card user-metric">
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }}</strong>
+              <em>{{ item.description }}</em>
+            </div>
+          </div>
+          <div class="card user-filter-card">
+            <el-input v-model="consumerBindingKeyword" clearable placeholder="搜索一级账号、昵称、二级账号或店铺名称" />
+            <el-select v-model="consumerBindingPlatformFilter" placeholder="绑定平台">
+              <el-option label="全部平台" value="ALL" />
+              <el-option v-for="item in consumerBindingPlatformOptions" :key="item" :label="item" :value="item" />
+            </el-select>
+          </div>
+          <div class="user-group-list">
+            <div v-for="group in filteredConsumerBindingGroups" :key="group.primaryAccountNo" class="card user-group-card">
+              <div class="user-group-head">
+                <div class="user-profile-cell">
+                  <el-avatar v-if="group.primaryAvatar" :size="48" :src="group.primaryAvatar" />
+                  <el-avatar v-else :size="48">{{ avatarText(group.primaryDisplayName, group.primaryAccountNo) }}</el-avatar>
+                  <div>
+                    <strong>{{ group.primaryDisplayName || '未设置昵称' }}</strong>
+                    <span>{{ group.primaryAccountNo }}</span>
+                  </div>
+                </div>
+                <div class="user-group-meta">
+                  <el-tag type="primary">{{ group.bindings.length }} 个绑定账号</el-tag>
+                  <el-button type="primary" plain @click="selectedConsumerBindingGroup = group">查看详情</el-button>
+                </div>
+              </div>
+              <div class="binding-row-list">
+                <div v-for="binding in group.bindings" :key="`${binding.platformName}-${binding.secondaryAccountNo}`" class="binding-row-card">
+                  <div class="platform-cell">
+                    <img class="platform-mini-icon" :src="platformIconByName(binding.platformName)" :alt="binding.platformName" />
+                    <span>{{ binding.platformName }}</span>
+                  </div>
+                  <div>
+                    <span class="binding-label">二级账号</span>
+                    <strong>{{ binding.secondaryAccountNo }}</strong>
+                  </div>
+                  <div>
+                    <span class="binding-label">账号名称</span>
+                    <strong>{{ binding.secondaryDisplayName || '未设置名称' }}</strong>
+                  </div>
+                  <div>
+                    <span class="binding-label">绑定时间</span>
+                    <strong>{{ binding.boundAt || '暂无时间' }}</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <el-empty v-if="filteredConsumerBindingGroups.length === 0" description="暂无符合条件的用户绑定数据" />
+          </div>
+          <el-dialog v-model="consumerBindingDetailVisible" title="用户绑定详情" width="760px">
+            <template v-if="selectedConsumerBindingGroup">
+              <div class="dialog-user-head">
+                <el-avatar v-if="selectedConsumerBindingGroup.primaryAvatar" :size="56" :src="selectedConsumerBindingGroup.primaryAvatar" />
+                <el-avatar v-else :size="56">{{ avatarText(selectedConsumerBindingGroup.primaryDisplayName, selectedConsumerBindingGroup.primaryAccountNo) }}</el-avatar>
+                <div>
+                  <strong>{{ selectedConsumerBindingGroup.primaryDisplayName || '未设置昵称' }}</strong>
+                  <span>一级账号：{{ selectedConsumerBindingGroup.primaryAccountNo }}</span>
+                </div>
+              </div>
+              <el-table :data="selectedConsumerBindingGroup.bindings" border>
+                <el-table-column label="绑定平台" width="140">
+                  <template #default="{ row }">
+                    <div class="platform-cell">
+                      <img class="platform-mini-icon" :src="platformIconByName(row.platformName)" :alt="row.platformName" />
+                      <span>{{ row.platformName }}</span>
+                    </div>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="secondaryAccountNo" label="二级平台账号" min-width="150" />
+                <el-table-column prop="secondaryDisplayName" label="二级账号名称" min-width="180" />
+                <el-table-column prop="boundAt" label="绑定时间" min-width="170" />
+              </el-table>
+            </template>
+          </el-dialog>
+        </section>
+        <section v-else-if="active === '商家管理'" class="user-management-page">
+          <div class="user-metrics">
+            <div v-for="item in merchantBindingMetrics" :key="item.label" class="card user-metric">
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }}</strong>
+              <em>{{ item.description }}</em>
+            </div>
+          </div>
+          <div class="card user-filter-card">
+            <el-input v-model="merchantBindingKeyword" clearable placeholder="搜索一级商家账号、昵称、店铺账号或店铺名称" />
+            <el-select v-model="merchantBindingPlatformFilter" placeholder="绑定平台">
+              <el-option label="全部平台" value="ALL" />
+              <el-option v-for="item in merchantBindingPlatformOptions" :key="item" :label="item" :value="item" />
+            </el-select>
+          </div>
+          <div class="user-group-list">
+            <div v-for="group in filteredMerchantBindingGroups" :key="group.primaryAccountNo" class="card user-group-card">
+              <div class="user-group-head">
+                <div class="user-profile-cell">
+                  <el-avatar v-if="group.primaryAvatar" :size="48" :src="group.primaryAvatar" />
+                  <el-avatar v-else :size="48">{{ avatarText(group.primaryDisplayName, group.primaryAccountNo) }}</el-avatar>
+                  <div>
+                    <strong>{{ group.primaryDisplayName || '未设置名称' }}</strong>
+                    <span>{{ group.primaryAccountNo }}</span>
+                  </div>
+                </div>
+                <div class="user-group-meta">
+                  <el-tag type="success">{{ group.bindings.length }} 个绑定店铺</el-tag>
+                  <el-button type="primary" plain @click="selectedMerchantBindingGroup = group">查看详情</el-button>
+                </div>
+              </div>
+              <div class="binding-row-list">
+                <div v-for="binding in group.bindings" :key="`${binding.platformName}-${binding.secondaryAccountNo}`" class="binding-row-card merchant-binding-card">
+                  <div class="platform-cell">
+                    <img class="platform-mini-icon" :src="platformIconByName(binding.platformName)" :alt="binding.platformName" />
+                    <span>{{ binding.platformName }}</span>
+                  </div>
+                  <div>
+                    <span class="binding-label">店铺账号</span>
+                    <strong>{{ binding.secondaryAccountNo }}</strong>
+                  </div>
+                  <div>
+                    <span class="binding-label">店铺名称</span>
+                    <strong>{{ binding.secondaryDisplayName || '未设置店铺名称' }}</strong>
+                  </div>
+                  <div>
+                    <span class="binding-label">绑定时间</span>
+                    <strong>{{ binding.boundAt || '暂无时间' }}</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <el-empty v-if="filteredMerchantBindingGroups.length === 0" description="暂无符合条件的商家绑定数据" />
+          </div>
+          <el-dialog v-model="merchantBindingDetailVisible" title="商家绑定详情" width="760px">
+            <template v-if="selectedMerchantBindingGroup">
+              <div class="dialog-user-head">
+                <el-avatar v-if="selectedMerchantBindingGroup.primaryAvatar" :size="56" :src="selectedMerchantBindingGroup.primaryAvatar" />
+                <el-avatar v-else :size="56">{{ avatarText(selectedMerchantBindingGroup.primaryDisplayName, selectedMerchantBindingGroup.primaryAccountNo) }}</el-avatar>
+                <div>
+                  <strong>{{ selectedMerchantBindingGroup.primaryDisplayName || '未设置名称' }}</strong>
+                  <span>一级商家账号：{{ selectedMerchantBindingGroup.primaryAccountNo }}</span>
+                </div>
+              </div>
+              <el-table :data="selectedMerchantBindingGroup.bindings" border>
+                <el-table-column label="绑定平台" width="140">
+                  <template #default="{ row }">
+                    <div class="platform-cell">
+                      <img class="platform-mini-icon" :src="platformIconByName(row.platformName)" :alt="row.platformName" />
+                      <span>{{ row.platformName }}</span>
+                    </div>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="secondaryAccountNo" label="店铺账号" min-width="150" />
+                <el-table-column prop="secondaryDisplayName" label="店铺名称" min-width="200" />
+                <el-table-column prop="boundAt" label="绑定时间" min-width="170" />
+              </el-table>
+            </template>
+          </el-dialog>
         </section>
         <section v-else-if="active === '知识库'" class="knowledge-page">
           <div class="knowledge-stats">
             <div v-for="item in knowledgeMetrics" :key="item.label" class="card knowledge-stat">
               <span>{{ item.label }}</span>
               <strong>{{ item.value }}</strong>
+              <em>{{ item.description }}</em>
             </div>
           </div>
-          <div class="card">
-            <div class="card-toolbar">
-              <h2>知识库管理</h2>
+          <div class="card knowledge-workbench">
+            <div class="knowledge-head">
+              <div>
+                <h2>知识库管理</h2>
+                <p>维护客服回答、售后规则解释和平台政策说明，供 AI 客服与人工客服协同使用。</p>
+              </div>
               <div>
                 <el-button @click="openFaqEditor()">新增常见问题</el-button>
                 <el-button type="primary" @click="openArticleEditor()">新增知识文章</el-button>
               </div>
             </div>
+            <div class="knowledge-filter-bar">
+              <el-input v-model="knowledgeKeyword" clearable placeholder="搜索标题、问题、标签或内容摘要" />
+              <el-select v-model="knowledgeCategoryFilter" placeholder="全部分类">
+                <el-option label="全部分类" value="ALL" />
+                <el-option v-for="item in knowledgeCategoryOptions" :key="item" :label="item" :value="item" />
+              </el-select>
+            </div>
             <el-tabs v-model="knowledgeTab">
               <el-tab-pane label="知识文章" name="articles">
-                <el-table :data="knowledgeArticles" border>
-                  <el-table-column prop="title" label="标题" min-width="220" />
-                  <el-table-column prop="categoryText" label="分类" width="120" />
-                  <el-table-column prop="statusText" label="状态" width="110" />
-                  <el-table-column prop="tagsJson" label="标签" min-width="180" show-overflow-tooltip />
-                  <el-table-column prop="content" label="内容摘要" min-width="260" show-overflow-tooltip />
-                  <el-table-column prop="updatedAt" label="更新时间" min-width="160" />
-                  <el-table-column label="操作" width="190" fixed="right">
-                    <template #default="{ row }">
-                      <el-button type="primary" link @click="selectedKnowledge = row">详细</el-button>
-                      <el-button type="primary" link @click="openArticleEditor(row)">编辑</el-button>
-                      <el-button type="danger" link @click="deleteArticle(row)">删除</el-button>
-                    </template>
-                  </el-table-column>
-                </el-table>
+                <div class="knowledge-card-list">
+                  <div v-for="row in filteredKnowledgeArticles" :key="row.id" class="knowledge-item-card">
+                    <div class="knowledge-item-main">
+                      <div class="knowledge-item-title">
+                        <strong>{{ row.title }}</strong>
+                        <el-tag :type="row.status === 'PUBLISHED' ? 'success' : 'info'">{{ row.statusText }}</el-tag>
+                      </div>
+                      <p>{{ row.content }}</p>
+                      <div class="knowledge-tags">
+                        <el-tag effect="light">{{ row.categoryText }}</el-tag>
+                        <el-tag v-for="tag in parseTags(row.tagsJson)" :key="tag" type="info" effect="plain">{{ tag }}</el-tag>
+                      </div>
+                    </div>
+                    <div class="knowledge-item-side">
+                      <span>更新时间</span>
+                      <strong>{{ row.updatedAt || '暂无时间' }}</strong>
+                      <div>
+                        <el-button type="primary" link @click="selectedKnowledge = row">详细</el-button>
+                        <el-button type="primary" link @click="openArticleEditor(row)">编辑</el-button>
+                        <el-button type="danger" link @click="deleteArticle(row)">删除</el-button>
+                      </div>
+                    </div>
+                  </div>
+                  <el-empty v-if="filteredKnowledgeArticles.length === 0" description="暂无符合条件的知识文章" />
+                </div>
               </el-tab-pane>
               <el-tab-pane label="常见问题" name="faqs">
-                <el-table :data="faqItems" border>
-                  <el-table-column prop="question" label="问题" min-width="260" />
-                  <el-table-column prop="categoryText" label="分类" width="120" />
-                  <el-table-column prop="priority" label="优先级" width="90" />
-                  <el-table-column label="启用状态" width="120">
-                    <template #default="{ row }">
-                      <el-switch v-model="row.enabled" active-text="启用" inactive-text="停用" @change="toggleFaq(row)" />
-                    </template>
-                  </el-table-column>
-                  <el-table-column prop="answer" label="答案摘要" min-width="280" show-overflow-tooltip />
-                  <el-table-column prop="updatedAt" label="更新时间" min-width="160" />
-                  <el-table-column label="操作" width="190" fixed="right">
-                    <template #default="{ row }">
-                      <el-button type="primary" link @click="selectedFaq = row">详细</el-button>
-                      <el-button type="primary" link @click="openFaqEditor(row)">编辑</el-button>
-                      <el-button type="danger" link @click="deleteFaq(row)">删除</el-button>
-                    </template>
-                  </el-table-column>
-                </el-table>
+                <div class="knowledge-card-list">
+                  <div v-for="row in filteredFaqItems" :key="row.id" class="knowledge-item-card">
+                    <div class="knowledge-item-main">
+                      <div class="knowledge-item-title">
+                        <strong>{{ row.question }}</strong>
+                        <el-switch v-model="row.enabled" active-text="启用" inactive-text="停用" @change="toggleFaq(row)" />
+                      </div>
+                      <p>{{ row.answer }}</p>
+                      <div class="knowledge-tags">
+                        <el-tag effect="light">{{ row.categoryText }}</el-tag>
+                        <el-tag type="warning" effect="plain">优先级 {{ row.priority }}</el-tag>
+                      </div>
+                    </div>
+                    <div class="knowledge-item-side">
+                      <span>更新时间</span>
+                      <strong>{{ row.updatedAt || '暂无时间' }}</strong>
+                      <div>
+                        <el-button type="primary" link @click="selectedFaq = row">详细</el-button>
+                        <el-button type="primary" link @click="openFaqEditor(row)">编辑</el-button>
+                        <el-button type="danger" link @click="deleteFaq(row)">删除</el-button>
+                      </div>
+                    </div>
+                  </div>
+                  <el-empty v-if="filteredFaqItems.length === 0" description="暂无符合条件的常见问题" />
+                </div>
               </el-tab-pane>
             </el-tabs>
           </div>
@@ -253,37 +536,61 @@
             <div v-for="item in ruleMetrics" :key="item.label" class="card rule-stat">
               <span>{{ item.label }}</span>
               <strong>{{ item.value }}</strong>
+              <em>{{ item.description }}</em>
             </div>
           </div>
-          <div class="card">
-            <div class="card-toolbar">
-              <h2>售后规则配置</h2>
+          <div class="card rule-workbench">
+            <div class="rule-head">
+              <div>
+                <h2>售后规则配置</h2>
+                <p>配置售后申请、审核优先级、退款退货、价保、特殊商品等自动判断规则。</p>
+              </div>
               <el-button type="primary" @click="openRuleEditor()">新增规则</el-button>
             </div>
-            <el-table :data="adminRules" border>
-              <el-table-column prop="ruleName" label="规则名称" min-width="180" />
-              <el-table-column prop="ruleTypeText" label="规则类型" width="130" />
-              <el-table-column prop="content" label="规则说明" min-width="260" show-overflow-tooltip />
-              <el-table-column prop="conditionsText" label="触发条件" min-width="220" show-overflow-tooltip />
-              <el-table-column prop="actionText" label="执行动作" min-width="220" show-overflow-tooltip />
-              <el-table-column label="启用状态" width="120">
-                <template #default="{ row }">
-                  <el-switch
-                    v-model="row.enabled"
-                    active-text="启用"
-                    inactive-text="停用"
-                    @change="toggleRule(row)"
-                  />
-                </template>
-              </el-table-column>
-              <el-table-column prop="updatedAt" label="更新时间" min-width="160" />
-              <el-table-column label="操作" width="140" fixed="right">
-                <template #default="{ row }">
-                  <el-button type="primary" link @click="openRuleEditor(row)">编辑</el-button>
-                  <el-button type="danger" link @click="deleteRule(row)">删除</el-button>
-                </template>
-              </el-table-column>
-            </el-table>
+            <div class="rule-filter-bar">
+              <el-input v-model="ruleKeyword" clearable placeholder="搜索规则名称、规则说明、触发条件或执行动作" />
+              <el-select v-model="ruleTypeFilter" placeholder="全部类型">
+                <el-option label="全部类型" value="ALL" />
+                <el-option v-for="item in ruleTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
+              </el-select>
+              <el-select v-model="ruleEnabledFilter" placeholder="启用状态">
+                <el-option label="全部状态" value="ALL" />
+                <el-option label="已启用" value="ENABLED" />
+                <el-option label="已停用" value="DISABLED" />
+              </el-select>
+            </div>
+            <div class="rule-card-list">
+              <div v-for="row in filteredAdminRules" :key="row.id" class="rule-item-card">
+                <div class="rule-item-top">
+                  <div>
+                    <strong>{{ row.ruleName }}</strong>
+                    <span>{{ row.content || '暂无规则说明' }}</span>
+                  </div>
+                  <div class="rule-item-status">
+                    <el-tag effect="light">{{ row.ruleTypeText }}</el-tag>
+                    <el-switch v-model="row.enabled" active-text="启用" inactive-text="停用" @change="toggleRule(row)" />
+                  </div>
+                </div>
+                <div class="rule-flow">
+                  <div>
+                    <span>触发条件</span>
+                    <p>{{ row.conditionsText || '无特殊触发条件' }}</p>
+                  </div>
+                  <div>
+                    <span>执行动作</span>
+                    <p>{{ row.actionText || '记录规则命中结果' }}</p>
+                  </div>
+                </div>
+                <div class="rule-item-footer">
+                  <span>更新时间：{{ row.updatedAt || '暂无时间' }}</span>
+                  <div>
+                    <el-button type="primary" link @click="openRuleEditor(row)">编辑</el-button>
+                    <el-button type="danger" link @click="deleteRule(row)">删除</el-button>
+                  </div>
+                </div>
+              </div>
+              <el-empty v-if="filteredAdminRules.length === 0" description="暂无符合条件的售后规则" />
+            </div>
           </div>
         </section>
         <section v-else-if="active === '评价分析'" class="review-page">
@@ -328,33 +635,134 @@
             </el-table>
           </div>
         </section>
+        <section v-else-if="active === '争议订单处理'" class="dispute-page">
+          <div class="dispute-stats">
+            <div v-for="item in afterSaleDisputeMetrics" :key="item.label" class="card dispute-stat">
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }}</strong>
+              <em>{{ item.description }}</em>
+            </div>
+          </div>
+          <div class="card dispute-workbench">
+            <div class="dispute-head">
+              <div>
+                <h2>平台介入售后争议</h2>
+                <p>集中处理消费者二次申请、商家举证和平台裁定结果，确保争议售后闭环。</p>
+              </div>
+              <el-button type="primary" :loading="loadingAfterSaleDisputes" @click="loadAfterSaleDisputes">刷新</el-button>
+            </div>
+            <div class="dispute-filter-bar">
+              <el-input v-model="afterSaleDisputeKeyword" clearable placeholder="搜索订单号、商家、商品或申请原因" />
+              <el-select v-model="afterSaleDisputeStatusFilter" placeholder="处理状态">
+                <el-option label="全部状态" value="ALL" />
+                <el-option label="待审核" value="待审核" />
+                <el-option label="已处理" value="已处理" />
+              </el-select>
+            </div>
+            <div class="dispute-card-list">
+              <div v-for="row in filteredAfterSaleDisputes" :key="row.id" class="dispute-item-card">
+                <div class="dispute-item-top">
+                  <div>
+                    <strong>{{ row.orderNo }}</strong>
+                    <span>{{ row.platformName }} / {{ row.shopName }}</span>
+                  </div>
+                  <el-tag :type="afterSaleDisputeTagType(row.status)">{{ row.status }}</el-tag>
+                </div>
+                <div class="dispute-product-line">
+                  <div>
+                    <span>商品</span>
+                    <strong>{{ row.productName }}</strong>
+                  </div>
+                  <div>
+                    <span>售后类型</span>
+                    <strong>{{ row.afterSaleTypeText }}</strong>
+                  </div>
+                  <div>
+                    <span>当前售后状态</span>
+                    <strong>{{ row.afterSaleStatus }}</strong>
+                  </div>
+                  <div>
+                    <span>申请时间</span>
+                    <strong>{{ row.createdAt }}</strong>
+                  </div>
+                </div>
+                <div class="dispute-reason-grid">
+                  <div>
+                    <span>消费者申请原因</span>
+                    <p>{{ row.consumerReason || '暂无说明' }}</p>
+                  </div>
+                  <div>
+                    <span>商家二次举证</span>
+                    <p>{{ row.merchantEvidenceText || '商家暂未提交二次举证' }}</p>
+                  </div>
+                </div>
+                <div class="dispute-item-footer">
+                  <span>{{ row.merchantEvidenceImages.length || row.consumerEvidenceImages.length ? '已提交图片凭证' : '暂无图片凭证' }}</span>
+                  <el-button type="primary" plain @click="selectedAfterSaleDispute = row">查看详细</el-button>
+                </div>
+              </div>
+              <el-empty v-if="filteredAfterSaleDisputes.length === 0" description="暂无符合条件的争议订单" />
+            </div>
+          </div>
+        </section>
         <section v-else-if="active === 'AI 配置'" class="ai-config-page">
-          <div class="card">
-            <div class="card-toolbar">
-              <h2>AI 服务运行配置</h2>
+          <div class="card ai-console-card">
+            <div class="ai-console-head">
+              <div class="ai-provider-card">
+                <img class="deepseek-logo" :src="deepseekLogo" alt="DeepSeek" />
+                <div>
+                  <strong>{{ aiConfig.modelName || 'deepseek-chat' }}</strong>
+                  <span>{{ aiConfig.baseUrl || '暂无模型接口地址' }}</span>
+                </div>
+              </div>
               <el-button type="primary" :loading="aiConfigLoading" @click="loadAiConfig">刷新配置</el-button>
             </div>
-            <el-descriptions border :column="1">
-              <el-descriptions-item label="服务状态">
-                <el-tag :type="aiConfig.healthy ? 'success' : 'danger'">{{ aiConfig.healthy ? '运行中' : '不可用' }}</el-tag>
-              </el-descriptions-item>
-              <el-descriptions-item label="服务名称">{{ aiConfig.serviceName || '暂无数据' }}</el-descriptions-item>
-              <el-descriptions-item label="服务地址">{{ aiConfig.serviceUrl }}</el-descriptions-item>
-              <el-descriptions-item label="服务版本">{{ aiConfig.serviceVersion || '暂无数据' }}</el-descriptions-item>
-              <el-descriptions-item label="模型提供商">{{ providerText(aiConfig.provider) }}</el-descriptions-item>
-              <el-descriptions-item label="模型名称">{{ aiConfig.modelName || '暂无数据' }}</el-descriptions-item>
-              <el-descriptions-item label="模型接口地址">{{ aiConfig.baseUrl || '暂无数据' }}</el-descriptions-item>
-              <el-descriptions-item label="API Key 状态">
-                <el-tag :type="aiConfig.apiKeyConfigured ? 'success' : 'warning'">
-                  {{ aiConfig.apiKeyConfigured ? '已配置' : '未配置' }}
-                </el-tag>
-              </el-descriptions-item>
-              <el-descriptions-item label="回复模式">{{ aiConfig.replyMode || '暂无数据' }}</el-descriptions-item>
-              <el-descriptions-item label="兜底策略">{{ aiConfig.fallbackMode || '暂无数据' }}</el-descriptions-item>
-              <el-descriptions-item label="最大 Token">{{ aiConfig.maxTokens }}</el-descriptions-item>
-              <el-descriptions-item label="超时时间">{{ aiConfig.timeoutSeconds }} 秒</el-descriptions-item>
-              <el-descriptions-item label="最近检测时间">{{ aiConfig.checkedAt || '尚未检测' }}</el-descriptions-item>
-            </el-descriptions>
+            <div class="ai-status-grid">
+              <div class="ai-status-card">
+                <span>服务状态</span>
+                <strong :class="aiConfig.healthy ? 'status-ok' : 'status-danger'">{{ aiConfig.healthy ? '运行中' : '不可用' }}</strong>
+                <em>{{ aiConfig.checkedAt || '尚未检测' }}</em>
+              </div>
+              <div class="ai-status-card">
+                <span>API Key</span>
+                <strong :class="aiConfig.apiKeyConfigured ? 'status-ok' : 'status-warning'">{{ aiConfig.apiKeyConfigured ? '已配置' : '未配置' }}</strong>
+                <em>用于调用真实大模型服务</em>
+                <el-button class="ai-key-edit-btn" size="small" type="primary" plain @click="openAiKeyDialog">编辑 API Key</el-button>
+              </div>
+              <div class="ai-status-card">
+                <span>最大 Token</span>
+                <strong>{{ aiConfig.maxTokens || 0 }}</strong>
+                <em>单次回复长度上限</em>
+              </div>
+              <div class="ai-status-card">
+                <span>超时时间</span>
+                <strong>{{ aiConfig.timeoutSeconds || 0 }} 秒</strong>
+                <em>接口调用等待时间</em>
+              </div>
+            </div>
+            <div class="ai-config-grid">
+              <div class="ai-info-panel">
+                <h3>服务信息</h3>
+                <div class="ai-info-row"><span>服务名称</span><strong>{{ aiConfig.serviceName || '暂无数据' }}</strong></div>
+                <div class="ai-info-row"><span>服务地址</span><strong>{{ aiConfig.serviceUrl }}</strong></div>
+                <div class="ai-info-row"><span>服务版本</span><strong>{{ aiConfig.serviceVersion || '暂无数据' }}</strong></div>
+                <div class="ai-info-row"><span>模型提供商</span><strong>{{ providerText(aiConfig.provider) }}</strong></div>
+              </div>
+              <div class="ai-info-panel">
+                <h3>回复策略</h3>
+                <div class="ai-policy-box">
+                  <span>回复模式</span>
+                  <p>{{ aiConfig.replyMode || '暂无数据' }}</p>
+                </div>
+                <div class="ai-policy-box">
+                  <span>兜底策略</span>
+                  <p>{{ aiConfig.fallbackMode || '暂无数据' }}</p>
+                </div>
+                <div class="ai-policy-note">
+                  当前 AI 服务用于消费者端客服自动回复；当服务不可用时，系统会提示转人工处理。
+                </div>
+              </div>
+            </div>
           </div>
         </section>
         <section v-else class="card">
@@ -363,7 +771,7 @@
         </section>
       </el-main>
     </el-container>
-    <el-dialog v-model="reviewDetailVisible" title="评价分析详细" width="720px">
+        <el-dialog v-model="reviewDetailVisible" title="评价分析详细" width="720px">
       <el-descriptions v-if="selectedReview" border :column="2">
         <el-descriptions-item label="平台">{{ selectedReview.platform }}</el-descriptions-item>
         <el-descriptions-item label="订单号">{{ selectedReview.orderNo }}</el-descriptions-item>
@@ -404,6 +812,167 @@
         <el-button v-if="selectedReview" type="danger" :loading="deletingReview" @click="deleteSelectedReview">
           删除评价
         </el-button>
+      </template>
+        </el-dialog>
+        <el-dialog v-model="aiKeyDialogVisible" title="编辑 API Key" width="620px" class="ai-key-dialog">
+          <div class="ai-key-editor">
+            <div class="ai-key-warning">
+              API Key 会直接用于真实 AI 对话服务，保存后后续消费者端 AI 回复将使用新的密钥调用大模型。
+            </div>
+            <el-form label-position="top">
+              <el-form-item label="当前 API Key">
+                <el-input
+                  :model-value="aiKeyInputValue"
+                  type="text"
+                  placeholder="暂无 API Key，请输入新的 API Key"
+                  show-word-limit
+                  @input="handleAiKeyInput"
+                >
+                  <template #append>
+                    <el-button @click="aiKeyVisible = !aiKeyVisible">{{ aiKeyVisible ? '隐藏' : '查看' }}</el-button>
+                  </template>
+                </el-input>
+              </el-form-item>
+            </el-form>
+            <div class="ai-key-meta">
+              <span>当前状态</span>
+              <strong :class="aiConfig.apiKeyConfigured ? 'status-ok' : 'status-warning'">
+                {{ aiConfig.apiKeyConfigured ? '已配置' : '未配置' }}
+              </strong>
+            </div>
+          </div>
+          <template #footer>
+            <el-button @click="aiKeyDialogVisible = false">取消</el-button>
+            <el-button type="primary" :loading="aiKeySaving" @click="saveAiKey">保存并生效</el-button>
+          </template>
+        </el-dialog>
+        <el-dialog v-model="afterSaleDisputeDetailVisible" title="争议订单详细" width="900px" class="dispute-dialog">
+      <div v-if="selectedAfterSaleDispute" class="dispute-detail">
+        <div class="dispute-detail-head">
+          <div>
+            <strong>{{ selectedAfterSaleDispute.orderNo }}</strong>
+            <span>{{ selectedAfterSaleDispute.platformName }} / {{ selectedAfterSaleDispute.shopName }}</span>
+          </div>
+          <el-tag :type="afterSaleDisputeTagType(selectedAfterSaleDispute.status)">{{ selectedAfterSaleDispute.status }}</el-tag>
+        </div>
+        <div class="dispute-detail-grid">
+          <div><span>申请时间</span><strong>{{ selectedAfterSaleDispute.createdAt }}</strong></div>
+          <div class="dispute-product-cell">
+            <span>商品</span>
+            <strong>{{ selectedAfterSaleDispute.productName }}</strong>
+            <el-button link type="primary" @click="productDetailVisible = true">详细</el-button>
+          </div>
+          <div><span>售后类型</span><strong>{{ selectedAfterSaleDispute.afterSaleTypeText }}</strong></div>
+          <div><span>当前售后状态</span><strong>{{ selectedAfterSaleDispute.afterSaleStatus }}</strong></div>
+        </div>
+        <div class="dispute-evidence-grid">
+          <div class="dispute-evidence-card">
+            <h3>消费者申请材料</h3>
+            <p>{{ selectedAfterSaleDispute.consumerReason || '暂无申请原因' }}</p>
+            <div v-if="selectedAfterSaleDispute.consumerEvidenceImages.length" class="evidence-list">
+              <el-image
+                v-for="image in selectedAfterSaleDispute.consumerEvidenceImages"
+                :key="image"
+                class="evidence-image"
+                :src="image"
+                :preview-src-list="selectedAfterSaleDispute.consumerEvidenceImages"
+                fit="cover"
+              />
+            </div>
+            <span v-else class="empty-evidence">暂无消费者凭证</span>
+          </div>
+          <div class="dispute-evidence-card">
+            <h3>商家二次举证</h3>
+            <p>{{ selectedAfterSaleDispute.merchantEvidenceText || '商家暂未提交二次举证' }}</p>
+            <div v-if="selectedAfterSaleDispute.merchantEvidenceImages.length" class="evidence-list">
+              <el-image
+                v-for="image in selectedAfterSaleDispute.merchantEvidenceImages"
+                :key="image"
+                class="evidence-image"
+                :src="image"
+                :preview-src-list="selectedAfterSaleDispute.merchantEvidenceImages"
+                fit="cover"
+              />
+            </div>
+            <span v-else class="empty-evidence">暂无商家举证图片</span>
+          </div>
+        </div>
+        <div class="platform-decision-card">
+          <div>
+            <span>平台处理结果</span>
+            <strong>{{ adminDisputeResultText(selectedAfterSaleDispute.adminResult) }}</strong>
+          </div>
+          <div>
+            <span>更新时间</span>
+            <strong>{{ selectedAfterSaleDispute.updatedAt || '暂无时间' }}</strong>
+          </div>
+          <div v-if="disputeRefundAmountText(selectedAfterSaleDispute)">
+            <span>裁决退款金额</span>
+            <strong>{{ disputeRefundAmountText(selectedAfterSaleDispute) }}</strong>
+          </div>
+          <p>{{ selectedAfterSaleDispute.adminNote || '暂无平台处理说明' }}</p>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="selectedAfterSaleDispute = null">关闭</el-button>
+        <el-button
+          v-if="selectedAfterSaleDispute?.status === '待审核'"
+          type="primary"
+          plain
+          @click="setDisputeRefundAmount"
+        >
+          退款金额
+        </el-button>
+        <el-button
+          v-if="selectedAfterSaleDispute?.status === '待审核'"
+          type="warning"
+          :loading="reviewingAfterSaleDispute"
+          @click="reviewAfterSaleDispute('SUPPORT_MERCHANT')"
+        >
+          支持商家
+        </el-button>
+        <el-button
+          v-if="selectedAfterSaleDispute?.status === '待审核'"
+          type="success"
+          :loading="reviewingAfterSaleDispute"
+          @click="reviewAfterSaleDispute('SUPPORT_CONSUMER')"
+        >
+          支持消费者
+        </el-button>
+      </template>
+    </el-dialog>
+    <el-dialog v-model="productDetailVisible" title="商品详细" width="760px" class="product-detail-dialog">
+      <div v-if="selectedAfterSaleDispute" class="product-detail-panel">
+        <div class="product-detail-main">
+          <img :src="selectedDisputeProduct.image" :alt="selectedDisputeProduct.name" />
+          <div>
+            <span>{{ selectedAfterSaleDispute.platformName }} / {{ selectedAfterSaleDispute.shopName }}</span>
+            <h3>{{ selectedDisputeProduct.name }}</h3>
+            <strong>{{ selectedDisputeProduct.price }}</strong>
+            <p>{{ selectedDisputeProduct.description }}</p>
+          </div>
+        </div>
+        <div class="product-detail-grid">
+          <div>
+            <span>订单编号</span>
+            <strong>{{ selectedAfterSaleDispute.orderNo }}</strong>
+          </div>
+          <div>
+            <span>售后类型</span>
+            <strong>{{ selectedAfterSaleDispute.afterSaleTypeText }}</strong>
+          </div>
+          <div>
+            <span>售后政策</span>
+            <strong>{{ selectedDisputeProduct.policy }}</strong>
+          </div>
+          <div>
+            <span>商家</span>
+            <strong>{{ selectedAfterSaleDispute.shopName }}</strong>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <el-button type="primary" @click="productDetailVisible = false">知道了</el-button>
       </template>
     </el-dialog>
     <el-dialog v-model="ruleEditorVisible" :title="ruleForm.id ? '编辑售后规则' : '新增售后规则'" width="720px">
@@ -522,8 +1091,25 @@ import jdIcon from './assets/platforms/jd.png'
 import pddIcon from './assets/platforms/pinduoduo.png'
 import taobaoIcon from './assets/platforms/taobao.png'
 import twentyMallIcon from './assets/platforms/twenty-mall.png'
+import deepseekLogo from './assets/deepseek-logo.png'
+import adminBrandIcon from './assets/brand/fusion-after-sale-icon.png'
+import productBackpack from './assets/products/twenty-backpack-real.png'
+import productCup from './assets/products/twenty-cup.png'
+import productKeyboard from './assets/products/twenty-keyboard-real.png'
+import productLamp from './assets/products/twenty-lamp.png'
 
-const sections = ['系统概览', '用户管理', '商家管理', '外部平台', '同步监控', '知识库', '规则配置', '评价分析', 'AI 配置']
+const sections = [
+  { label: '系统概览', icon: '总' },
+  { label: '用户管理', icon: '用' },
+  { label: '商家管理', icon: '商' },
+  { label: '外部平台', icon: '平' },
+  { label: '同步监控', icon: '同' },
+  { label: '知识库', icon: '知' },
+  { label: '规则配置', icon: '规' },
+  { label: '评价分析', icon: '评' },
+  { label: '争议订单处理', icon: '争' },
+  { label: 'AI 配置', icon: 'AI' }
+]
 const active = ref('系统概览')
 const aiConfigLoading = ref(false)
 const aiConfig = ref({
@@ -535,11 +1121,25 @@ const aiConfig = ref({
   modelName: '',
   baseUrl: '',
   apiKeyConfigured: false,
+  apiKey: '',
+  apiKeyMasked: '',
   replyMode: '',
   fallbackMode: '',
   maxTokens: 0,
   timeoutSeconds: 0,
   checkedAt: ''
+})
+const aiKeyDialogVisible = ref(false)
+const aiKeyVisible = ref(false)
+const aiKeySaving = ref(false)
+const aiKeyForm = ref({
+  apiKey: ''
+})
+const aiKeyInputValue = computed(() => {
+  if (aiKeyVisible.value) {
+    return aiKeyForm.value.apiKey
+  }
+  return aiConfig.value.apiKeyMasked || maskApiKey(aiKeyForm.value.apiKey)
 })
 const overview = ref({
   merchantCount: 0,
@@ -577,6 +1177,20 @@ type BindingRow = {
   secondaryStatus: string
   boundAt: string
 }
+type BindingGroup = {
+  primaryAccountNo: string
+  primaryDisplayName: string
+  primaryAvatar?: string
+  bindings: BindingRow[]
+}
+type PlatformRow = {
+  code: string
+  name: string
+  description: string
+  status: string
+  shops: number
+  icon: string
+}
 type SyncLogRow = {
   task: string
   status: string
@@ -604,6 +1218,26 @@ type ReviewRow = {
   disputeReason?: string
   disputeAdminNote?: string
   disputeCreatedAt?: string
+}
+type AfterSaleDisputeRow = {
+  id: number
+  afterSaleId: number
+  orderNo: string
+  afterSaleType: string
+  afterSaleTypeText: string
+  afterSaleStatus: string
+  productName: string
+  platformName: string
+  shopName: string
+  consumerReason: string
+  consumerEvidenceImages: string[]
+  merchantEvidenceText: string
+  merchantEvidenceImages: string[]
+  adminResult: string
+  adminNote: string
+  status: string
+  createdAt: string
+  updatedAt: string
 }
 type RuleRow = {
   id: number
@@ -641,16 +1275,37 @@ type FaqRow = {
 }
 const consumerBindings = ref<BindingRow[]>([])
 const merchantBindings = ref<BindingRow[]>([])
+const consumerBindingKeyword = ref('')
+const consumerBindingPlatformFilter = ref('ALL')
+const selectedConsumerBindingGroup = ref<BindingGroup | null>(null)
+const merchantBindingKeyword = ref('')
+const merchantBindingPlatformFilter = ref('ALL')
+const selectedMerchantBindingGroup = ref<BindingGroup | null>(null)
+const selectedPlatform = ref<PlatformRow | null>(null)
 const syncLogs = ref<SyncLogRow[]>([])
+const selectedSyncLog = ref<SyncLogRow | null>(null)
 const adminReviews = ref<ReviewRow[]>([])
+const afterSaleDisputes = ref<AfterSaleDisputeRow[]>([])
+const afterSaleDisputeKeyword = ref('')
+const afterSaleDisputeStatusFilter = ref('ALL')
 const adminRules = ref<RuleRow[]>([])
+const ruleKeyword = ref('')
+const ruleTypeFilter = ref('ALL')
+const ruleEnabledFilter = ref('ALL')
 const knowledgeArticles = ref<KnowledgeArticleRow[]>([])
 const faqItems = ref<FaqRow[]>([])
+const knowledgeKeyword = ref('')
+const knowledgeCategoryFilter = ref('ALL')
 const selectedReview = ref<ReviewRow | null>(null)
+const selectedAfterSaleDispute = ref<AfterSaleDisputeRow | null>(null)
+const productDetailVisible = ref(false)
+const afterSaleDisputeRefundAmounts = ref<Record<number, string>>({})
 const selectedKnowledge = ref<KnowledgeArticleRow | null>(null)
 const selectedFaq = ref<FaqRow | null>(null)
 const deletingReview = ref(false)
 const reviewingDispute = ref(false)
+const loadingAfterSaleDisputes = ref(false)
+const reviewingAfterSaleDispute = ref(false)
 const ruleEditorVisible = ref(false)
 const savingRule = ref(false)
 const knowledgeTab = ref('articles')
@@ -699,6 +1354,16 @@ const reviewDetailVisible = computed({
     }
   }
 })
+const afterSaleDisputeDetailVisible = computed({
+  get: () => selectedAfterSaleDispute.value !== null,
+  set: (visible: boolean) => {
+    if (!visible) {
+      selectedAfterSaleDispute.value = null
+      productDetailVisible.value = false
+    }
+  }
+})
+const selectedDisputeProduct = computed(() => buildDisputeProductDetail(selectedAfterSaleDispute.value))
 const knowledgeDetailVisible = computed({
   get: () => selectedKnowledge.value !== null,
   set: (visible: boolean) => {
@@ -715,8 +1380,40 @@ const faqDetailVisible = computed({
     }
   }
 })
+const consumerBindingDetailVisible = computed({
+  get: () => selectedConsumerBindingGroup.value !== null,
+  set: (visible: boolean) => {
+    if (!visible) {
+      selectedConsumerBindingGroup.value = null
+    }
+  }
+})
+const merchantBindingDetailVisible = computed({
+  get: () => selectedMerchantBindingGroup.value !== null,
+  set: (visible: boolean) => {
+    if (!visible) {
+      selectedMerchantBindingGroup.value = null
+    }
+  }
+})
+const platformDetailVisible = computed({
+  get: () => selectedPlatform.value !== null,
+  set: (visible: boolean) => {
+    if (!visible) {
+      selectedPlatform.value = null
+    }
+  }
+})
+const syncDetailVisible = computed({
+  get: () => selectedSyncLog.value !== null,
+  set: (visible: boolean) => {
+    if (!visible) {
+      selectedSyncLog.value = null
+    }
+  }
+})
 const metrics = computed(() => [
-  { label: '商家数', value: formatNumber(overview.value.merchantCount), description: '20商城中已启用的商家账号' },
+  { label: '商家数', value: formatNumber(overview.value.merchantCount), description: '万象商城中已启用的商家账号' },
   { label: '绑定店铺', value: formatNumber(overview.value.boundShopCount), description: '商家一级账号已绑定的店铺数量' },
   { label: '今日同步', value: formatNumber(overview.value.todaySyncCount), description: '今日更新的订单、售后和评价数据' },
   { label: 'AI 调用', value: formatNumber(aiCallCount.value), description: '基于会话和评价分析估算的调用量' }
@@ -750,16 +1447,97 @@ const pendingItems = computed(() => [
 ])
 const pendingTotal = computed(() => overview.value.pendingAfterSaleCount + overview.value.highRiskReviewCount)
 const syncOverview = computed(() => syncLogs.value.length > 0 ? syncLogs.value : [
-  { task: '20商城订单数据同步', status: '暂无数据', count: 0, time: '' },
-  { task: '20商城售后数据同步', status: '暂无数据', count: 0, time: '' },
-  { task: '20商城评价数据同步', status: '暂无数据', count: 0, time: '' }
+  { task: '万象商城订单数据同步', status: '暂无数据', count: 0, time: '' },
+  { task: '万象商城售后数据同步', status: '暂无数据', count: 0, time: '' },
+  { task: '万象商城评价数据同步', status: '暂无数据', count: 0, time: '' }
 ])
+const syncMetrics = computed(() => {
+  const list = syncOverview.value
+  const totalCount = list.reduce((sum, item) => sum + item.count, 0)
+  const normalCount = list.filter((item) => item.status === '正常').length
+  const timeRows = list.map((item) => item.time).filter(Boolean).sort()
+  const latestTime = timeRows.length > 0 ? timeRows[timeRows.length - 1] : '暂无时间'
+  return [
+    { label: '同步任务数', value: formatNumber(list.length), description: '当前纳入监控的数据同步任务' },
+    { label: '正常任务', value: formatNumber(normalCount), description: '最近一次同步结果正常的任务' },
+    { label: '累计同步量', value: formatNumber(totalCount), description: '订单、售后、评价累计同步数量' },
+    { label: '最近同步', value: latestTime, description: '最近一次数据更新时间' }
+  ]
+})
 const bindingSummary = computed(() => [
   { label: '消费者一级账号', value: formatNumber(countUniquePrimary(consumerBindings.value)) },
   { label: '商家一级账号', value: formatNumber(countUniquePrimary(merchantBindings.value)) },
   { label: '绑定消费者账号', value: formatNumber(consumerBindings.value.length) },
   { label: '绑定商家店铺', value: formatNumber(merchantBindings.value.length) }
 ])
+const consumerBindingGroups = computed(() => groupBindingsByPrimary(consumerBindings.value))
+const filteredConsumerBindingGroups = computed(() => {
+  const keyword = consumerBindingKeyword.value.trim().toLowerCase()
+  const platform = consumerBindingPlatformFilter.value
+  return consumerBindingGroups.value
+    .map((group) => ({
+      ...group,
+      bindings: group.bindings.filter((item) => {
+        const matchesPlatform = platform === 'ALL' || item.platformName === platform
+        const haystack = [
+          item.primaryAccountNo,
+          item.primaryDisplayName,
+          item.platformName,
+          item.secondaryAccountNo,
+          item.secondaryDisplayName
+        ].join(' ').toLowerCase()
+        return matchesPlatform && (!keyword || haystack.includes(keyword))
+      })
+    }))
+    .filter((group) => group.bindings.length > 0)
+})
+const consumerBindingPlatformOptions = computed(() => Array.from(new Set(consumerBindings.value.map((item) => item.platformName).filter(Boolean))))
+const consumerBindingMetrics = computed(() => {
+  const primaryTotal = consumerBindingGroups.value.length
+  const secondaryTotal = consumerBindings.value.length
+  const platformTotal = consumerBindingPlatformOptions.value.length
+  const multiBindTotal = consumerBindingGroups.value.filter((item) => item.bindings.length > 1).length
+  return [
+    { label: '一级用户数', value: formatNumber(primaryTotal), description: '已进入平台账号体系的消费者' },
+    { label: '绑定账号数', value: formatNumber(secondaryTotal), description: '消费者绑定的二级平台账号' },
+    { label: '接入平台数', value: formatNumber(platformTotal), description: '当前存在绑定关系的平台' },
+    { label: '多账号用户', value: formatNumber(multiBindTotal), description: '绑定多个二级账号的一级用户' }
+  ]
+})
+const merchantBindingGroups = computed(() => groupBindingsByPrimary(merchantBindings.value))
+const filteredMerchantBindingGroups = computed(() => {
+  const keyword = merchantBindingKeyword.value.trim().toLowerCase()
+  const platform = merchantBindingPlatformFilter.value
+  return merchantBindingGroups.value
+    .map((group) => ({
+      ...group,
+      bindings: group.bindings.filter((item) => {
+        const matchesPlatform = platform === 'ALL' || item.platformName === platform
+        const haystack = [
+          item.primaryAccountNo,
+          item.primaryDisplayName,
+          item.platformName,
+          item.secondaryAccountNo,
+          item.secondaryDisplayName
+        ].join(' ').toLowerCase()
+        return matchesPlatform && (!keyword || haystack.includes(keyword))
+      })
+    }))
+    .filter((group) => group.bindings.length > 0)
+})
+const merchantBindingPlatformOptions = computed(() => Array.from(new Set(merchantBindings.value.map((item) => item.platformName).filter(Boolean))))
+const merchantBindingMetrics = computed(() => {
+  const primaryTotal = merchantBindingGroups.value.length
+  const shopTotal = merchantBindings.value.length
+  const platformTotal = merchantBindingPlatformOptions.value.length
+  const multiShopTotal = merchantBindingGroups.value.filter((item) => item.bindings.length > 1).length
+  return [
+    { label: '一级商家数', value: formatNumber(primaryTotal), description: '已进入平台账号体系的商家' },
+    { label: '绑定店铺数', value: formatNumber(shopTotal), description: '商家绑定的二级平台店铺' },
+    { label: '接入平台数', value: formatNumber(platformTotal), description: '当前存在商家绑定的平台' },
+    { label: '多店铺商家', value: formatNumber(multiShopTotal), description: '绑定多个店铺的一级商家' }
+  ]
+})
 const trendData = computed(() => {
   const rows = overview.value.trendRows.length > 0
     ? overview.value.trendRows
@@ -794,17 +1572,69 @@ const reviewMetrics = computed(() => {
     { label: '高风险评价', value: formatNumber(highRisk) }
   ]
 })
+const afterSaleDisputeMetrics = computed(() => {
+  const total = afterSaleDisputes.value.length
+  const pending = afterSaleDisputes.value.filter((item) => item.status === '待审核').length
+  const resolved = afterSaleDisputes.value.filter((item) => item.status === '已处理').length
+  const hasMerchantEvidence = afterSaleDisputes.value.filter((item) => Boolean(item.merchantEvidenceText || item.merchantEvidenceImages.length)).length
+  return [
+    { label: '争议订单总数', value: formatNumber(total), description: '消费者申请平台介入的售后单' },
+    { label: '待平台审核', value: formatNumber(pending), description: '需要管理员裁定的争议' },
+    { label: '已处理', value: formatNumber(resolved), description: '已给出平台处理结果' },
+    { label: '商家已举证', value: formatNumber(hasMerchantEvidence), description: '商家提交了二次说明或图片' }
+  ]
+})
+const filteredAfterSaleDisputes = computed(() => {
+  const keyword = afterSaleDisputeKeyword.value.trim().toLowerCase()
+  return afterSaleDisputes.value.filter((item) => {
+    const statusMatched = afterSaleDisputeStatusFilter.value === 'ALL' || item.status === afterSaleDisputeStatusFilter.value
+    const text = [
+      item.orderNo,
+      item.platformName,
+      item.shopName,
+      item.productName,
+      item.afterSaleTypeText,
+      item.consumerReason,
+      item.merchantEvidenceText
+    ].join(' ').toLowerCase()
+    return statusMatched && (!keyword || text.includes(keyword))
+  })
+})
 const ruleMetrics = computed(() => {
   const total = adminRules.value.length
   const enabled = adminRules.value.filter((item) => item.enabled).length
   const disabled = total - enabled
   const types = new Set(adminRules.value.map((item) => item.ruleType)).size
   return [
-    { label: '规则总数', value: formatNumber(total) },
-    { label: '已启用', value: formatNumber(enabled) },
-    { label: '已停用', value: formatNumber(disabled) },
-    { label: '规则类型', value: formatNumber(types) }
+    { label: '规则总数', value: formatNumber(total), description: '当前售后规则配置数量' },
+    { label: '已启用', value: formatNumber(enabled), description: '正在参与业务判断的规则' },
+    { label: '已停用', value: formatNumber(disabled), description: '暂不参与售后处理判断' },
+    { label: '规则类型', value: formatNumber(types), description: '覆盖的售后处理场景' }
   ]
+})
+const ruleTypeOptions = computed(() => {
+  const map = new Map<string, string>()
+  adminRules.value.forEach((item) => {
+    map.set(item.ruleType, item.ruleTypeText || item.ruleType)
+  })
+  return Array.from(map.entries()).map(([value, label]) => ({ value, label }))
+})
+const filteredAdminRules = computed(() => {
+  const keyword = ruleKeyword.value.trim().toLowerCase()
+  return adminRules.value.filter((item) => {
+    const matchType = ruleTypeFilter.value === 'ALL' || item.ruleType === ruleTypeFilter.value
+    const matchEnabled = ruleEnabledFilter.value === 'ALL'
+      || (ruleEnabledFilter.value === 'ENABLED' && item.enabled)
+      || (ruleEnabledFilter.value === 'DISABLED' && !item.enabled)
+    const text = [
+      item.ruleName,
+      item.ruleTypeText,
+      item.content,
+      item.conditionsText,
+      item.actionText
+    ].join(' ').toLowerCase()
+    return matchType && matchEnabled && (!keyword || text.includes(keyword))
+  })
 })
 const knowledgeMetrics = computed(() => {
   const articleTotal = knowledgeArticles.value.length
@@ -812,14 +1642,31 @@ const knowledgeMetrics = computed(() => {
   const faqTotal = faqItems.value.length
   const enabledFaq = faqItems.value.filter((item) => item.enabled).length
   return [
-    { label: '知识文章', value: formatNumber(articleTotal) },
-    { label: '已发布文章', value: formatNumber(published) },
-    { label: '常见问题', value: formatNumber(faqTotal) },
-    { label: '启用 FAQ', value: formatNumber(enabledFaq) }
+    { label: '知识文章', value: formatNumber(articleTotal), description: '平台政策与处理规范' },
+    { label: '已发布文章', value: formatNumber(published), description: '当前可被业务引用' },
+    { label: '常见问题', value: formatNumber(faqTotal), description: '客服高频问答内容' },
+    { label: '启用 FAQ', value: formatNumber(enabledFaq), description: '可用于客服回复' }
   ]
 })
+const knowledgeCategoryOptions = computed(() => {
+  const articleCategories = knowledgeArticles.value.map((item) => item.categoryText)
+  const faqCategories = faqItems.value.map((item) => item.categoryText)
+  return Array.from(new Set([...articleCategories, ...faqCategories].filter(Boolean)))
+})
+const filteredKnowledgeArticles = computed(() => knowledgeArticles.value.filter((item) => {
+  const keyword = knowledgeKeyword.value.trim().toLowerCase()
+  const categoryMatched = knowledgeCategoryFilter.value === 'ALL' || item.categoryText === knowledgeCategoryFilter.value
+  const text = [item.title, item.content, item.categoryText, item.tagsJson, item.statusText].join(' ').toLowerCase()
+  return categoryMatched && (!keyword || text.includes(keyword))
+}))
+const filteredFaqItems = computed(() => faqItems.value.filter((item) => {
+  const keyword = knowledgeKeyword.value.trim().toLowerCase()
+  const categoryMatched = knowledgeCategoryFilter.value === 'ALL' || item.categoryText === knowledgeCategoryFilter.value
+  const text = [item.question, item.answer, item.categoryText, item.enabled ? '启用' : '停用'].join(' ').toLowerCase()
+  return categoryMatched && (!keyword || text.includes(keyword))
+}))
 const platforms = computed(() => {
-  const twentyMallShopCount = countUniqueBoundShops('20商城')
+  const twentyMallShopCount = countUniqueBoundShops('万象商城')
   return [
     { code: 'DOUYIN', name: '抖音电商', description: '真实抖店开放平台待接入', status: '未接入', shops: 0, icon: douyinIcon },
     { code: 'TAOBAO', name: '淘宝', description: '预留淘宝开放平台接入', status: '规划中', shops: 0, icon: taobaoIcon },
@@ -827,7 +1674,7 @@ const platforms = computed(() => {
     { code: 'JD', name: '京东', description: '预留京东开放平台接入', status: '规划中', shops: 0, icon: jdIcon },
     {
       code: 'TWENTY_MALL',
-      name: '20商城',
+      name: '万象商城',
       description: '自建数据库模拟真实电商平台，提供订单、售后、评价等演示数据',
       status: twentyMallShopCount > 0 ? '启用' : '未绑定',
       shops: twentyMallShopCount,
@@ -835,11 +1682,24 @@ const platforms = computed(() => {
     }
   ]
 })
+const platformMetrics = computed(() => {
+  const list = platforms.value
+  const enabledCount = list.filter((item) => item.status === '启用').length
+  const plannedCount = list.filter((item) => item.status === '规划中').length
+  const shopTotal = list.reduce((sum, item) => sum + item.shops, 0)
+  return [
+    { label: '平台总数', value: formatNumber(list.length), description: '系统预留和已接入平台' },
+    { label: '已启用平台', value: formatNumber(enabledCount), description: '当前可进行业务同步的平台' },
+    { label: '规划中平台', value: formatNumber(plannedCount), description: '后续可接入的开放平台' },
+    { label: '绑定店铺数', value: formatNumber(shopTotal), description: '全部平台累计绑定店铺' }
+  ]
+})
 onMounted(() => {
   loadOverview()
   loadAccountBindings()
   loadSyncLogs()
   loadAdminReviews()
+  loadAfterSaleDisputes()
   loadAdminRules()
   loadKnowledge()
   loadAiConfig()
@@ -867,6 +1727,8 @@ async function loadAiConfig() {
       modelName: payload.modelName || '',
       baseUrl: payload.baseUrl || '',
       apiKeyConfigured: Boolean(payload.apiKeyConfigured),
+      apiKey: payload.apiKey || '',
+      apiKeyMasked: payload.apiKeyMasked || '',
       replyMode: payload.replyMode || '',
       fallbackMode: payload.fallbackMode || '',
       maxTokens: Number(payload.maxTokens || 0),
@@ -881,6 +1743,81 @@ async function loadAiConfig() {
     }
   } finally {
     aiConfigLoading.value = false
+  }
+}
+
+function openAiKeyDialog() {
+  aiKeyForm.value.apiKey = aiConfig.value.apiKey || ''
+  aiKeyVisible.value = false
+  aiKeyDialogVisible.value = true
+}
+
+function maskApiKey(value: string) {
+  const normalized = value.trim()
+  if (!normalized) {
+    return ''
+  }
+  if (normalized.length <= 8) {
+    return '*'.repeat(normalized.length)
+  }
+  const prefix = normalized.startsWith('sk-') ? normalized.slice(0, 5) : normalized.slice(0, 4)
+  const suffix = normalized.slice(-4)
+  return `${prefix}${'*'.repeat(Math.max(normalized.length - prefix.length - suffix.length, 4))}${suffix}`
+}
+
+function handleAiKeyInput(value: string | number) {
+  const nextValue = String(value)
+  if (!aiKeyVisible.value) {
+    aiKeyVisible.value = true
+    const maskedValue = aiConfig.value.apiKeyMasked || maskApiKey(aiKeyForm.value.apiKey)
+    aiKeyForm.value.apiKey = nextValue === maskedValue ? aiKeyForm.value.apiKey : nextValue.replace(maskedValue, '')
+    return
+  }
+  aiKeyForm.value.apiKey = nextValue
+}
+
+async function saveAiKey() {
+  aiKeySaving.value = true
+  try {
+    const response = await fetch('http://localhost:9000/api/ai/config', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        api_key: aiKeyForm.value.apiKey.trim()
+      })
+    })
+    if (!response.ok) {
+      throw new Error('保存 API Key 失败')
+    }
+    const result = await response.json()
+    const payload = result.data || result
+    aiConfig.value = {
+      ...aiConfig.value,
+      healthy: true,
+      serviceName: payload.serviceName || aiConfig.value.serviceName,
+      serviceVersion: payload.serviceVersion || aiConfig.value.serviceVersion,
+      serviceUrl: payload.serviceUrl || aiConfig.value.serviceUrl,
+      provider: payload.provider || aiConfig.value.provider,
+      modelName: payload.modelName || aiConfig.value.modelName,
+      baseUrl: payload.baseUrl || aiConfig.value.baseUrl,
+      apiKeyConfigured: Boolean(payload.apiKeyConfigured),
+      apiKey: payload.apiKey || '',
+      apiKeyMasked: payload.apiKeyMasked || '',
+      replyMode: payload.replyMode || aiConfig.value.replyMode,
+      fallbackMode: payload.fallbackMode || aiConfig.value.fallbackMode,
+      maxTokens: Number(payload.maxTokens || aiConfig.value.maxTokens || 0),
+      timeoutSeconds: Number(payload.timeoutSeconds || aiConfig.value.timeoutSeconds || 0),
+      checkedAt: formatLocalDateTime(new Date())
+    }
+    aiKeyDialogVisible.value = false
+    aiKeyVisible.value = false
+    ElMessage.success('API Key 已保存，真实 AI 对话服务已使用新配置')
+  } catch {
+    ElMessage.error('保存 API Key 失败，请确认 AI 服务已启动')
+  } finally {
+    aiKeySaving.value = false
   }
 }
 
@@ -995,6 +1932,41 @@ async function loadAdminReviews() {
     // 页面保持空状态，避免展示不真实的模拟数据。
   }
   adminReviews.value = []
+}
+
+async function loadAfterSaleDisputes() {
+  loadingAfterSaleDisputes.value = true
+  try {
+    const response = await fetch('http://localhost:8080/api/twenty-mall/admin/after-sales/disputes')
+    const payload = await response.json()
+    if (payload.code === '200' && Array.isArray(payload.data)) {
+      afterSaleDisputes.value = payload.data.map((item: AfterSaleDisputeRow) => ({
+        id: Number(item.id),
+        afterSaleId: Number(item.afterSaleId || 0),
+        orderNo: item.orderNo || '',
+        afterSaleType: item.afterSaleType || '',
+        afterSaleTypeText: afterSaleTypeText(item.afterSaleType),
+        afterSaleStatus: item.afterSaleStatus || '',
+        productName: item.productName || '',
+        platformName: item.platformName || '',
+        shopName: item.shopName || '',
+        consumerReason: item.consumerReason || '',
+        consumerEvidenceImages: Array.isArray(item.consumerEvidenceImages) ? item.consumerEvidenceImages : [],
+        merchantEvidenceText: item.merchantEvidenceText || '',
+        merchantEvidenceImages: Array.isArray(item.merchantEvidenceImages) ? item.merchantEvidenceImages : [],
+        adminResult: item.adminResult || '',
+        adminNote: item.adminNote || '',
+        status: item.status || '待审核',
+        createdAt: item.createdAt || '',
+        updatedAt: item.updatedAt || ''
+      }))
+      return
+    }
+  } catch {
+    // 页面保持空状态，避免展示不真实的模拟数据。
+  } finally {
+    loadingAfterSaleDisputes.value = false
+  }
 }
 
 async function loadAdminRules() {
@@ -1401,6 +2373,154 @@ async function reviewSelectedDispute(result: 'APPROVE' | 'REJECT') {
   }
 }
 
+function buildDisputeProductDetail(dispute: AfterSaleDisputeRow | null) {
+  const rawName = dispute?.productName || '未知商品'
+  const name = rawName.replace(/^万象商城\s*/, '').trim() || rawName
+  const productMap = [
+    {
+      keyword: '钛杯',
+      image: productCup,
+      price: '￥129.00',
+      description: '便携钛杯采用轻量杯身设计，适合通勤、露营和日常饮水使用，重点关注杯体密封性、容量标识和外观完整性。',
+      policy: '支持质量问题退换货、仅退款审核、退货退款及平台介入；人为损坏或使用痕迹明显时需结合举证材料裁定。'
+    },
+    {
+      keyword: '台灯',
+      image: productLamp,
+      price: '￥169.00',
+      description: '北欧护眼台灯主打桌面照明和护眼场景，包含灯体、底座、电源线等组件，售后重点核验亮度、开关和外观破损情况。',
+      policy: '支持7天无理由退货、质量问题退换货、运费险和平台介入；电器类商品需核验通电状态和配件完整性。'
+    },
+    {
+      keyword: '键盘',
+      image: productKeyboard,
+      price: '￥239.00',
+      description: '机械键盘类商品需关注按键触发、连接稳定性、轴体手感和外观磨损，适用于办公与游戏输入场景。',
+      policy: '支持质量问题换修、退货退款和平台介入；影响二次销售的明显使用痕迹需结合双方凭证判断。'
+    },
+    {
+      keyword: '背包',
+      image: productBackpack,
+      price: '￥199.00',
+      description: '通勤背包类商品重点核验容量、拉链、肩带、面料瑕疵和防泼水能力，适用于日常通勤与短途出行。',
+      policy: '支持7天无理由退货、质量问题退换货和运费险；吊牌缺失或严重污损需进入人工审核。'
+    }
+  ]
+  const matched = productMap.find((item) => name.includes(item.keyword)) || productMap[0]
+  return {
+    name,
+    image: matched.image,
+    price: matched.price,
+    description: matched.description,
+    policy: matched.policy
+  }
+}
+
+function disputeRefundAmountText(dispute: AfterSaleDisputeRow | null) {
+  if (!dispute) {
+    return ''
+  }
+  const amount = afterSaleDisputeRefundAmounts.value[dispute.id]
+  return amount ? `￥${amount}` : ''
+}
+
+async function promptDisputeRefundAmount(dispute: AfterSaleDisputeRow) {
+  const currentAmount = afterSaleDisputeRefundAmounts.value[dispute.id] || ''
+  const result = await ElMessageBox.prompt(
+    `请输入订单 ${dispute.orderNo} 本次平台裁定的退款金额。`,
+    '设置退款金额',
+    {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      inputType: 'number',
+      inputValue: currentAmount,
+      inputPlaceholder: '请输入退款金额，例如 129.00',
+      inputValidator: (value) => {
+        const amount = Number(value)
+        return (Number.isFinite(amount) && amount > 0) || '请输入大于 0 的退款金额'
+      }
+    }
+  )
+  const normalized = Number(result.value).toFixed(2)
+  afterSaleDisputeRefundAmounts.value = {
+    ...afterSaleDisputeRefundAmounts.value,
+    [dispute.id]: normalized
+  }
+  return normalized
+}
+
+async function setDisputeRefundAmount() {
+  if (!selectedAfterSaleDispute.value) {
+    return
+  }
+  try {
+    await promptDisputeRefundAmount(selectedAfterSaleDispute.value)
+    ElMessage.success('退款金额已记录')
+  } catch {
+    // 用户取消输入时不提示错误。
+  }
+}
+
+async function reviewAfterSaleDispute(result: 'SUPPORT_CONSUMER' | 'SUPPORT_MERCHANT') {
+  if (!selectedAfterSaleDispute.value) {
+    return
+  }
+  const dispute = selectedAfterSaleDispute.value
+  const supportConsumer = result === 'SUPPORT_CONSUMER'
+  let refundAmount = afterSaleDisputeRefundAmounts.value[dispute.id] || ''
+  if (supportConsumer && !refundAmount) {
+    try {
+      refundAmount = await promptDisputeRefundAmount(dispute)
+    } catch {
+      return
+    }
+  }
+  let adminNote = ''
+  try {
+    const promptResult = await ElMessageBox.prompt(
+      supportConsumer
+        ? `确认支持消费者对订单 ${dispute.orderNo} 的平台介入申请吗？请填写处理说明。`
+        : `确认支持商家对订单 ${dispute.orderNo} 的拒绝处理结果吗？请填写处理说明。`,
+      supportConsumer ? '支持消费者' : '支持商家',
+      {
+        confirmButtonText: '确认处理',
+        cancelButtonText: '取消',
+        inputType: 'textarea',
+        inputPlaceholder: supportConsumer
+          ? '例如：经平台核验，商品问题证据充分，要求商家继续退款处理。'
+          : '例如：经平台核验，商家拒绝依据充分，维持原处理结果。',
+        inputValidator: (value) => Boolean(value && value.trim()) || '请填写平台处理说明'
+      }
+    )
+    adminNote = promptResult.value.trim()
+    if (supportConsumer && refundAmount) {
+      adminNote = `裁定退款金额：￥${refundAmount}。${adminNote}`
+    }
+  } catch {
+    return
+  }
+  reviewingAfterSaleDispute.value = true
+  try {
+    const response = await fetch(`http://localhost:8080/api/twenty-mall/admin/after-sales/disputes/${dispute.id}/review`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ result, adminNote, refundAmount: refundAmount || null })
+    })
+    const payload = await response.json()
+    if (payload.code !== '200') {
+      throw new Error(payload.message || '争议订单处理失败')
+    }
+    ElMessage.success(supportConsumer ? '已支持消费者，售后将继续进入退款处理' : '已支持商家，维持商家拒绝结果')
+    selectedAfterSaleDispute.value = null
+    await loadAfterSaleDisputes()
+    await loadOverview()
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '争议订单处理失败')
+  } finally {
+    reviewingAfterSaleDispute.value = false
+  }
+}
+
 function formatNumber(value: number) {
   return value.toLocaleString('zh-CN')
 }
@@ -1428,6 +2548,116 @@ function countUniqueBoundShops(platformName: string) {
 
 function countUniquePrimary(rows: BindingRow[]) {
   return new Set(rows.map((item) => item.primaryAccountNo).filter(Boolean)).size
+}
+
+function groupBindingsByPrimary(rows: BindingRow[]) {
+  const map = new Map<string, BindingGroup>()
+  rows.forEach((item) => {
+    const key = item.primaryAccountNo || 'UNKNOWN'
+    if (!map.has(key)) {
+      map.set(key, {
+        primaryAccountNo: item.primaryAccountNo,
+        primaryDisplayName: item.primaryDisplayName,
+        primaryAvatar: item.primaryAvatar,
+        bindings: []
+      })
+    }
+    const group = map.get(key)
+    if (group) {
+      if (!group.primaryAvatar && item.primaryAvatar) {
+        group.primaryAvatar = item.primaryAvatar
+      }
+      if (!group.primaryDisplayName && item.primaryDisplayName) {
+        group.primaryDisplayName = item.primaryDisplayName
+      }
+      group.bindings.push(item)
+    }
+  })
+  return Array.from(map.values())
+}
+
+function platformIconByName(platformName: string) {
+  if (platformName.includes('抖音')) {
+    return douyinIcon
+  }
+  if (platformName.includes('淘宝')) {
+    return taobaoIcon
+  }
+  if (platformName.includes('拼多多')) {
+    return pddIcon
+  }
+  if (platformName.includes('京东')) {
+    return jdIcon
+  }
+  return twentyMallIcon
+}
+
+function platformStatusTagType(status: string) {
+  if (status === '启用') {
+    return 'success'
+  }
+  if (status === '规划中') {
+    return 'warning'
+  }
+  return 'info'
+}
+
+function platformStatusDescription(status: string) {
+  if (status === '启用') {
+    return '已接入本地业务数据，可用于订单、售后和评价同步。'
+  }
+  if (status === '规划中') {
+    return '已预留平台入口，等待后续开放平台能力接入。'
+  }
+  return '暂未接入真实开放平台，仅保留平台配置位置。'
+}
+
+function platformNextStep(platform: PlatformRow) {
+  if (platform.code === 'TWENTY_MALL') {
+    return '继续维护本地数据库中的平台账号、订单、售后、评价和知识库数据，确保三端读取同一套业务数据。'
+  }
+  if (platform.status === '规划中') {
+    return '后续需要补充开放平台授权、店铺绑定回调、订单同步、售后回写和评价同步等真实接口能力。'
+  }
+  return '当前平台尚未接入，建议先完成开放平台应用申请和接口权限配置后再启用。'
+}
+
+function syncProgress(count: number) {
+  const maxCount = Math.max(1, ...syncOverview.value.map((item) => item.count))
+  return Math.max(4, Math.round((count / maxCount) * 100))
+}
+
+function syncTaskDescription(task: string, count: number) {
+  if (task.includes('订单')) {
+    return `已从万象商城同步 ${formatNumber(count)} 条订单数据，用于消费者端订单列表、商家端售后处理和管理员统计。`
+  }
+  if (task.includes('售后')) {
+    return `已同步 ${formatNumber(count)} 条售后记录，用于三端售后状态流转和争议处理。`
+  }
+  if (task.includes('评价')) {
+    return `已同步 ${formatNumber(count)} 条评价数据，用于商家评价分析和管理员风险审核。`
+  }
+  return `当前任务已同步 ${formatNumber(count)} 条业务数据。`
+}
+
+function parseTags(value: string) {
+  if (!value) {
+    return []
+  }
+  try {
+    const parsed = JSON.parse(value)
+    if (Array.isArray(parsed)) {
+      return parsed.map((item) => String(item)).filter(Boolean).slice(0, 4)
+    }
+  } catch {
+    return value
+      .replace(/[[\]"']/g, '')
+      .split(/[，,]/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .slice(0, 4)
+  }
+  return []
 }
 
 function activityTagType(module: string) {
@@ -1478,6 +2708,33 @@ function disputeTagType(status?: string) {
     return 'danger'
   }
   return 'info'
+}
+
+function afterSaleDisputeTagType(status?: string) {
+  if (status === '待审核') {
+    return 'warning'
+  }
+  if (status === '已处理') {
+    return 'success'
+  }
+  return 'info'
+}
+
+function afterSaleTypeText(type?: string) {
+  const map: Record<string, string> = {
+    REFUND_ONLY: '仅退款',
+    RETURN_REFUND: '退货退款',
+    PRICE_PROTECTION: '价保'
+  }
+  return map[type || ''] || type || '未知类型'
+}
+
+function adminDisputeResultText(result?: string) {
+  const map: Record<string, string> = {
+    SUPPORT_CONSUMER: '支持消费者',
+    SUPPORT_MERCHANT: '支持商家'
+  }
+  return map[result || ''] || '暂无处理结果'
 }
 
 function shouldShowPrimaryCell(rows: BindingRow[], row: BindingRow, index: number) {
@@ -1762,6 +3019,1018 @@ function shouldShowPrimaryCell(rows: BindingRow[], row: BindingRow, index: numbe
   text-align: right;
 }
 
+.external-platform-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.platform-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.platform-overview-card {
+  min-height: 96px;
+}
+
+.platform-overview-card span,
+.platform-overview-card em {
+  display: block;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.platform-overview-card strong {
+  margin-top: 8px;
+  color: #0f172a;
+  font-size: 30px;
+  line-height: 1;
+}
+
+.platform-overview-card em {
+  margin-top: 8px;
+  font-style: normal;
+}
+
+.platform-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.platform-access-card {
+  display: flex;
+  min-height: 220px;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.platform-access-head {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.platform-large-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  object-fit: cover;
+  background: #eef2f7;
+}
+
+.platform-access-head strong,
+.platform-access-head span {
+  display: block;
+}
+
+.platform-access-head strong {
+  color: #0f172a;
+  font-size: 17px;
+}
+
+.platform-access-head span {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.platform-access-card p {
+  min-height: 44px;
+  margin: 0;
+  color: #475569;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.platform-access-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.platform-access-meta div {
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.platform-access-meta span,
+.platform-access-meta strong {
+  display: block;
+}
+
+.platform-access-meta span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.platform-access-meta strong {
+  margin-top: 6px;
+  color: #0f172a;
+  font-size: 18px;
+}
+
+.platform-access-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid #eef2f7;
+}
+
+.platform-access-footer span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.platform-dialog-head {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.platform-dialog-head strong,
+.platform-dialog-head span {
+  display: block;
+}
+
+.platform-dialog-head strong {
+  color: #0f172a;
+  font-size: 17px;
+}
+
+.platform-dialog-head span {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.platform-config-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.platform-config-grid div {
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.platform-config-grid span,
+.platform-config-grid strong {
+  display: block;
+}
+
+.platform-config-grid span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.platform-config-grid strong {
+  margin-top: 6px;
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.platform-config-section {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.platform-config-section h3 {
+  margin: 0 0 8px;
+  color: #0f172a;
+  font-size: 15px;
+}
+
+.platform-config-section p {
+  margin: 0;
+  color: #475569;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.sync-monitor-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sync-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.sync-metric-card {
+  min-height: 96px;
+}
+
+.sync-metric-card span,
+.sync-metric-card em {
+  display: block;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.sync-metric-card strong {
+  margin-top: 8px;
+  color: #0f172a;
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.sync-metric-card em {
+  margin-top: 8px;
+  font-style: normal;
+}
+
+.sync-card-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.sync-task-card {
+  display: flex;
+  min-height: 220px;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sync-task-head,
+.sync-task-footer,
+.sync-dialog-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sync-task-head strong,
+.sync-task-head span {
+  display: block;
+}
+
+.sync-task-head strong {
+  color: #0f172a;
+  font-size: 16px;
+}
+
+.sync-task-head span {
+  margin-top: 5px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.sync-task-value {
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.sync-task-value span,
+.sync-task-value strong {
+  display: block;
+}
+
+.sync-task-value span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.sync-task-value strong {
+  margin-top: 6px;
+  color: #0f172a;
+  font-size: 28px;
+  line-height: 1;
+}
+
+.sync-task-footer {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid #eef2f7;
+}
+
+.sync-task-footer span {
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.sync-detail-panel {
+  padding-bottom: 12px;
+}
+
+.sync-dialog-title {
+  margin-bottom: 16px;
+}
+
+.sync-dialog-title strong {
+  color: #0f172a;
+  font-size: 17px;
+}
+
+.knowledge-workbench {
+  padding: 0;
+  overflow: hidden;
+}
+
+.knowledge-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f8fafc;
+}
+
+.knowledge-head h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 20px;
+}
+
+.knowledge-head p {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.knowledge-filter-bar {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) 180px;
+  gap: 12px;
+  padding: 14px 20px 4px;
+}
+
+.knowledge-workbench :deep(.el-tabs__header) {
+  margin: 0 20px 12px;
+}
+
+.knowledge-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 20px 20px;
+}
+
+.knowledge-item-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 210px;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.knowledge-item-card:hover {
+  background: #f8fbff;
+  border-color: #bfdbfe;
+}
+
+.knowledge-item-main {
+  min-width: 0;
+}
+
+.knowledge-item-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.knowledge-item-title strong {
+  overflow: hidden;
+  color: #0f172a;
+  font-size: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.knowledge-item-main p {
+  display: -webkit-box;
+  margin: 10px 0;
+  overflow: hidden;
+  color: #475569;
+  font-size: 14px;
+  line-height: 1.7;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.knowledge-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.knowledge-item-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  border-left: 1px solid #eef2f7;
+  padding-left: 16px;
+  text-align: right;
+}
+
+.knowledge-item-side span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.knowledge-item-side strong {
+  display: block;
+  margin-top: 4px;
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.rule-workbench {
+  padding: 0;
+  overflow: hidden;
+}
+
+.rule-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f8fafc;
+}
+
+.rule-head h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 20px;
+}
+
+.rule-head p {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.rule-filter-bar {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) 180px 150px;
+  gap: 12px;
+  padding: 14px 20px;
+}
+
+.rule-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 20px 20px;
+}
+
+.rule-item-card {
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.rule-item-card:hover {
+  background: #f8fbff;
+  border-color: #bfdbfe;
+}
+
+.rule-item-top,
+.rule-item-footer,
+.rule-item-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.rule-item-top strong,
+.rule-item-top span {
+  display: block;
+}
+
+.rule-item-top strong {
+  color: #0f172a;
+  font-size: 16px;
+}
+
+.rule-item-top span {
+  margin-top: 6px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.rule-flow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 14px 0;
+}
+
+.rule-flow div {
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.rule-flow span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.rule-flow p {
+  margin: 7px 0 0;
+  color: #0f172a;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.rule-item-footer {
+  padding-top: 12px;
+  border-top: 1px solid #eef2f7;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.dispute-workbench {
+  padding: 0;
+  overflow: hidden;
+}
+
+.dispute-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f8fafc;
+}
+
+.dispute-head h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 20px;
+}
+
+.dispute-head p {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.dispute-filter-bar {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) 160px;
+  gap: 12px;
+  padding: 14px 20px;
+}
+
+.dispute-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 20px 20px;
+}
+
+.dispute-item-card {
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.dispute-item-card:hover {
+  background: #f8fbff;
+  border-color: #bfdbfe;
+}
+
+.dispute-item-top,
+.dispute-item-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dispute-item-top strong,
+.dispute-item-top span {
+  display: block;
+}
+
+.dispute-item-top strong {
+  color: #0f172a;
+  font-size: 17px;
+}
+
+.dispute-item-top span {
+  margin-top: 5px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.dispute-product-line {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 120px 150px 160px;
+  gap: 12px;
+  margin: 14px 0;
+}
+
+.dispute-product-line div,
+.dispute-detail-grid div,
+.platform-decision-card {
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.dispute-product-line span,
+.dispute-product-line strong,
+.dispute-detail-grid span,
+.dispute-detail-grid strong,
+.platform-decision-card span,
+.platform-decision-card strong {
+  display: block;
+}
+
+.dispute-product-line span,
+.dispute-detail-grid span,
+.platform-decision-card span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.dispute-product-line strong,
+.dispute-detail-grid strong,
+.platform-decision-card strong {
+  margin-top: 6px;
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.dispute-reason-grid,
+.dispute-evidence-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.dispute-reason-grid div,
+.dispute-evidence-card {
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.dispute-reason-grid span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.dispute-reason-grid p,
+.dispute-evidence-card p,
+.platform-decision-card p {
+  margin: 7px 0 0;
+  color: #334155;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.dispute-item-footer {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #eef2f7;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.dispute-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.dispute-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.dispute-detail-head strong,
+.dispute-detail-head span {
+  display: block;
+}
+
+.dispute-detail-head strong {
+  color: #0f172a;
+  font-size: 18px;
+}
+
+.dispute-detail-head span {
+  margin-top: 5px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.dispute-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.dispute-product-cell {
+  position: relative;
+}
+
+.dispute-product-cell .el-button {
+  position: absolute;
+  right: 10px;
+  top: 9px;
+  padding: 0;
+}
+
+.dispute-evidence-card h3 {
+  margin: 0 0 8px;
+  color: #0f172a;
+  font-size: 15px;
+}
+
+.empty-evidence {
+  display: inline-block;
+  margin-top: 10px;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.platform-decision-card {
+  display: grid;
+  grid-template-columns: 160px 160px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.platform-decision-card p {
+  margin: 0;
+}
+
+.product-detail-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.product-detail-main {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.product-detail-main img {
+  width: 180px;
+  height: 180px;
+  object-fit: cover;
+  border-radius: 10px;
+  background: #eef2f7;
+}
+
+.product-detail-main span {
+  display: block;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.product-detail-main h3 {
+  margin: 8px 0 10px;
+  color: #0f172a;
+  font-size: 22px;
+}
+
+.product-detail-main strong {
+  display: block;
+  color: #ef4444;
+  font-size: 20px;
+}
+
+.product-detail-main p {
+  margin: 12px 0 0;
+  color: #334155;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.product-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.product-detail-grid div {
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.product-detail-grid span,
+.product-detail-grid strong {
+  display: block;
+}
+
+.product-detail-grid span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.product-detail-grid strong {
+  margin-top: 7px;
+  color: #0f172a;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.user-management-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.user-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.user-metric {
+  min-height: 96px;
+}
+
+.user-metric span,
+.user-metric em {
+  display: block;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.user-metric strong {
+  margin-top: 8px;
+  color: #0f172a;
+  font-size: 30px;
+  line-height: 1;
+}
+
+.user-metric em {
+  margin-top: 8px;
+  font-style: normal;
+}
+
+.user-filter-card {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) 180px;
+  gap: 12px;
+  padding: 14px 16px;
+}
+
+.user-group-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.user-group-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.user-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f8fafc;
+}
+
+.user-profile-cell,
+.dialog-user-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.user-profile-cell strong,
+.user-profile-cell span,
+.dialog-user-head strong,
+.dialog-user-head span {
+  display: block;
+}
+
+.user-profile-cell strong,
+.dialog-user-head strong {
+  color: #0f172a;
+  font-size: 16px;
+}
+
+.user-profile-cell span,
+.dialog-user-head span {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.user-group-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.binding-row-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.binding-row-card {
+  display: grid;
+  grid-template-columns: 150px minmax(140px, 0.8fr) minmax(200px, 1fr) 180px;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 18px;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.binding-row-card:last-child {
+  border-bottom: 0;
+}
+
+.merchant-binding-card {
+  grid-template-columns: 150px minmax(140px, 0.8fr) minmax(220px, 1.1fr) 180px;
+}
+
+.binding-row-card strong {
+  display: block;
+  margin: 4px 0 0;
+  overflow: hidden;
+  color: #0f172a;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.binding-label {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.dialog-user-head {
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
 .review-page,
 .knowledge-page {
   display: flex;
@@ -1771,7 +4040,8 @@ function shouldShowPrimaryCell(rows: BindingRow[], row: BindingRow, index: numbe
 
 .review-stats,
 .rule-stats,
-.knowledge-stats {
+.knowledge-stats,
+.dispute-stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
@@ -1779,24 +4049,53 @@ function shouldShowPrimaryCell(rows: BindingRow[], row: BindingRow, index: numbe
 
 .review-stat,
 .rule-stat,
-.knowledge-stat {
+.knowledge-stat,
+.dispute-stat {
   min-height: 96px;
 }
 
 .review-stat span,
 .rule-stat span,
-.knowledge-stat span {
+.knowledge-stat span,
+.dispute-stat span,
+.knowledge-stat em,
+.rule-stat em,
+.dispute-stat em {
+  display: block;
   color: #64748b;
   font-size: 14px;
 }
 
+.knowledge-stat em,
+.rule-stat em,
+.dispute-stat em {
+  margin-top: 8px;
+  font-size: 13px;
+  font-style: normal;
+}
+
 .review-stat strong,
 .rule-stat strong,
-.knowledge-stat strong {
+.knowledge-stat strong,
+.dispute-stat strong {
   display: block;
   margin-top: 12px;
   color: #0f172a;
   font-size: 28px;
+}
+
+.evidence-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.evidence-image {
+  width: 88px;
+  height: 88px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f8fafc;
 }
 
 .rule-page {
@@ -1809,6 +4108,218 @@ function shouldShowPrimaryCell(rows: BindingRow[], row: BindingRow, index: numbe
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.ai-console-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ai-console-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.ai-provider-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.deepseek-logo {
+  width: 176px;
+  height: 52px;
+  border-radius: 12px;
+  object-fit: contain;
+  background: #f5f8ff;
+}
+
+.ai-provider-card strong,
+.ai-provider-card span {
+  display: block;
+}
+
+.ai-provider-card strong {
+  color: #0f172a;
+  font-size: 22px;
+}
+
+.ai-provider-card span {
+  margin-top: 6px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.ai-status-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.ai-status-card {
+  min-height: 104px;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.ai-status-card span,
+.ai-status-card strong,
+.ai-status-card em {
+  display: block;
+}
+
+.ai-status-card span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.ai-status-card strong {
+  margin-top: 8px;
+  color: #0f172a;
+  font-size: 24px;
+  line-height: 1.1;
+}
+
+.ai-status-card em {
+  margin-top: 8px;
+  color: #64748b;
+  font-size: 12px;
+  font-style: normal;
+}
+
+.ai-key-edit-btn {
+  margin-top: 14px;
+}
+
+.ai-key-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ai-key-warning {
+  padding: 13px 14px;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.ai-key-meta {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr);
+  gap: 10px 14px;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.ai-key-meta span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.ai-key-meta strong {
+  overflow: hidden;
+  color: #0f172a;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-ok {
+  color: #16a34a !important;
+}
+
+.status-warning {
+  color: #d97706 !important;
+}
+
+.status-danger {
+  color: #dc2626 !important;
+}
+
+.ai-config-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  gap: 16px;
+}
+
+.ai-info-panel {
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.ai-info-panel h3 {
+  margin: 0 0 14px;
+  color: #0f172a;
+  font-size: 16px;
+}
+
+.ai-info-row {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: 12px;
+  padding: 11px 0;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.ai-info-row:last-child {
+  border-bottom: 0;
+}
+
+.ai-info-row span,
+.ai-policy-box span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.ai-info-row strong {
+  overflow: hidden;
+  color: #0f172a;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-policy-box {
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.ai-policy-box + .ai-policy-box {
+  margin-top: 10px;
+}
+
+.ai-policy-box p {
+  margin: 7px 0 0;
+  color: #0f172a;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.ai-policy-note {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 13px;
+  line-height: 1.7;
 }
 
 .card-toolbar {
