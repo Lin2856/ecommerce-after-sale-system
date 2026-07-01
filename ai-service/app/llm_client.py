@@ -55,7 +55,6 @@ class LLMClient:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
-                temperature=settings.model_temperature,
                 max_tokens=settings.model_max_tokens,
                 timeout=settings.llm_timeout,
             )

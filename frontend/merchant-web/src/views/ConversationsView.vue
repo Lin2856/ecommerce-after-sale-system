@@ -450,6 +450,23 @@ function avatarClass(senderType: string) {
   max-width: 74%;
 }
 
+.message-row.right .message-body {
+  display: flex;
+  width: 74%;
+  flex-direction: column;
+  align-items: flex-end;
+  margin-left: auto;
+}
+
+.message-row.right .speaker {
+  width: 100%;
+  text-align: right;
+}
+
+.message-row.right .bubble {
+  align-self: flex-end;
+}
+
 .speaker {
   color: #64748b;
   font-size: 12px;

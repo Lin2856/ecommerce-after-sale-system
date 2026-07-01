@@ -14,6 +14,8 @@ from app.intent.classifier import classify_intent
 from app.sentiment.analyzer import analyze_sentiment
 from app.ticket.classifier import classify_ticket
 from app.topic.extractor import extract_topics
+from app.config import settings
+from app.llm_client import llm_client
 
 router = APIRouter()
 
@@ -41,3 +43,23 @@ def ticket_classify(request: TextRequest) -> TicketClassifyResponse:
 @router.post("/reply", response_model=ReplyResponse)
 def reply(request: ContextReplyRequest) -> ReplyResponse:
     return build_reply(request)
+
+
+@router.get("/config")
+def config() -> dict[str, object]:
+    provider = settings.model_provider.lower()
+    model_name = getattr(settings, f"{provider}_model", "")
+    base_url = getattr(settings, f"{provider}_base_url", "")
+    return {
+        "serviceName": settings.app_name,
+        "serviceVersion": settings.app_version,
+        "serviceUrl": "http://localhost:9000",
+        "provider": provider,
+        "modelName": model_name,
+        "baseUrl": base_url,
+        "apiKeyConfigured": llm_client.is_configured(),
+        "maxTokens": settings.model_max_tokens,
+        "timeoutSeconds": settings.llm_timeout,
+        "replyMode": "真实大模型回复",
+        "fallbackMode": "服务不可用时提示转人工",
+    }

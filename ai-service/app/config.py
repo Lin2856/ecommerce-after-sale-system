@@ -6,7 +6,6 @@ class Settings(BaseSettings):
     app_version: str = "1.0.0"
 
     model_provider: str = "deepseek"
-    model_temperature: float = 0.5
     model_max_tokens: int = 800
     llm_timeout: int = 30
 

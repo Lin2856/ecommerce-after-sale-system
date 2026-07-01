@@ -328,12 +328,34 @@
             </el-table>
           </div>
         </section>
-        <section v-else-if="active === 'AI 配置'" class="card">
-          <el-descriptions border :column="1">
-            <el-descriptions-item label="默认服务">FastAPI 规则版 AI</el-descriptions-item>
-            <el-descriptions-item label="服务地址">http://localhost:9000</el-descriptions-item>
-            <el-descriptions-item label="模型路线">规则版 -> 专用小模型 -> RAG</el-descriptions-item>
-          </el-descriptions>
+        <section v-else-if="active === 'AI 配置'" class="ai-config-page">
+          <div class="card">
+            <div class="card-toolbar">
+              <h2>AI 服务运行配置</h2>
+              <el-button type="primary" :loading="aiConfigLoading" @click="loadAiConfig">刷新配置</el-button>
+            </div>
+            <el-descriptions border :column="1">
+              <el-descriptions-item label="服务状态">
+                <el-tag :type="aiConfig.healthy ? 'success' : 'danger'">{{ aiConfig.healthy ? '运行中' : '不可用' }}</el-tag>
+              </el-descriptions-item>
+              <el-descriptions-item label="服务名称">{{ aiConfig.serviceName || '暂无数据' }}</el-descriptions-item>
+              <el-descriptions-item label="服务地址">{{ aiConfig.serviceUrl }}</el-descriptions-item>
+              <el-descriptions-item label="服务版本">{{ aiConfig.serviceVersion || '暂无数据' }}</el-descriptions-item>
+              <el-descriptions-item label="模型提供商">{{ providerText(aiConfig.provider) }}</el-descriptions-item>
+              <el-descriptions-item label="模型名称">{{ aiConfig.modelName || '暂无数据' }}</el-descriptions-item>
+              <el-descriptions-item label="模型接口地址">{{ aiConfig.baseUrl || '暂无数据' }}</el-descriptions-item>
+              <el-descriptions-item label="API Key 状态">
+                <el-tag :type="aiConfig.apiKeyConfigured ? 'success' : 'warning'">
+                  {{ aiConfig.apiKeyConfigured ? '已配置' : '未配置' }}
+                </el-tag>
+              </el-descriptions-item>
+              <el-descriptions-item label="回复模式">{{ aiConfig.replyMode || '暂无数据' }}</el-descriptions-item>
+              <el-descriptions-item label="兜底策略">{{ aiConfig.fallbackMode || '暂无数据' }}</el-descriptions-item>
+              <el-descriptions-item label="最大 Token">{{ aiConfig.maxTokens }}</el-descriptions-item>
+              <el-descriptions-item label="超时时间">{{ aiConfig.timeoutSeconds }} 秒</el-descriptions-item>
+              <el-descriptions-item label="最近检测时间">{{ aiConfig.checkedAt || '尚未检测' }}</el-descriptions-item>
+            </el-descriptions>
+          </div>
         </section>
         <section v-else class="card">
           <h2>{{ active }}</h2>
@@ -503,6 +525,22 @@ import twentyMallIcon from './assets/platforms/twenty-mall.png'
 
 const sections = ['系统概览', '用户管理', '商家管理', '外部平台', '同步监控', '知识库', '规则配置', '评价分析', 'AI 配置']
 const active = ref('系统概览')
+const aiConfigLoading = ref(false)
+const aiConfig = ref({
+  healthy: false,
+  serviceName: '',
+  serviceVersion: '',
+  serviceUrl: 'http://localhost:9000',
+  provider: '',
+  modelName: '',
+  baseUrl: '',
+  apiKeyConfigured: false,
+  replyMode: '',
+  fallbackMode: '',
+  maxTokens: 0,
+  timeoutSeconds: 0,
+  checkedAt: ''
+})
 const overview = ref({
   merchantCount: 0,
   boundShopCount: 0,
@@ -804,7 +842,47 @@ onMounted(() => {
   loadAdminReviews()
   loadAdminRules()
   loadKnowledge()
+  loadAiConfig()
 })
+
+async function loadAiConfig() {
+  aiConfigLoading.value = true
+  const checkedAt = formatLocalDateTime(new Date())
+  try {
+    const healthResponse = await fetch('http://localhost:9000/health')
+    if (!healthResponse.ok) {
+      throw new Error('AI 服务健康检查失败')
+    }
+    const configResponse = await fetch('http://localhost:9000/api/ai/config')
+    if (!configResponse.ok) {
+      throw new Error('AI 配置接口不可用')
+    }
+    const payload = await configResponse.json()
+    aiConfig.value = {
+      healthy: true,
+      serviceName: payload.serviceName || '',
+      serviceVersion: payload.serviceVersion || '',
+      serviceUrl: payload.serviceUrl || 'http://localhost:9000',
+      provider: payload.provider || '',
+      modelName: payload.modelName || '',
+      baseUrl: payload.baseUrl || '',
+      apiKeyConfigured: Boolean(payload.apiKeyConfigured),
+      replyMode: payload.replyMode || '',
+      fallbackMode: payload.fallbackMode || '',
+      maxTokens: Number(payload.maxTokens || 0),
+      timeoutSeconds: Number(payload.timeoutSeconds || 0),
+      checkedAt
+    }
+  } catch {
+    aiConfig.value = {
+      ...aiConfig.value,
+      healthy: false,
+      checkedAt
+    }
+  } finally {
+    aiConfigLoading.value = false
+  }
+}
 
 async function loadOverview() {
   try {
@@ -1327,6 +1405,20 @@ function formatNumber(value: number) {
   return value.toLocaleString('zh-CN')
 }
 
+function formatLocalDateTime(value: Date) {
+  return `${value.getFullYear()}.${value.getMonth() + 1}.${value.getDate()} ${String(value.getHours()).padStart(2, '0')}:${String(value.getMinutes()).padStart(2, '0')}:${String(value.getSeconds()).padStart(2, '0')}`
+}
+
+function providerText(provider: string) {
+  const map: Record<string, string> = {
+    deepseek: 'DeepSeek',
+    qwen: '通义千问',
+    glm: '智谱 GLM',
+    openai: 'OpenAI'
+  }
+  return map[provider] || provider || '暂无数据'
+}
+
 function countUniqueBoundShops(platformName: string) {
   const accountNos = merchantBindings.value
     .filter((item) => item.platformName === platformName && item.bindStatus === '已绑定')
@@ -1708,6 +1800,12 @@ function shouldShowPrimaryCell(rows: BindingRow[], row: BindingRow, index: numbe
 }
 
 .rule-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ai-config-page {
   display: flex;
   flex-direction: column;
   gap: 16px;
