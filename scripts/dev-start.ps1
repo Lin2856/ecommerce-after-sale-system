@@ -57,7 +57,7 @@ function Start-HiddenProcess {
   $psi.RedirectStandardOutput = $true
   $psi.RedirectStandardError = $true
   foreach ($key in $Environment.Keys) {
-    $psi.Environment[$key] = [string]$Environment[$key]
+    [Environment]::SetEnvironmentVariable($key, [string]$Environment[$key], "Process")
   }
   $process = [System.Diagnostics.Process]::Start($psi)
   $stdout = Join-Path $logDir "$LogName.out.log"

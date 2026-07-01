@@ -22,9 +22,17 @@
           <div class="review-summary">商家服务：{{ merchantReviewContent(row) }}</div>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="130">
+      <el-table-column label="异议状态" width="110">
+        <template #default="{ row }">
+          <el-tag v-if="row.deleted" type="danger">已删除</el-tag>
+          <el-tag v-else-if="row.disputeStatus" :type="disputeTagType(row.disputeStatus)">{{ row.disputeStatus }}</el-tag>
+          <span v-else class="muted-text">未提出</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="操作" width="180">
         <template #default="{ row }">
           <el-button link type="primary" @click="openDetail(row)">详细</el-button>
+          <el-button v-if="!row.deleted" link type="warning" :disabled="row.disputeStatus === '待审核'" @click="openDispute(row)">异议</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -38,23 +46,51 @@
         <el-descriptions-item label="商家服务星级">{{ starTextByScore(selectedReview.serviceScore) }}</el-descriptions-item>
         <el-descriptions-item label="情感">{{ sentimentText(selectedReview.sentiment) }}</el-descriptions-item>
         <el-descriptions-item label="风险">{{ riskText(selectedReview.riskLevel) }}</el-descriptions-item>
+        <el-descriptions-item label="评价状态">{{ selectedReview.deleted ? '已删除' : '正常展示' }}</el-descriptions-item>
         <el-descriptions-item label="关键词">{{ selectedReview.keywords }}</el-descriptions-item>
         <el-descriptions-item label="产品质量评价" :span="2">{{ productReviewContent(selectedReview) }}</el-descriptions-item>
         <el-descriptions-item label="商家服务评价" :span="2">{{ merchantReviewContent(selectedReview) }}</el-descriptions-item>
+        <el-descriptions-item label="异议状态">{{ selectedReview.disputeStatus || '未提出' }}</el-descriptions-item>
+        <el-descriptions-item label="审核说明">{{ selectedReview.disputeAdminNote || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="异议原因" :span="2">{{ selectedReview.disputeReason || '-' }}</el-descriptions-item>
         <el-descriptions-item label="分析摘要" :span="2">{{ selectedReview.analysisSummary }}</el-descriptions-item>
         <el-descriptions-item label="处理建议" :span="2">{{ selectedReview.suggestion }}</el-descriptions-item>
       </el-descriptions>
       <template #footer>
         <el-button @click="detailVisible = false">关闭</el-button>
+        <el-button v-if="selectedReview && !selectedReview.deleted" type="warning" :disabled="selectedReview.disputeStatus === '待审核'" @click="openDispute(selectedReview)">提出异议</el-button>
         <el-button v-if="selectedReview" type="primary" @click="analyzeSelectedReview">AI 分析</el-button>
+      </template>
+    </el-dialog>
+    <el-dialog v-model="disputeVisible" title="提交评价异议" width="560px">
+      <el-form label-width="88px">
+        <el-form-item label="订单号">
+          <el-input :model-value="disputeReview?.orderNo || ''" disabled />
+        </el-form-item>
+        <el-form-item label="商品">
+          <el-input :model-value="cleanProductName(disputeReview?.productName || '')" disabled />
+        </el-form-item>
+        <el-form-item label="异议原因">
+          <el-input
+            v-model="disputeReason"
+            type="textarea"
+            :rows="5"
+            placeholder="请说明评价存在的问题，例如评价内容与订单不符、包含不实描述、恶意差评或已经协商解决等"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="disputeVisible = false">取消</el-button>
+        <el-button type="primary" :loading="submittingDispute" @click="submitDispute">提交异议</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { loadTwentyMallMerchantReviews } from '../api'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
+import { loadTwentyMallMerchantReviews, submitTwentyMallReviewDispute } from '../api'
 import { ElMessage } from 'element-plus'
 import { getMerchantBindings } from '../utils/auth'
 
@@ -72,19 +108,31 @@ type ReviewRow = {
   orderNo?: string
   productName?: string
   merchantName?: string
+  disputeId?: number | null
+  disputeStatus?: string
+  disputeReason?: string
+  disputeAdminNote?: string
+  accountNo?: string
+  deleted?: boolean
 }
 
-const risk = ref('全部')
+const route = useRoute()
+const risk = ref(normalizeRiskRoute(route.query.risk, route.query.tab))
 const riskOptions = [
   { label: '全部', value: '全部' },
   { label: '高风险', value: 'HIGH' },
   { label: '中风险', value: 'MEDIUM' },
-  { label: '低风险', value: 'LOW' }
+  { label: '低风险', value: 'LOW' },
+  { label: '已删除', value: 'DELETED' }
 ]
 const reviewData = ref<ReviewRow[]>([])
 const loading = ref(false)
 const detailVisible = ref(false)
 const selectedReview = ref<ReviewRow | null>(null)
+const disputeVisible = ref(false)
+const disputeReview = ref<ReviewRow | null>(null)
+const disputeReason = ref('')
+const submittingDispute = ref(false)
 
 onMounted(async () => {
   loading.value = true
@@ -92,11 +140,18 @@ onMounted(async () => {
   loading.value = false
 })
 
+watch(() => [route.query.risk, route.query.tab], ([riskValue, tabValue]) => {
+  risk.value = normalizeRiskRoute(riskValue, tabValue)
+})
+
 const filteredReviews = computed(() => {
   if (risk.value === '全部') {
-    return reviewData.value
+    return reviewData.value.filter((item) => !item.deleted)
   }
-  return reviewData.value.filter((item) => item.riskLevel === risk.value)
+  if (risk.value === 'DELETED') {
+    return reviewData.value.filter((item) => item.deleted)
+  }
+  return reviewData.value.filter((item) => !item.deleted && item.riskLevel === risk.value)
 })
 
 function batchAnalyze() {
@@ -115,6 +170,41 @@ function analyzeReview(reviewId: number) {
 function openDetail(row: ReviewRow) {
   selectedReview.value = row
   detailVisible.value = true
+}
+
+function openDispute(row: ReviewRow) {
+  if (row.deleted) {
+    ElMessage({ type: 'warning', message: '已删除的评价不能再次提出异议' })
+    return
+  }
+  disputeReview.value = row
+  disputeReason.value = row.disputeReason || ''
+  disputeVisible.value = true
+}
+
+async function submitDispute() {
+  if (!disputeReview.value) return
+  const reason = disputeReason.value.trim()
+  if (!reason) {
+    ElMessage({ type: 'warning', message: '请填写异议原因' })
+    return
+  }
+  if (!disputeReview.value.accountNo) {
+    ElMessage({ type: 'error', message: '未找到当前评价对应的商家账号' })
+    return
+  }
+  submittingDispute.value = true
+  try {
+    await submitTwentyMallReviewDispute(disputeReview.value.id, disputeReview.value.accountNo, reason)
+    ElMessage({ type: 'success', message: '评价异议已提交，等待管理员审核' })
+    disputeVisible.value = false
+    reviewData.value = await loadBoundTwentyMallReviews()
+    selectedReview.value = reviewData.value.find((item) => item.id === disputeReview.value?.id) || selectedReview.value
+  } catch (error) {
+    ElMessage({ type: 'error', message: error instanceof Error ? error.message : '提交异议失败' })
+  } finally {
+    submittingDispute.value = false
+  }
 }
 
 function analyzeSelectedReview() {
@@ -154,7 +244,8 @@ async function loadBoundTwentyMallReviews() {
   }
   const result = await Promise.all(twentyMallBindings.map(async (binding) => {
     try {
-      return await loadTwentyMallMerchantReviews(binding.accountNo as string) as ReviewRow[]
+      const list = await loadTwentyMallMerchantReviews(binding.accountNo as string) as ReviewRow[]
+      return list.map((item) => ({ ...item, accountNo: binding.accountNo as string }))
     } catch {
       return []
     }
@@ -180,6 +271,13 @@ function riskText(value: string) {
     NONE: '无风险'
   }
   return map[value] || value
+}
+
+function disputeTagType(status: string) {
+  if (status === '待审核') return 'warning'
+  if (status === '已通过') return 'success'
+  if (status === '已拒绝') return 'danger'
+  return 'info'
 }
 
 function cleanProductName(productName: string) {
@@ -211,6 +309,15 @@ function splitReviewContent(content: string) {
     product: productMatch?.[1]?.trim() || '',
     merchant: merchantMatch?.[1]?.trim() || ''
   }
+}
+
+function normalizeRiskQuery(value: unknown) {
+  return typeof value === 'string' && ['全部', 'HIGH', 'MEDIUM', 'LOW', 'DELETED'].includes(value) ? value : '全部'
+}
+
+function normalizeRiskRoute(riskValue: unknown, tabValue: unknown) {
+  if (tabValue === 'deleted') return 'DELETED'
+  return normalizeRiskQuery(riskValue)
 }
 </script>
 

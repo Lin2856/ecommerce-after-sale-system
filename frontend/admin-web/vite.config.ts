@@ -3,6 +3,13 @@ import vue from '@vitejs/plugin-vue'
 
 export default defineConfig({
   plugins: [vue()],
+  build: {
+    rollupOptions: {
+      input: {
+        index: 'index.html'
+      }
+    }
+  },
   server: {
     proxy: {
       '/api': 'http://localhost:8080'

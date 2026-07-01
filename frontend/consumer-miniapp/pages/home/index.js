@@ -1,4 +1,4 @@
-import { canBindTwentyMallAccount, getConsumerAddresses, getTwentyMallBindings, occupyTwentyMallBinding, removeTwentyMallBinding, saveConsumerAddresses, saveTwentyMallBinding } from "../../utils/auth"
+import { canBindTwentyMallAccount, fetchTwentyMallBindingsFromDatabase, getConsumerAddresses, getPrimaryPhone, getTwentyMallBindings, occupyTwentyMallBinding, removeTwentyMallBinding, saveConsumerAddresses, saveTwentyMallBinding } from "../../utils/auth"
 
 function buildPlatforms() {
   return [
@@ -40,7 +40,15 @@ Page({
     twentyMallBound: false
   },
   onShow() {
-    const bindings = getTwentyMallBindings()
+    this.refreshTwentyMallBindings()
+  },
+  refreshTwentyMallBindings() {
+    fetchTwentyMallBindingsFromDatabase({
+      success: (bindings) => this.applyTwentyMallBindings(bindings),
+      fail: (bindings) => this.applyTwentyMallBindings(bindings)
+    })
+  },
+  applyTwentyMallBindings(bindings) {
     bindings.forEach((binding) => occupyTwentyMallBinding(binding.accountNo))
     this.setData({
       platforms: buildPlatforms(),
@@ -82,7 +90,10 @@ Page({
       data: {
         accountNo,
         password,
-        role: "CONSUMER"
+        role: "CONSUMER",
+        primaryAccountNo: getPrimaryPhone(),
+        primaryAccountType: "CONSUMER",
+        primaryDisplayName: ""
       },
       success: (res) => {
         if (res.data && res.data.code === "200") {
@@ -91,15 +102,8 @@ Page({
             role: "CONSUMER",
             platform: "20商城"
           })
-          const bindings = getTwentyMallBindings()
-          this.setData({
-            platforms: buildPlatforms(),
-            twentyMallBindings: bindings,
-            twentyMallDialogVisible: false,
-            twentyMallBound: true,
-            twentyMallAccount: "",
-            twentyMallPassword: ""
-          })
+          this.refreshTwentyMallBindings()
+          this.setData({ twentyMallDialogVisible: false, twentyMallAccount: "", twentyMallPassword: "" })
           this.importTwentyMallAddress(accountNo)
           wx.showToast({ title: "20商城绑定成功", icon: "success" })
           return
@@ -154,13 +158,22 @@ Page({
       confirmColor: "#d92d20",
       success: (res) => {
         if (!res.confirm) return
-        removeTwentyMallBinding(accountNo)
-        const bindings = getTwentyMallBindings()
-        this.setData({
-          twentyMallBindings: bindings,
-          twentyMallBound: !!bindings.length
+        wx.request({
+          url: "http://localhost:8080/api/twenty-mall/unbind",
+          method: "POST",
+          header: { "Content-Type": "application/json" },
+          data: {
+            accountNo,
+            role: "CONSUMER",
+            primaryAccountNo: getPrimaryPhone(),
+            primaryAccountType: "CONSUMER"
+          },
+          complete: () => {
+            removeTwentyMallBinding(accountNo)
+            this.refreshTwentyMallBindings()
+            wx.showToast({ title: "已解绑", icon: "success" })
+          }
         })
-        wx.showToast({ title: "已解绑", icon: "success" })
       }
     })
   }

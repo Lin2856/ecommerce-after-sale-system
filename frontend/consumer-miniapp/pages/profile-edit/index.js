@@ -1,4 +1,4 @@
-import { getConsumerProfile, getPrimaryPhone, saveConsumerProfile } from "../../utils/auth"
+import { fetchPrimaryProfileFromDatabase, getConsumerProfile, getPrimaryPhone, savePrimaryProfileToDatabase } from "../../utils/auth"
 
 Page({
   data: {
@@ -6,7 +6,8 @@ Page({
       nickname: "",
       avatar: ""
     },
-    phone: ""
+    phone: "",
+    saving: false
   },
   onLoad() {
     const profile = getConsumerProfile()
@@ -20,6 +21,17 @@ Page({
         }
       })
     }
+    fetchPrimaryProfileFromDatabase({
+      success: (dbProfile) => {
+        this.setData({
+          form: {
+            nickname: dbProfile.nickname || "",
+            avatar: dbProfile.avatar || ""
+          },
+          phone: dbProfile.phone || (phone === "guest" ? "" : phone)
+        })
+      }
+    })
   },
   onInput(e) {
     const field = e.currentTarget.dataset.field
@@ -41,8 +53,17 @@ Page({
     })
   },
   saveProfile() {
-    saveConsumerProfile(this.data.form)
-    wx.showToast({ title: "资料已保存", icon: "success" })
-    setTimeout(() => wx.navigateBack(), 500)
+    if (this.data.saving) return
+    this.setData({ saving: true })
+    savePrimaryProfileToDatabase(this.data.form, {
+      success: () => {
+        wx.showToast({ title: "资料已保存", icon: "success" })
+        setTimeout(() => wx.navigateBack(), 500)
+      },
+      fail: (message) => {
+        this.setData({ saving: false })
+        wx.showToast({ title: message || "资料保存失败", icon: "none" })
+      }
+    })
   }
 })

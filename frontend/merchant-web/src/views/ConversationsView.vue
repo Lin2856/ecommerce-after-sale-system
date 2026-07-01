@@ -21,23 +21,45 @@
       </div>
     </div>
     <div class="panel">
-      <h2 class="section-title">聊天窗口</h2>
-      <div class="page-kicker">
-        <template v-if="selectedConversation">
-          {{ conversationTitle(selectedConversation) }}｜{{ selectedConversation.orderNo }}｜{{ cleanProductName(selectedConversation.productName) }}
-        </template>
-        <template v-else>请选择会话</template>
+      <div class="chat-header">
+        <div>
+          <h2 class="section-title">聊天窗口</h2>
+          <div class="page-kicker">
+            <template v-if="selectedConversation">
+              {{ conversationTitle(selectedConversation) }}｜{{ selectedConversation.orderNo }}｜{{ cleanProductName(selectedConversation.productName) }}
+            </template>
+            <template v-else>请选择会话</template>
+          </div>
+        </div>
+        <el-button
+          v-if="selectedConversation?.status === 'AGENT_SERVING'"
+          type="warning"
+          plain
+          @click="endAgentService"
+        >
+          结束人工服务
+        </el-button>
       </div>
-      <div class="chat-box">
+      <div ref="chatBoxRef" class="chat-box">
         <div
           v-for="message in chatMessages"
           :key="message.id"
           class="message-row"
           :class="{ right: message.senderType === 'STAFF' }"
         >
-          <div class="speaker">{{ speakerText(message.senderType) }} {{ formatMessageTime(message.createdAt) }}</div>
-          <div class="bubble" :class="message.senderType.toLowerCase()">
-            {{ message.content }}
+          <div v-if="message.senderType !== 'STAFF'" class="chat-avatar" :class="avatarClass(message.senderType)">
+            <img v-if="messageAvatar(message.senderType)" :src="messageAvatar(message.senderType)" alt="" />
+            <span v-else>{{ avatarText(message.senderType) }}</span>
+          </div>
+          <div class="message-body">
+            <div class="speaker">{{ speakerText(message.senderType) }} <span>{{ formatMessageTime(message.createdAt) }}</span></div>
+            <div class="bubble" :class="message.senderType.toLowerCase()">
+              {{ message.content }}
+            </div>
+          </div>
+          <div v-if="message.senderType === 'STAFF'" class="chat-avatar merchant-avatar">
+            <img v-if="messageAvatar(message.senderType)" :src="messageAvatar(message.senderType)" alt="" />
+            <span v-else>{{ avatarText(message.senderType) }}</span>
           </div>
         </div>
       </div>
@@ -66,10 +88,11 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { conversations } from '../data/mock'
 import { ElMessage } from 'element-plus'
-import { getMerchantBindings } from '../utils/auth'
+import { getMerchantBindings, getStoredUser } from '../utils/auth'
+import aiAvatar from '../assets/avatars/ai-bot.png'
 
 type DemoConversation = {
   id: number
@@ -77,7 +100,10 @@ type DemoConversation = {
   orderNo: string
   productName: string
   platformName?: string
+  consumerAccountNo?: string
+  consumerPrimaryAccountNo?: string
   merchantAccountNo?: string
+  merchantPrimaryAccountNo?: string
   merchantName: string
   afterSaleStatus: string
   status: string
@@ -101,11 +127,17 @@ const replyContent = ref('')
 const chatMessages = ref<DemoMessage[]>([])
 const orderDetailVisible = ref(false)
 const detailConversation = ref<DemoConversation | null>(null)
+const consumerAvatar = ref('')
+const merchantAvatar = ref('')
+const chatBoxRef = ref<HTMLElement | null>(null)
+const lastMessageKey = ref('')
 let pollingTimer = 0
 
 onMounted(async () => {
+  await loadMerchantAvatar()
   await loadConversations()
   selectedConversation.value = conversationData.value[0] || null
+  await loadConsumerAvatar()
   await loadMessages()
   pollingTimer = window.setInterval(async () => {
     await loadConversations(false)
@@ -120,7 +152,9 @@ onUnmounted(() => {
 watch(selectedConversation, (next, previous) => {
   if (next?.orderNo !== previous?.orderNo) {
     replyContent.value = ''
+    lastMessageKey.value = ''
   }
+  loadConsumerAvatar()
   loadMessages()
 })
 
@@ -153,6 +187,8 @@ async function loadConversations(showError = true) {
       orderNo: item.orderNo || 'DY202606250001',
       productName: item.productName || 'Aurora X1 智能手机',
       platformName: '抖音商城',
+      consumerAccountNo: '',
+      consumerPrimaryAccountNo: '',
       merchantName: item.merchantName || '星链数码旗舰店',
       afterSaleStatus: item.afterSaleStatus || '处理中',
       status: item.status,
@@ -166,6 +202,27 @@ async function loadConversations(showError = true) {
   }
 }
 
+async function loadMerchantAvatar() {
+  const user = getStoredUser<{ username?: string }>()
+  const accountNo = user?.username || 'merchant_admin_demo'
+  merchantAvatar.value = await loadPrimaryAvatar(accountNo, 'MERCHANT')
+}
+
+async function loadConsumerAvatar() {
+  const accountNo = selectedConversation.value?.consumerPrimaryAccountNo
+  consumerAvatar.value = accountNo ? await loadPrimaryAvatar(accountNo, 'CONSUMER') : ''
+}
+
+async function loadPrimaryAvatar(accountNo: string, accountType: 'CONSUMER' | 'MERCHANT') {
+  try {
+    const response = await fetch(`http://localhost:8080/api/twenty-mall/primary/profile?accountNo=${encodeURIComponent(accountNo)}&accountType=${accountType}`)
+    const payload = await response.json()
+    return payload.code === '200' && payload.data?.avatar ? payload.data.avatar : ''
+  } catch {
+    return ''
+  }
+}
+
 async function loadMessages(showError = true) {
   const conversation = selectedConversation.value
   if (!conversation) {
@@ -175,7 +232,14 @@ async function loadMessages(showError = true) {
   try {
     const response = await fetch(`/api/demo-chat/conversations/${conversation.orderNo}/messages`)
     const payload = await response.json()
-    chatMessages.value = payload.data || []
+    const nextMessages = payload.data || []
+    const nextKey = messageListKey(nextMessages)
+    const shouldScroll = nextKey !== lastMessageKey.value
+    chatMessages.value = nextMessages
+    lastMessageKey.value = nextKey
+    if (shouldScroll) {
+      scrollChatToBottom()
+    }
   } catch {
     chatMessages.value = [
       { id: 'user-last', orderNo: conversation.orderNo, senderType: 'CONSUMER', speaker: '用户', content: conversation.lastMessage || '暂无用户消息', createdAt: '' },
@@ -198,18 +262,59 @@ async function sendReply() {
     ElMessage({ type: 'warning', message: '请输入回复内容' })
     return
   }
+  const optimisticMessage: DemoMessage = {
+    id: `local-${Date.now()}`,
+    orderNo: conversation.orderNo,
+    senderType: 'STAFF',
+    speaker: '人工客服',
+    content,
+    createdAt: formatLocalNow()
+  }
+  chatMessages.value = [...chatMessages.value, optimisticMessage]
+  lastMessageKey.value = messageListKey(chatMessages.value)
+  replyContent.value = ''
+  scrollChatToBottom()
   try {
-    await fetch(`/api/demo-chat/conversations/${conversation.orderNo}/messages`, {
+    const response = await fetch(`/api/demo-chat/conversations/${conversation.orderNo}/messages`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ senderType: 'STAFF', content })
     })
-    replyContent.value = ''
+    const payload = await response.json()
+    if (payload.code !== '200') {
+      throw new Error(payload.message || '发送失败')
+    }
     await loadConversations(false)
     await loadMessages(false)
     ElMessage({ type: 'success', message: '回复已发送，用户端会自动刷新显示' })
+  } catch (error) {
+    chatMessages.value = chatMessages.value.filter((item) => item.id !== optimisticMessage.id)
+    lastMessageKey.value = messageListKey(chatMessages.value)
+    replyContent.value = content
+    ElMessage({ type: 'error', message: error instanceof Error ? error.message : '发送失败，请确认后端服务已启动' })
+  }
+}
+
+async function endAgentService() {
+  const conversation = selectedConversation.value
+  if (!conversation) {
+    ElMessage({ type: 'warning', message: '请先选择会话' })
+    return
+  }
+  try {
+    const response = await fetch(`/api/demo-chat/conversations/id/${conversation.id}/end-agent`, {
+      method: 'POST'
+    })
+    const payload = await response.json()
+    if (payload.code !== '200') {
+      ElMessage({ type: 'error', message: payload.message || '结束人工服务失败' })
+      return
+    }
+    await loadConversations(false)
+    await loadMessages(false)
+    ElMessage({ type: 'success', message: '人工服务已结束，后续由AI客服接待' })
   } catch {
-    ElMessage({ type: 'error', message: '发送失败，请确认后端服务已启动' })
+    ElMessage({ type: 'error', message: '结束人工服务失败，请确认后端服务已启动' })
   }
 }
 
@@ -239,6 +344,25 @@ function formatMessageTime(value?: string) {
   return `${year}.${Number(month)}.${Number(day)} ${hour.padStart(2, '0')}:${minute.padStart(2, '0')}:${second.padStart(2, '0')}`
 }
 
+function formatLocalNow() {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`
+}
+
+function messageListKey(messages: DemoMessage[]) {
+  const latest = messages[messages.length - 1]
+  return latest ? `${messages.length}:${latest.id}:${latest.createdAt}:${latest.content}` : '0'
+}
+
+function scrollChatToBottom() {
+  nextTick(() => {
+    const element = chatBoxRef.value
+    if (element) {
+      element.scrollTop = element.scrollHeight
+    }
+  })
+}
+
 function speakerText(senderType: string) {
   const speakerMap: Record<string, string> = {
     CONSUMER: '用户',
@@ -246,6 +370,26 @@ function speakerText(senderType: string) {
     STAFF: '人工客服'
   }
   return speakerMap[senderType] || senderType
+}
+
+function messageAvatar(senderType: string) {
+  if (senderType === 'AI') return aiAvatar
+  if (senderType === 'CONSUMER') return consumerAvatar.value
+  if (senderType === 'STAFF') return merchantAvatar.value
+  return ''
+}
+
+function avatarText(senderType: string) {
+  if (senderType === 'AI') return 'AI'
+  if (senderType === 'CONSUMER') return '客'
+  if (senderType === 'STAFF') return '商'
+  return '系'
+}
+
+function avatarClass(senderType: string) {
+  if (senderType === 'AI') return 'ai-avatar'
+  if (senderType === 'CONSUMER') return 'consumer-avatar'
+  return ''
 }
 </script>
 
@@ -266,13 +410,24 @@ function speakerText(senderType: string) {
   background: #f8fafc;
 }
 
+.chat-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
+.chat-header .section-title {
+  margin-bottom: 4px;
+}
+
 .bubble {
   display: inline-block;
   width: fit-content;
-  max-width: 76%;
+  max-width: 100%;
   padding: 10px 12px;
-  border-radius: 8px;
-  margin-bottom: 10px;
+  border-radius: 12px;
   line-height: 1.6;
   text-align: left;
   white-space: pre-wrap;
@@ -281,19 +436,29 @@ function speakerText(senderType: string) {
 
 .message-row {
   display: flex;
-  flex-direction: column;
   align-items: flex-start;
+  gap: 10px;
   margin-bottom: 12px;
 }
 
 .message-row.right {
+  justify-content: flex-end;
   align-items: flex-end;
+}
+
+.message-body {
+  max-width: 74%;
 }
 
 .speaker {
   color: #64748b;
   font-size: 12px;
   margin-bottom: 4px;
+}
+
+.speaker span {
+  margin-left: 6px;
+  color: #94a3b8;
 }
 
 .consumer {
@@ -305,7 +470,44 @@ function speakerText(senderType: string) {
 }
 
 .staff {
-  background: #dcfce7;
+  background: #1677ff;
+  color: #fff;
+}
+
+.chat-avatar {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: #eaf2ff;
+  color: #1677ff;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 34px;
+  text-align: center;
+}
+
+.chat-avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ai-avatar {
+  background: #ecfdf3;
+  color: #079455;
+}
+
+.consumer-avatar {
+  background: #f2f4f7;
+  color: #344054;
+}
+
+.merchant-avatar {
+  background: #fff7ed;
+  color: #c2410c;
 }
 
 .chat-input {

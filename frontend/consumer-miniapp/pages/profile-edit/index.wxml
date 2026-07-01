@@ -17,5 +17,5 @@
     </view>
   </view>
 
-  <button class="primary-btn" bindtap="saveProfile">保存修改</button>
+  <button class="primary-btn" loading="{{saving}}" disabled="{{saving}}" bindtap="saveProfile">保存修改</button>
 </view>

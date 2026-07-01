@@ -49,6 +49,129 @@ export function saveConsumerProfile(profile) {
   wx.setStorageSync(getConsumerProfileKey(), profile)
 }
 
+export function fetchPrimaryProfileFromDatabase({ success, fail } = {}) {
+  const phone = getPrimaryPhone()
+  wx.request({
+    url: `http://localhost:8080/api/twenty-mall/primary/profile?accountNo=${encodeURIComponent(phone)}&accountType=CONSUMER`,
+    success: (res) => {
+      if (!res.data || res.data.code !== "200" || !res.data.data) {
+        if (fail) fail(getConsumerProfile())
+        return
+      }
+      const data = res.data.data
+      const profile = {
+        nickname: data.displayName || "",
+        phone: data.phone || data.accountNo || phone,
+        avatar: normalizeDisplayAvatar(data.avatar || ""),
+        bindingCount: data.bindingCount || 0
+      }
+      saveConsumerProfile(profile)
+      if (success) success(profile)
+    },
+    fail: () => {
+      if (fail) fail(getConsumerProfile())
+    }
+  })
+}
+
+export function savePrimaryProfileToDatabase(profile, { success, fail } = {}) {
+  const phone = getPrimaryPhone()
+  normalizeAvatarForDatabase(profile.avatar || "", {
+    success: (avatar) => submitPrimaryProfile({ ...profile, avatar }, phone, success, fail),
+    fail: () => {
+      if (fail) fail("头像读取失败，请重新选择头像")
+    }
+  })
+}
+
+function submitPrimaryProfile(profile, phone, success, fail) {
+  wx.request({
+    url: "http://localhost:8080/api/twenty-mall/primary/profile",
+    method: "POST",
+    header: { "Content-Type": "application/json" },
+    data: {
+      accountNo: phone,
+      accountType: "CONSUMER",
+      displayName: profile.nickname || "",
+      avatar: profile.avatar || ""
+    },
+    success: (res) => {
+      if (!res.data || res.data.code !== "200" || !res.data.data) {
+        if (fail) fail(res.data && res.data.message ? res.data.message : "资料保存失败")
+        return
+      }
+      const data = res.data.data
+      const nextProfile = {
+        nickname: data.displayName || profile.nickname || "",
+        phone: data.phone || data.accountNo || phone,
+        avatar: normalizeDisplayAvatar(data.avatar || profile.avatar || ""),
+        bindingCount: data.bindingCount || 0
+      }
+      saveConsumerProfile(nextProfile)
+      if (success) success(nextProfile)
+    },
+    fail: () => {
+      if (fail) fail("请先启动后端服务")
+    }
+  })
+}
+
+function normalizeDisplayAvatar(avatar) {
+  if (!avatar || avatar.startsWith("http://tmp/") || avatar.startsWith("wxfile://")) {
+    return ""
+  }
+  return avatar
+}
+
+function normalizeAvatarForDatabase(avatar, callbacks) {
+  if (!avatar || avatar.startsWith("data:image/")) {
+    callbacks.success(avatar || "")
+    return
+  }
+  if (isLocalAvatarPath(avatar)) {
+    compressAvatarFile(avatar, {
+      success: (filePath) => readAvatarFile(filePath, callbacks),
+      fail: () => readAvatarFile(avatar, callbacks)
+    })
+    return
+  }
+  callbacks.success("")
+}
+
+function isLocalAvatarPath(avatar) {
+  return avatar.startsWith("http://tmp/")
+    || avatar.startsWith("wxfile://")
+    || avatar.startsWith("file://")
+    || avatar.startsWith("/")
+}
+
+function compressAvatarFile(filePath, callbacks) {
+  if (!wx.compressImage) {
+    callbacks.fail()
+    return
+  }
+  wx.compressImage({
+    src: filePath,
+    quality: 35,
+    success: (res) => {
+      callbacks.success(res.tempFilePath || filePath)
+    },
+    fail: callbacks.fail
+  })
+}
+
+function readAvatarFile(filePath, callbacks) {
+  const fileSystem = wx.getFileSystemManager()
+  fileSystem.readFile({
+    filePath,
+    encoding: "base64",
+    success: (res) => {
+      callbacks.success(`data:image/jpeg;base64,${res.data}`)
+    },
+    fail: callbacks.fail
+  })
+}
+
 export function getConsumerAddresses() {
   return wx.getStorageSync(getConsumerAddressesKey()) || []
 }
@@ -76,6 +199,34 @@ export function getTwentyMallBindings() {
 
 export function getTwentyMallBinding() {
   return getTwentyMallBindings()[0] || null
+}
+
+export function fetchTwentyMallBindingsFromDatabase({ success, fail } = {}) {
+  const phone = getPrimaryPhone()
+  wx.request({
+    url: `http://localhost:8080/api/twenty-mall/primary/bindings?primaryAccountNo=${encodeURIComponent(phone)}&primaryAccountType=CONSUMER&secondaryAccountRole=CONSUMER`,
+    success: (res) => {
+      const rows = (res.data && res.data.data) || []
+      const bindings = rows
+        .filter((item) => item && item.secondaryAccountNo)
+        .map((item) => ({
+          accountNo: item.secondaryAccountNo,
+          role: "CONSUMER",
+          platform: item.platformName || "20商城",
+          boundAt: item.boundAt || ""
+        }))
+      wx.setStorageSync(getTwentyMallBindingKey(phone), bindings)
+      if (success) success(bindings)
+    },
+    fail: () => {
+      const cachedBindings = getTwentyMallBindings()
+      if (fail) {
+        fail(cachedBindings)
+        return
+      }
+      if (success) success(cachedBindings)
+    }
+  })
 }
 
 export function getTwentyMallBindingOwner(accountNo) {

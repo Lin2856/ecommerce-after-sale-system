@@ -52,6 +52,14 @@ export async function loadTwentyMallMerchantReviews(accountNo: string) {
   return unwrap(await api.get('/twenty-mall/merchant/reviews', { params: { accountNo } }))
 }
 
+export async function loadTwentyMallMerchantNotifications(accountNo: string) {
+  return unwrap(await api.get('/twenty-mall/merchant/notifications', { params: { accountNo } }))
+}
+
+export async function submitTwentyMallReviewDispute(reviewId: number, accountNo: string, reason: string) {
+  return unwrap(await api.post(`/twenty-mall/merchant/reviews/${reviewId}/dispute`, { accountNo, reason }))
+}
+
 export async function loadArticles(params: Record<string, unknown> = {}) {
   return unwrap(await api.get('/merchant/knowledge/articles', { params }))
 }

@@ -1,4 +1,4 @@
-import { clearDemoToken, clearPrimaryAccountData, getConsumerAddresses, getConsumerProfile, getPrimaryPhone, getTwentyMallBindings } from "../../utils/auth"
+import { clearDemoToken, clearPrimaryAccountData, fetchPrimaryProfileFromDatabase, fetchTwentyMallBindingsFromDatabase, getConsumerAddresses, getConsumerProfile, getPrimaryPhone, getTwentyMallBindings } from "../../utils/auth"
 
 const defaultProfile = {
   nickname: "",
@@ -20,11 +20,14 @@ Page({
     this.clearCancelTimer()
   },
   onShow() {
+    this.refreshProfile()
+  },
+  refreshProfile() {
     const phone = getPrimaryPhone()
-    const profile = getConsumerProfile()
+    const localProfile = getConsumerProfile()
     const addresses = getConsumerAddresses()
     const bindings = getTwentyMallBindings()
-    const nextProfile = profile ? { ...defaultProfile, ...profile } : { ...defaultProfile }
+    const nextProfile = localProfile ? { ...defaultProfile, ...localProfile } : { ...defaultProfile }
     nextProfile.phone = phone === "guest" ? "" : phone
     nextProfile.bindPlatform = bindings.length ? `已绑定 ${bindings.length} 个电商账号` : "未绑定电商平台"
     nextProfile.lastConsult = wx.getStorageSync(`consumerLastConsultAt:${phone}`) || wx.getStorageSync("consumerLastConsultAt") || "暂无"
@@ -33,6 +36,31 @@ Page({
       nextProfile.address = defaultAddress.fullAddress
     }
     this.setData({ profile: nextProfile })
+    fetchPrimaryProfileFromDatabase({
+      success: (profile) => this.applyProfileFromDatabase(profile),
+      fail: () => {}
+    })
+    fetchTwentyMallBindingsFromDatabase({
+      success: (dbBindings) => this.applyBindingCount(dbBindings),
+      fail: (cachedBindings) => this.applyBindingCount(cachedBindings)
+    })
+  },
+  applyProfileFromDatabase(profile) {
+    const phone = getPrimaryPhone()
+    this.setData({
+      profile: {
+        ...this.data.profile,
+        nickname: profile.nickname || "",
+        phone: profile.phone || (phone === "guest" ? "" : phone),
+        avatar: profile.avatar || "",
+        bindPlatform: profile.bindingCount ? `已绑定 ${profile.bindingCount} 个电商账号` : this.data.profile.bindPlatform
+      }
+    })
+  },
+  applyBindingCount(bindings) {
+    this.setData({
+      "profile.bindPlatform": bindings.length ? `已绑定 ${bindings.length} 个电商账号` : "未绑定电商平台"
+    })
   },
   editProfile() {
     wx.navigateTo({ url: "/pages/profile-edit/index" })

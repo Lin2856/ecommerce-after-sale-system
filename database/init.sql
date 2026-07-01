@@ -40,6 +40,9 @@ DROP TABLE IF EXISTS external_api_call_log;
 DROP TABLE IF EXISTS external_auth_token;
 DROP TABLE IF EXISTS external_shop_binding;
 DROP TABLE IF EXISTS external_platform;
+DROP TABLE IF EXISTS twenty_mall_chat_message;
+DROP TABLE IF EXISTS twenty_mall_conversation;
+DROP TABLE IF EXISTS twenty_mall_review_dispute;
 DROP TABLE IF EXISTS twenty_mall_review;
 DROP TABLE IF EXISTS twenty_mall_after_sale;
 DROP TABLE IF EXISTS twenty_mall_order_item;
@@ -254,6 +257,57 @@ CREATE TABLE twenty_mall_review (
   CONSTRAINT fk_twenty_mall_review_product FOREIGN KEY (product_id) REFERENCES twenty_mall_product (id),
   CONSTRAINT fk_twenty_mall_review_consumer FOREIGN KEY (consumer_account_id) REFERENCES twenty_mall_account (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='20商城模拟评价';
+
+CREATE TABLE twenty_mall_review_dispute (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  review_id BIGINT NOT NULL,
+  merchant_account_id BIGINT NOT NULL,
+  reason TEXT NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+  admin_note TEXT NULL,
+  reviewed_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted TINYINT(1) NOT NULL DEFAULT 0,
+  UNIQUE KEY uk_twenty_mall_review_dispute_review (review_id),
+  KEY idx_twenty_mall_review_dispute_merchant (merchant_account_id),
+  KEY idx_twenty_mall_review_dispute_status (status),
+  CONSTRAINT fk_twenty_mall_review_dispute_review FOREIGN KEY (review_id) REFERENCES twenty_mall_review (id),
+  CONSTRAINT fk_twenty_mall_review_dispute_merchant FOREIGN KEY (merchant_account_id) REFERENCES twenty_mall_account (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='20商城评价异议';
+
+CREATE TABLE twenty_mall_conversation (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  conversation_no VARCHAR(64) NOT NULL,
+  order_id BIGINT NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'AI_SERVING',
+  ai_intent VARCHAR(64) NULL DEFAULT '售后咨询',
+  last_message VARCHAR(512) NULL,
+  last_message_at DATETIME NULL,
+  transferred_at DATETIME NULL,
+  closed_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted TINYINT(1) NOT NULL DEFAULT 0,
+  UNIQUE KEY uk_twenty_mall_conversation_no (conversation_no),
+  UNIQUE KEY uk_twenty_mall_conversation_order (order_id),
+  KEY idx_twenty_mall_conversation_status (status),
+  CONSTRAINT fk_twenty_mall_conversation_order FOREIGN KEY (order_id) REFERENCES twenty_mall_order (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='20商城客服会话';
+
+CREATE TABLE twenty_mall_chat_message (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  conversation_id BIGINT NOT NULL,
+  sender_type VARCHAR(32) NOT NULL,
+  message_type VARCHAR(32) NOT NULL DEFAULT 'TEXT',
+  content TEXT NULL,
+  ai_generated TINYINT(1) NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted TINYINT(1) NOT NULL DEFAULT 0,
+  KEY idx_twenty_mall_chat_message_conversation (conversation_id, created_at),
+  CONSTRAINT fk_twenty_mall_chat_message_conversation FOREIGN KEY (conversation_id) REFERENCES twenty_mall_conversation (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='20商城聊天消息';
 
 CREATE TABLE external_shop_binding (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,

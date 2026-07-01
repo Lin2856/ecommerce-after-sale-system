@@ -8,6 +8,8 @@ import com.example.mall.module.ai.dto.SentimentResponse;
 import com.example.mall.module.ai.dto.TicketClassifyResponse;
 import com.example.mall.module.ai.dto.TopicResponse;
 import com.example.mall.module.ai.service.AiService;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -16,9 +18,11 @@ import org.springframework.web.reactive.function.client.WebClient;
 public class AiServiceImpl implements AiService {
 
     private final WebClient aiWebClient;
+    private final ObjectMapper objectMapper;
 
-    public AiServiceImpl(WebClient aiWebClient) {
+    public AiServiceImpl(WebClient aiWebClient, ObjectMapper objectMapper) {
         this.aiWebClient = aiWebClient;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -47,11 +51,16 @@ public class AiServiceImpl implements AiService {
     }
 
     private <T> T post(String uri, Object body, Class<T> responseType) {
-        return aiWebClient.post()
+        JsonNode response = aiWebClient.post()
             .uri(uri)
             .bodyValue(body)
             .retrieve()
-            .bodyToMono(responseType)
+            .bodyToMono(JsonNode.class)
             .block(Duration.ofSeconds(5));
+        if (response == null) {
+            return null;
+        }
+        JsonNode data = response.has("data") ? response.get("data") : response;
+        return objectMapper.convertValue(data, responseType);
     }
 }

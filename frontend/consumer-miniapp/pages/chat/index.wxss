@@ -1,25 +1,33 @@
 .page {
-  padding-bottom: 150rpx;
+  height: 100vh;
+  box-sizing: border-box;
+  padding: 24rpx 24rpx 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .chat-sticky {
-  position: sticky;
-  top: 0;
+  flex-shrink: 0;
   z-index: 8;
   padding-top: 4rpx;
-  padding-bottom: 8rpx;
+  padding-bottom: 12rpx;
   background: #f5f7fb;
 }
 
 .consult-order {
+  margin-bottom: 10rpx;
+  padding: 20rpx;
+}
+
+.consult-main {
   display: flex;
   align-items: center;
-  margin-bottom: 20rpx;
 }
 
 .consult-thumb {
-  width: 112rpx;
-  height: 112rpx;
+  width: 96rpx;
+  height: 96rpx;
   border-radius: 16rpx;
   background: #eaf2ff;
   margin-right: 20rpx;
@@ -31,85 +39,105 @@
   min-width: 0;
 }
 
-.consult-arrow {
-  color: #98a2b3;
-  font-size: 44rpx;
+.consult-title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12rpx;
 }
 
-.order-switch {
-  white-space: nowrap;
-  margin-bottom: 24rpx;
-}
-
-.order-chip {
-  display: inline-flex;
-  align-items: center;
-  width: 330rpx;
-  padding: 16rpx;
-  margin-right: 16rpx;
-  border: 1rpx solid #e5eaf2;
-  border-radius: 16rpx;
-  background: #ffffff;
-  box-sizing: border-box;
-  vertical-align: top;
-}
-
-.order-chip-active {
-  border-color: #1f7ae0;
-  background: #edf5ff;
-}
-
-.chip-thumb {
-  width: 64rpx;
-  height: 64rpx;
-  border-radius: 12rpx;
-  margin-right: 12rpx;
-  flex-shrink: 0;
-}
-
-.chip-text {
+.consult-title-row .sub-title {
+  flex: 1;
   min-width: 0;
-  font-size: 24rpx;
-  color: #101828;
+  line-height: 1.25;
 }
 
-.chip-text view,
-.chip-text text {
-  display: block;
-  max-width: 220rpx;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.chip-text text {
-  margin-top: 4rpx;
-  color: #667085;
+.status-pill {
+  flex-shrink: 0;
+  padding: 5rpx 12rpx;
+  border-radius: 999rpx;
+  background: #eaf2ff;
+  color: #1f7ae0;
   font-size: 22rpx;
+  font-weight: 700;
+}
+
+.order-no {
+  margin-top: 4rpx;
+  color: #7b8798;
+}
+
+.consult-actions {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  margin-top: 16rpx;
+}
+
+.consult-action {
+  flex: 1;
+  height: 58rpx;
+  line-height: 58rpx;
+  border-radius: 12rpx;
+  border: 1rpx solid #d0d5dd;
+  background: #ffffff;
+  color: #344054;
+  font-size: 26rpx;
+  font-weight: 600;
+}
+
+.consult-action-primary {
+  border-color: #1f7ae0;
+  background: #1f7ae0;
+  color: #ffffff;
+}
+
+.consult-action::after {
+  border: 0;
 }
 
 .chat-list {
-  min-height: 720rpx;
-  padding-bottom: 30rpx;
+  flex: 1;
+  min-height: 0;
+  padding-bottom: 0;
+  box-sizing: border-box;
+}
+
+.chat-bottom-spacer {
+  height: 28rpx;
 }
 
 .msg-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12rpx;
   margin-bottom: 24rpx;
-  max-width: 86%;
 }
 
 .msg-right {
+  justify-content: flex-end;
   margin-left: auto;
   text-align: right;
 }
 
 .msg-left {
+  justify-content: flex-start;
   margin-right: auto;
+}
+
+.msg-body {
+  max-width: 78%;
 }
 
 .speaker {
   color: #667085;
-  font-size: 22rpx;
-  margin-bottom: 8rpx;
+  font-size: 21rpx;
+  margin-bottom: 6rpx;
+}
+
+.speaker text {
+  margin-left: 10rpx;
+  color: #98a2b3;
+  font-size: 20rpx;
 }
 
 .bubble {
@@ -128,29 +156,66 @@
   border-color: #1f7ae0;
 }
 
+.avatar {
+  width: 48rpx;
+  height: 48rpx;
+  line-height: 48rpx;
+  border-radius: 50%;
+  text-align: center;
+  font-size: 20rpx;
+  font-weight: 800;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.avatar image {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.avatar-service {
+  background: #eef4ff;
+  color: #1f7ae0;
+}
+
+.avatar-ai {
+  background: #ecfdf3;
+  color: #079455;
+}
+
+.avatar-user {
+  background: #f2f4f7;
+  color: #344054;
+}
+
 .input-card {
-  position: fixed;
-  left: 24rpx;
-  right: 24rpx;
-  bottom: 24rpx;
+  position: relative;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  flex-shrink: 0;
+  margin: 4rpx -24rpx 0;
   z-index: 10;
   display: flex;
   align-items: center;
   gap: 16rpx;
   background: #ffffff;
-  border: 1rpx solid #eef2f7;
-  border-radius: 16rpx;
-  padding: 18rpx;
+  border-top: 1rpx solid #eef2f7;
+  border-radius: 0;
+  padding: 12rpx 24rpx 10rpx;
   box-sizing: border-box;
 }
 
 .input-card input {
   flex: 1;
-  height: 72rpx;
+  height: 66rpx;
 }
 
 .send-btn {
-  width: 150rpx;
+  width: 136rpx;
+  height: 66rpx;
+  line-height: 66rpx;
   background: #1f7ae0;
   color: #fff;
   border-radius: 12rpx;

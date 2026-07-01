@@ -100,7 +100,7 @@ import { ElMessage } from 'element-plus'
 import { loadSyncTasks, triggerSync } from '../api'
 import { syncTasks } from '../data/mock'
 import { isDemoMode } from '../utils/auth'
-import { getMerchantBindings, getTwentyMallMerchantName, removeMerchantBinding, saveMerchantBinding, type MerchantPlatformBinding } from '../utils/auth'
+import { clearMerchantBindings, getMerchantBindings, getStoredUser, getTwentyMallMerchantName, removeMerchantBinding, saveMerchantBinding, type MerchantPlatformBinding } from '../utils/auth'
 import douyinIcon from '../assets/platforms/douyin.png'
 import taobaoIcon from '../assets/platforms/taobao.png'
 import pddIcon from '../assets/platforms/pinduoduo.png'
@@ -137,7 +137,36 @@ watch(bindingData, async (value) => {
   syncTaskData.value = syncTasks
 }, { immediate: true })
 
-function loadLocalBindings() {
+async function loadLocalBindings() {
+  try {
+    const response = await fetch(`/api/twenty-mall/primary/bindings?primaryAccountNo=${encodeURIComponent(currentPrimaryAccountNo())}&primaryAccountType=MERCHANT&secondaryAccountRole=MERCHANT`)
+    const payload = await response.json()
+    if (payload.code === '200') {
+      const bindings = (payload.data || []).map((item: {
+        secondaryAccountNo: string
+        platformName: string
+        secondaryDisplayName: string
+        bindStatus: string
+        boundAt: string
+      }) => ({
+        id: Number(item.secondaryAccountNo) || Date.now(),
+        platformCode: 'TWENTY_MALL',
+        platformName: item.platformName || '20商城',
+        authStatus: item.bindStatus === '已绑定' ? 'ACTIVE' : 'UNBOUND',
+        externalShopId: `TM_SHOP_${item.secondaryAccountNo}`,
+        shopName: item.secondaryDisplayName || getTwentyMallMerchantName(item.secondaryAccountNo),
+        sellerNick: item.secondaryDisplayName || getTwentyMallMerchantName(item.secondaryAccountNo),
+        accountNo: item.secondaryAccountNo,
+        lastSyncedAt: item.boundAt
+      })) as MerchantPlatformBinding[]
+      clearMerchantBindings()
+      bindings.forEach((binding) => saveMerchantBinding(binding))
+      bindingData.value = bindings
+      return
+    }
+  } catch {
+    // Fallback keeps the page usable when the backend is temporarily unavailable.
+  }
   bindingData.value = getMerchantBindings()
 }
 
@@ -185,7 +214,14 @@ async function submitTwentyMallBind() {
     const response = await fetch('/api/twenty-mall/bind', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accountNo, password, role: 'MERCHANT' })
+      body: JSON.stringify({
+        accountNo,
+        password,
+        role: 'MERCHANT',
+        primaryAccountNo: currentPrimaryAccountNo(),
+        primaryAccountType: 'MERCHANT',
+        primaryDisplayName: currentPrimaryDisplayName()
+      })
     })
     const payload = await response.json()
     if (payload.code !== '200') {
@@ -202,9 +238,35 @@ async function submitTwentyMallBind() {
   }
 }
 
+function currentPrimaryAccountNo() {
+  const user = getStoredUser<{ username?: string; userId?: number }>()
+  return user?.username || String(user?.userId || 'merchant_admin_demo')
+}
+
+function currentPrimaryDisplayName() {
+  const user = getStoredUser<{ nickname?: string; username?: string }>()
+  return user?.nickname || user?.username || currentPrimaryAccountNo()
+}
+
 async function unbindPlatform(row: MerchantPlatformBinding) {
   const confirmed = window.confirm(`确定要解绑 ${row.platformName} 店铺 ${row.shopName} 吗？解绑后该店铺数据将不再显示。`)
   if (!confirmed) return
+  if (row.platformCode === 'TWENTY_MALL' && row.accountNo) {
+    try {
+      await fetch('/api/twenty-mall/unbind', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountNo: row.accountNo,
+          role: 'MERCHANT',
+          primaryAccountNo: currentPrimaryAccountNo(),
+          primaryAccountType: 'MERCHANT'
+        })
+      })
+    } catch {
+      ElMessage({ type: 'warning', message: '后端解绑同步失败，已先移除本地绑定' })
+    }
+  }
   removeMerchantBinding(row.platformCode, row.externalShopId)
   loadLocalBindings()
   ElMessage({ type: 'success', message: '已解绑' })

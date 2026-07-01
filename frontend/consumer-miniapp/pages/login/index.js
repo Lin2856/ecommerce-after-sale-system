@@ -1,4 +1,4 @@
-import { clearTwentyMallBinding, saveDemoToken, savePrimaryAccount } from "../../utils/auth"
+import { saveDemoToken, savePrimaryAccount } from "../../utils/auth"
 
 Page({
   data: {
@@ -27,10 +27,6 @@ Page({
     }
     saveDemoToken()
     savePrimaryAccount(phone)
-    if (!wx.getStorageSync("demoAccountBindingReset20260627")) {
-      clearTwentyMallBinding(phone)
-      wx.setStorageSync("demoAccountBindingReset20260627", true)
-    }
     wx.switchTab({ url: "/pages/home/index" })
   },
   onWechatLogin() {

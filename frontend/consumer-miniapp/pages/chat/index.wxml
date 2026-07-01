@@ -7,42 +7,49 @@
 
   <block wx:else>
   <view class="chat-sticky">
-    <view class="consult-order card" bindtap="goOrderDetail">
-      <image class="consult-thumb" src="{{consultingOrder.image}}" mode="aspectFill" />
-      <view class="consult-info">
-        <view class="sub-title">{{consultingOrder.title}}</view>
-        <view class="muted">订单编号：{{consultingOrder.no}}</view>
-        <view class="muted">商家：{{consultingOrder.merchant}}</view>
-        <view class="muted">售后状态：{{consultingOrder.afterSale}}</view>
-      </view>
-      <view class="consult-arrow">›</view>
-    </view>
-
-    <scroll-view class="order-switch" scroll-x>
-      <view
-        wx:for="{{orders}}"
-        wx:key="no"
-        data-no="{{item.no}}"
-        bindtap="switchOrder"
-        class="order-chip {{activeOrderNo === item.no ? 'order-chip-active' : ''}}"
-      >
-        <image class="chip-thumb" src="{{item.image}}" mode="aspectFill" />
-        <view class="chip-text">
-          <view>{{item.title}}</view>
-          <text>{{item.merchant}}</text>
+    <view class="consult-order card">
+      <view class="consult-main">
+        <image class="consult-thumb" src="{{consultingOrder.image}}" mode="aspectFill" />
+        <view class="consult-info">
+          <view class="consult-title-row">
+            <view class="sub-title">{{consultingOrder.title}}</view>
+            <view class="status-pill">{{consultingOrder.afterSale}}</view>
+          </view>
+          <view class="muted order-no">订单编号：{{consultingOrder.no}}</view>
+          <view class="muted">商家：{{consultingOrder.merchant}}</view>
         </view>
       </view>
-    </scroll-view>
-  </view>
-
-  <view class="chat-list">
-    <view wx:for="{{messages}}" wx:key="index" class="msg-row {{item.role === 'user' ? 'msg-right' : 'msg-left'}}">
-      <view class="speaker">{{item.speaker}} {{item.time}}</view>
-      <view class="bubble {{item.role === 'user' ? 'bubble-user' : ''}}">
-        {{item.content}}
+      <view class="consult-actions">
+        <button class="consult-action consult-action-primary" bindtap="goOrderDetail">查看订单</button>
+        <button class="consult-action" bindtap="openOrderSwitcher">切换订单</button>
       </view>
     </view>
   </view>
+
+  <scroll-view
+    class="chat-list"
+    scroll-y
+    scroll-with-animation
+    scroll-into-view="{{scrollTarget}}"
+  >
+    <view wx:for="{{messages}}" wx:key="index" class="msg-row {{item.role === 'user' ? 'msg-right' : 'msg-left'}}">
+      <view wx:if="{{item.role !== 'user'}}" class="avatar avatar-service {{item.role === 'ai' ? 'avatar-ai' : ''}}">
+        <image wx:if="{{item.avatar}}" src="{{item.avatar}}" mode="aspectFill" />
+        <text wx:else>{{item.avatarText}}</text>
+      </view>
+      <view class="msg-body">
+        <view class="speaker">{{item.speaker}}<text>{{item.time}}</text></view>
+        <view class="bubble {{item.role === 'user' ? 'bubble-user' : ''}}">
+          {{item.content}}
+        </view>
+      </view>
+      <view wx:if="{{item.role === 'user'}}" class="avatar avatar-user">
+        <image wx:if="{{item.avatar}}" src="{{item.avatar}}" mode="aspectFill" />
+        <text wx:else>{{item.avatarText}}</text>
+      </view>
+    </view>
+    <view id="chat-bottom" class="chat-bottom-spacer"></view>
+  </scroll-view>
 
   <view class="input-card">
     <input value="{{inputValue}}" bindinput="onInput" placeholder="输入消息，发送“转人工”可接入人工客服" />
