@@ -37,7 +37,8 @@ public class DemoChatStore {
             args.addAll(merchantAccounts);
         }
         String sql = """
-            SELECT c.id, c.conversation_no, o.order_no, i.product_name,
+            SELECT c.id, c.conversation_no, o.order_no, o.order_status,
+                   i.product_name, i.sku_name, i.unit_price, i.quantity, p.description AS product_description,
                    ca.account_no AS consumer_account_no,
                    cpa.account_no AS consumer_primary_account_no,
                    ma.account_no AS merchant_account_no,
@@ -48,6 +49,7 @@ public class DemoChatStore {
             FROM twenty_mall_conversation c
             JOIN twenty_mall_order o ON o.id = c.order_id
             JOIN twenty_mall_order_item i ON i.order_id = o.id AND i.deleted = 0
+            LEFT JOIN twenty_mall_product p ON p.id = i.product_id AND p.deleted = 0
             JOIN twenty_mall_account ca ON ca.id = o.consumer_account_id
             JOIN twenty_mall_account ma ON ma.id = o.merchant_account_id
             LEFT JOIN platform_account_binding cb ON cb.secondary_account_no = ca.account_no
@@ -82,7 +84,12 @@ public class DemoChatStore {
             rs.getLong("id"),
             rs.getString("conversation_no"),
             rs.getString("order_no"),
+            orderStatusText(rs.getString("order_status")),
             rs.getString("product_name"),
+            rs.getString("sku_name"),
+            rs.getString("product_description"),
+            rs.getBigDecimal("unit_price") == null ? null : rs.getBigDecimal("unit_price").toPlainString(),
+            String.valueOf(rs.getInt("quantity")),
             rs.getString("consumer_account_no"),
             rs.getString("consumer_primary_account_no"),
             rs.getString("merchant_account_no"),
@@ -195,7 +202,8 @@ public class DemoChatStore {
 
     private List<DemoConversation> queryConversationByOrderNo(String orderNo) {
         String sql = """
-            SELECT c.id, c.conversation_no, o.order_no, i.product_name,
+            SELECT c.id, c.conversation_no, o.order_no, o.order_status,
+                   i.product_name, i.sku_name, i.unit_price, i.quantity, p.description AS product_description,
                    ca.account_no AS consumer_account_no,
                    cpa.account_no AS consumer_primary_account_no,
                    ma.account_no AS merchant_account_no,
@@ -206,6 +214,7 @@ public class DemoChatStore {
             FROM twenty_mall_conversation c
             JOIN twenty_mall_order o ON o.id = c.order_id
             JOIN twenty_mall_order_item i ON i.order_id = o.id AND i.deleted = 0
+            LEFT JOIN twenty_mall_product p ON p.id = i.product_id AND p.deleted = 0
             JOIN twenty_mall_account ca ON ca.id = o.consumer_account_id
             JOIN twenty_mall_account ma ON ma.id = o.merchant_account_id
             LEFT JOIN platform_account_binding cb ON cb.secondary_account_no = ca.account_no
@@ -239,7 +248,12 @@ public class DemoChatStore {
             rs.getLong("id"),
             rs.getString("conversation_no"),
             rs.getString("order_no"),
+            orderStatusText(rs.getString("order_status")),
             rs.getString("product_name"),
+            rs.getString("sku_name"),
+            rs.getString("product_description"),
+            rs.getBigDecimal("unit_price") == null ? null : rs.getBigDecimal("unit_price").toPlainString(),
+            String.valueOf(rs.getInt("quantity")),
             rs.getString("consumer_account_no"),
             rs.getString("consumer_primary_account_no"),
             rs.getString("merchant_account_no"),
@@ -299,7 +313,12 @@ public class DemoChatStore {
             rs.getLong("id"),
             rs.getString("conversation_no"),
             rs.getString("order_no"),
+            orderStatusText(rs.getString("order_status")),
             rs.getString("product_name"),
+            rs.getString("sku_name"),
+            rs.getString("product_description"),
+            rs.getBigDecimal("unit_price") == null ? null : rs.getBigDecimal("unit_price").toPlainString(),
+            String.valueOf(rs.getInt("quantity")),
             rs.getString("consumer_account_no"),
             rs.getString("consumer_primary_account_no"),
             rs.getString("merchant_account_no"),
@@ -408,17 +427,48 @@ public class DemoChatStore {
                 null,
                 "TWENTY_MALL_ORDER",
                 conversation.id(),
-                null,
+                conversation.orderStatus(),
                 conversation.afterSaleStatus(),
+                "万象商城",
+                conversation.orderNo(),
+                conversation.merchantName(),
+                conversation.productName(),
+                conversation.productSku(),
+                conversation.productDescription(),
+                conversation.productPrice(),
+                conversation.productQuantity(),
                 null
             ));
             if (response != null && response.reply() != null && !response.reply().isBlank()) {
                 return response.reply();
             }
         } catch (Exception ignored) {
-            // The conversation should remain usable even when the external AI service is offline.
+            // Keep the conversation usable and give the consumer a business-facing handoff message.
         }
-        return "AI 服务暂不可用，建议为您转接人工客服继续处理。";
+        return fallbackAiReply(conversation, content);
+    }
+
+    private String fallbackAiReply(DemoConversation conversation, String content) {
+        String question = content == null ? "" : content;
+        if (containsAny(question, "为什么", "拒绝", "不同意", "原因", "凭什么")) {
+            return "当前系统中暂时没有足够信息确认商家不同意本次售后申请的具体原因，我不能直接替商家作出判断。建议转接人工客服，由客服结合商家审核记录和订单售后材料进一步核实。您可以点击下方转人工客服按钮。";
+        }
+        if (containsAny(question, "退款", "退钱", "赔偿", "平台介入", "投诉", "责任")) {
+            return "这个问题需要结合订单记录、售后材料和商家处理说明进一步核实，我目前不能直接给出确定结论。建议转接人工客服继续处理，避免给出不准确的答复。您可以点击下方转人工客服按钮。";
+        }
+        return "这个问题目前需要人工进一步核实订单和售后记录，我不能直接给出确定结论。您可以点击下方转人工客服按钮，由人工客服继续协助处理。";
+    }
+
+    private boolean containsAny(String content, String... keywords) {
+        if (content == null || content.isBlank()) {
+            return false;
+        }
+        for (String keyword : keywords) {
+            if (keyword != null && !keyword.isBlank() && content.contains(keyword)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void ensureTwentyMallChatTables() {
@@ -465,6 +515,21 @@ public class DemoChatStore {
             case "CLOSED" -> "已关闭";
             case "AFTER_SALE" -> "售后中";
             default -> "未申请";
+        };
+    }
+
+    private String orderStatusText(String status) {
+        return switch (status == null ? "" : status) {
+            case "PENDING" -> "待处理";
+            case "PAID" -> "已支付";
+            case "UNPAID" -> "待支付";
+            case "SHIPPED" -> "已发货";
+            case "DELIVERED" -> "已送达";
+            case "COMPLETED" -> "已完成";
+            case "REFUNDED" -> "已退款";
+            case "CANCELED" -> "已取消";
+            case "CLOSED" -> "已关闭";
+            default -> status == null || status.isBlank() ? "未知" : status;
         };
     }
 
@@ -530,7 +595,12 @@ public class DemoChatStore {
         Long id,
         String conversationNo,
         String orderNo,
+        String orderStatus,
         String productName,
+        String productSku,
+        String productDescription,
+        String productPrice,
+        String productQuantity,
         String consumerAccountNo,
         String consumerPrimaryAccountNo,
         String merchantAccountNo,

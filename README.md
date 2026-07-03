@@ -1,63 +1,108 @@
-# 20-第20组  电商售后客服与用户评价分析系统
+# 融合电商平台售后系统
 
-本项目面向电商平台的售后服务、客服接待、工单处理和用户评价分析场景，建设一个包含消费者端、商家客服端、平台管理员端和 AI 智能服务的售后中台系统。
+本项目面向电商售后服务、在线客服、订单售后闭环和用户评价分析场景，建设一个包含消费者端、商家端、平台管理员端、后端服务、MySQL 数据库和 AI 服务的三端联动系统。
 
-系统目标是作为商家统一处理外部平台订单、售后、客服、评价和知识库的工作台：支持店铺绑定、订单同步、售后申请、实时客服、工单流转、评价分析、知识库管理、规则配置和 AI 辅助回复。
+当前自建模拟电商平台命名为“万象商城”。系统通过本地数据库模拟真实电商平台的消费者账号、商家账号、商品、订单、售后、评价、聊天和平台治理数据，用于完整演示多平台绑定、数据同步、售后处理、客服沟通和评价治理流程。
 
-## 项目进度
+## 当前进度
 
-当前系统已完成消费者微信小程序端、商家端、管理员端、后端服务、MySQL 数据库脚本和 AI 服务的主要功能开发，已经具备本地联调和演示运行能力。
+系统已经具备本地联调和演示运行能力：
 
-- 消费者端已实现一级账号登录、20 商城账号绑定、订单查看、商品详情、售后申请、售后信息修改/取消、在线客服、评价提交、个人资料和地址管理等功能。
-- 商家端已实现一级账号登录、20 商城商家账号绑定/解绑、售后申请查看与审核、客服会话、服务动态、评价查看与评价异议提交、知识库与售后政策查看等功能。
-- 管理员端已实现系统概览、用户与商家绑定关系查看、评价分析、评价异议审核、规则配置、知识库维护和 AI 配置状态查看等功能。
-- 后端已接入 MySQL 存储，消费者端、商家端和管理员端的账号、绑定关系、订单、售后、评价、聊天记录等核心数据已统一从数据库读取和写入。
-- AI 服务已接入真实大模型调用能力，并保留转人工客服流程；当前 AI 调用配置通过本地环境变量维护，密钥文件不会提交到代码仓库。
-- 当前仍需继续完善真实外部电商平台开放接口接入、生产环境部署、安全加固、异常场景测试和部分页面交互细节。
+- 消费者端：支持一级账号登录、万象商城账号绑定、订单查看、商品详情、售后申请、修改/取消售后、二次售后争议、在线客服、AI 客服、转人工、评价提交、头像昵称、地址管理和账号注销。
+- 商家端：支持一级账号登录、万象商城商家账号绑定/解绑、售后审核、退货退款流程、仅退款处理、争议举证、实时客服、结束人工服务、服务动态、评价分析、评价异议、知识库、规则查看和统计分析。
+- 管理员端：支持系统概览、用户绑定关系、商家绑定关系、同步监控、评价分析、评价异议审核、争议订单处理、退款金额裁定、规则配置、知识库管理和 AI 配置。
+- 后端服务：使用 MySQL 统一存储三端账号、绑定关系、订单、售后、争议、评价、聊天、知识库、规则和 AI 配置相关数据。
+- AI 服务：提供真实大模型客服回复、订单上下文问答、API Key 管理接口和评价分析接口；API Key 存放在本地 `.env`，不会提交到 GitHub。
 
 ## 技术栈
 
-- 消费者微信小程序：微信小程序原生框架
-- 商家客服后台：Vue 3、TypeScript、Element Plus
-- 平台管理员后台：Vue 3、TypeScript、Element Plus
-- 后端服务：Java、Spring Boot、MyBatis-Plus、Spring Security、JWT、Spring WebSocket/STOMP
-- 外部平台接入：抖音电商开放平台 API，后续预留其他平台适配层
-- 数据存储：MySQL 8.0、Redis
-- AI 服务：Python、FastAPI
-- 部署工具：Docker、Docker Compose、Nginx
+- 消费者端：微信小程序原生框架
+- 商家端：Vue 3、TypeScript、Element Plus
+- 管理员端：Vue 3、TypeScript、Element Plus
+- 后端：Java、Spring Boot、MyBatis-Plus、Spring WebSocket、MySQL
+- AI 服务：Python、FastAPI、OpenAI 兼容接口、DeepSeek 默认配置
+- 部署：Docker、Docker Compose、Nginx
 
 ## 项目结构
 
 ```text
 ecommerce-after-sale-system/
+├─ ai-service/                 # FastAPI AI 服务
+├─ backend/                    # Spring Boot 后端
+├─ database/                   # MySQL 初始化与补丁脚本
+├─ deploy/                     # 部署说明与 Nginx 配置
 ├─ frontend/
-│  ├─ consumer-miniapp/
-│  ├─ merchant-web/
-│  └─ admin-web/
-├─ backend/
-├─ ai-service/
-├─ database/
-├─ docs/
-├─ deploy/
-├─ README.md
-└─ .gitignore
+│  ├─ admin-web/               # 管理员端
+│  ├─ consumer-miniapp/        # 消费者微信小程序
+│  └─ merchant-web/            # 商家端
+├─ docker-compose.yml
+└─ README.md
 ```
 
-## 角色划分
+## 本地启动
 
-- `CONSUMER`：消费者，使用微信小程序查询外部订单、发起售后、咨询和评价。
-- `MERCHANT_ADMIN`：商家管理员，管理店铺授权、外部订单、售后和客服。
-- `CUSTOMER_SERVICE`：商家客服，处理实时咨询、售后工单和服务记录。
-- `PLATFORM_ADMIN`：平台管理员，管理平台用户、商家、店铺绑定、知识库、售后规则、评价分析和 AI 配置。
+后端：
 
-## 核心业务
+```powershell
+cd "D:\Software Engineering Training\ecommerce-after-sale-system\backend"
+$env:DB_PASSWORD="你的 MySQL 密码"
+mvn.cmd spring-boot:run "-Dspring-boot.run.profiles=dev"
+```
 
-1. 抖音店铺绑定与授权管理。
-2. 外部订单同步、售后同步、评价同步和状态回写。
-3. 售后闭环：退换货申请、资料补充、客服审核、退款/换货/维修处理、进度查看。
-4. 客服闭环：实时会话、AI 辅助回复、转人工、会话记录、满意度评价。
-5. 工单闭环：自动生成工单、AI 分类、客服处理、状态流转、操作日志。
-6. 评价分析闭环：用户评价、情感分析、主题归类、商家和平台统计。
-7. 知识库闭环：FAQ、售后规则、品牌口径、AI 回复依据管理。
+AI 服务：
 
+```powershell
+cd "D:\Software Engineering Training\ecommerce-after-sale-system\ai-service"
+python -m uvicorn app.main:app --host 0.0.0.0 --port 9000
+```
 
+商家端：
+
+```powershell
+cd "D:\Software Engineering Training\ecommerce-after-sale-system\frontend\merchant-web"
+npm run dev
+```
+
+管理员端：
+
+```powershell
+cd "D:\Software Engineering Training\ecommerce-after-sale-system\frontend\admin-web"
+npm run dev
+```
+
+访问地址：
+
+- 后端接口：`http://localhost:8080`
+- AI 服务：`http://localhost:9000`
+- 商家端：`http://localhost:5173`
+- 管理员端：`http://localhost:5175`
+
+## 数据库
+
+数据库使用 MySQL，建议库名为 `ecommerce_after_sale`。完整初始化通常执行：
+
+```sql
+SOURCE database/init.sql;
+SOURCE database/seed.sql;
+```
+
+后续增量功能脚本位于 `database/patch_*.sql`，用于补充万象商城账号、订单、售后状态、争议订单、规则配置、知识库、评价等演示数据。
+
+## AI 配置安全
+
+真实 API Key 配置在 `ai-service/.env`，该文件被 `.gitignore` 忽略，不会上传到代码仓库。管理员端的 API Key 编辑功能会直接写入本地 AI 服务配置，用于真实消费者端 AI 回复。
+
+示例：
+
+```env
+MODEL_PROVIDER=deepseek
+DEEPSEEK_API_KEY=你的 API Key
+DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
+DEEPSEEK_MODEL=deepseek-chat
+```
+
+## 当前边界
+
+- 万象商城为本地数据库模拟平台，不是真实外部开放平台。
+- 抖音、淘宝、拼多多、京东等平台入口目前保留为绑定展示或扩展预留。
+- 当前部署配置面向本地开发和演示；生产环境还需要完善 HTTPS、密钥托管、权限审计、备份恢复、监控告警和公网回调地址。

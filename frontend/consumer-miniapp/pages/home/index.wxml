@@ -3,7 +3,7 @@
     <view>
       <view class="title">绑定电商平台账号</view>
     </view>
-    <view class="hero-badge">{{twentyMallBindings.length ? '已绑定' : '待绑定'}}</view>
+    <view class="hero-badge">本地平台 {{localPlatforms.length}}</view>
   </view>
 
   <view class="section-head">
@@ -32,52 +32,52 @@
     </view>
   </view>
 
-  <view class="twenty-card">
+  <view wx:for="{{localPlatforms}}" wx:key="code" class="twenty-card">
     <view class="twenty-main">
       <view class="twenty-logo-wrap">
-        <image class="twenty-logo" src="/assets/platforms/twenty-mall.png" mode="aspectFit" />
+        <image class="twenty-logo" src="{{item.icon}}" mode="aspectFit" />
       </view>
       <view class="twenty-info">
         <view class="twenty-title-row">
           <view>
-            <view class="twenty-title">万象商城</view>
+            <view class="twenty-title">{{item.name}}</view>
             <view class="twenty-subtitle">本地数据库模拟平台</view>
           </view>
-          <view class="twenty-status {{twentyMallBindings.length ? 'status-bound' : ''}}">{{twentyMallBindings.length ? '已绑定' : '未绑定'}}</view>
+          <view class="twenty-status {{item.boundCount ? 'status-bound' : ''}}">{{item.boundCount ? '已绑定' : '未绑定'}}</view>
         </view>
       </view>
     </view>
-    <button class="bind-btn" bindtap="bindPlatform" data-name="万象商城">继续绑定</button>
+    <button class="bind-btn" bindtap="bindPlatform" data-name="{{item.name}}" data-code="{{item.code}}">继续绑定</button>
 
     <view class="bound-panel">
       <view class="bound-title-row">
         <view>
           <view class="bound-title">已绑定账号</view>
         </view>
-        <view class="bound-count">{{twentyMallBindings.length}}</view>
+        <view class="bound-count">{{item.boundCount}}</view>
       </view>
-      <view wx:if="{{twentyMallBindings.length}}" class="bound-list">
-        <view wx:for="{{twentyMallBindings}}" wx:key="accountNo" class="bound-account">
-          <view class="account-mark">20</view>
+      <view wx:if="{{item.boundCount}}" class="bound-list">
+        <view wx:for="{{item.bindings}}" wx:for-item="binding" wx:key="accountNo" class="bound-account">
+          <view class="account-mark">{{item.code === 'YUEGOU_MARKET' ? '悦' : '万'}}</view>
           <view class="account-info">
-            <text>{{item.accountNo}}</text>
+            <text>{{binding.accountNo}}</text>
           </view>
-          <button class="unbind-btn" catchtap="unbindTwentyMall" data-account="{{item.accountNo}}">解绑</button>
+          <button class="unbind-btn" catchtap="unbindLocalPlatform" data-code="{{item.code}}" data-account="{{binding.accountNo}}">解绑</button>
         </view>
       </view>
       <view wx:else class="empty-bind">绑定后，这里会展示对应平台账号。</view>
     </view>
   </view>
 
-  <view wx:if="{{twentyMallDialogVisible}}" class="dialog-mask">
+  <view wx:if="{{selfBuiltDialogVisible}}" class="dialog-mask">
     <view class="dialog">
-      <view class="sub-title">绑定万象商城账号</view>
-      <view class="muted">消费者演示账号：20230140 / 123456</view>
-      <input class="dialog-input" placeholder="请输入万象商城账号" value="{{twentyMallAccount}}" bindinput="onTwentyMallAccountInput" />
-      <input class="dialog-input" password placeholder="请输入密码" value="{{twentyMallPassword}}" bindinput="onTwentyMallPasswordInput" />
+      <view class="sub-title">绑定{{selectedPlatformName}}账号</view>
+      <view class="muted">请输入对应平台的消费者二级账号和密码</view>
+      <input class="dialog-input" placeholder="请输入{{selectedPlatformName}}账号" value="{{selfBuiltAccount}}" bindinput="onSelfBuiltAccountInput" />
+      <input class="dialog-input" password placeholder="请输入密码" value="{{selfBuiltPassword}}" bindinput="onSelfBuiltPasswordInput" />
       <view class="dialog-actions">
-        <button class="cancel-btn" bindtap="closeTwentyMallDialog">取消</button>
-        <button class="confirm-btn" bindtap="submitTwentyMallBind">确认绑定</button>
+        <button class="cancel-btn" bindtap="closeSelfBuiltDialog">取消</button>
+        <button class="confirm-btn" bindtap="submitSelfBuiltBind">确认绑定</button>
       </view>
     </view>
   </view>

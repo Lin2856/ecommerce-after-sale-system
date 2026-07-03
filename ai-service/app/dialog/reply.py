@@ -11,11 +11,22 @@ def build_reply(request: ContextReplyRequest) -> ReplyResponse:
         category=intent.category,
         order_status=request.order_status,
         after_sale_status=request.after_sale_status,
+        platform_name=request.platform_name,
+        order_no=request.order_no,
+        merchant_name=request.merchant_name,
+        product_name=request.product_name,
+        product_sku=request.product_sku,
+        product_description=request.product_description,
+        product_price=request.product_price,
+        product_quantity=request.product_quantity,
         user_tone=request.user_tone,
     )
     suggestions = ["转人工客服", "补充订单信息", "补充问题凭证"]
     if not reply:
-        reply = "AI 服务暂不可用，建议为您转接人工客服继续处理。"
+        if any(keyword in request.text for keyword in ["为什么", "拒绝", "不同意", "原因", "凭什么"]):
+            reply = "当前系统中暂时没有足够信息确认商家不同意本次售后申请的具体原因，我不能直接替商家作出判断。建议转接人工客服，由客服结合商家审核记录和订单售后材料进一步核实。您可以点击下方转人工客服按钮。"
+        else:
+            reply = "这个问题目前需要人工进一步核实订单和售后记录，我不能直接给出确定结论。您可以点击下方转人工客服按钮，由人工客服继续协助处理。"
     return ReplyResponse(
         reply=reply,
         intent=intent.intent,

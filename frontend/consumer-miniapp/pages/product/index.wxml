@@ -61,8 +61,8 @@
     bindtap="modifyAfterSale"
   >修改售后信息</button>
   <button class="contact-btn" bindtap="contactMerchant">联系商家</button>
-  <button class="review-btn {{product.reviewed ? 'review-btn-disabled' : ''}}" bindtap="openReviewDialog">
-    {{product.reviewed ? '已评价' : '评价商家'}}
+  <button class="review-btn {{product.reviewed ? 'review-btn-view' : ''}}" bindtap="openReviewDialog">
+    {{product.reviewed ? '查看评价' : '评价商家'}}
   </button>
 
   <view wx:if="{{reasonDialogVisible}}" class="reason-mask">
@@ -145,7 +145,8 @@
       <view wx:if="{{afterSaleDetail.status === '已拒绝' && afterSaleDetail.type !== '价保'}}" class="dispute-entry">
         <view class="dispute-entry-title">对商家处理结果有异议？</view>
         <view class="return-tip">你可以填写二次售后表单并联系平台处理，平台管理员将结合双方材料进行裁决。</view>
-        <button class="dispute-submit" bindtap="openDisputeDialog">申请平台介入</button>
+        <button wx:if="{{!afterSaleDetail.disputeStatus}}" class="dispute-submit" bindtap="openDisputeDialog">申请平台介入</button>
+        <button wx:else class="dispute-submit disabled" disabled>平台介入已提交</button>
       </view>
       <button wx:if="{{afterSaleDetail.status !== '商家已同意退款，请寄回商品'}}" class="detail-close-btn" bindtap="closeAfterSaleDetail">知道了</button>
       <view wx:if="{{afterSaleDetail.status === '商家已同意退款，请寄回商品'}}" class="return-shipping-block">
@@ -237,6 +238,38 @@
         <button class="review-cancel" bindtap="closeReviewDialog">取消</button>
         <button class="review-submit" bindtap="submitReview">提交评价</button>
       </view>
+    </view>
+  </view>
+
+  <view wx:if="{{reviewDetailVisible}}" class="review-mask">
+    <view class="review-dialog">
+      <view class="review-detail-head">
+        <view>
+          <view class="review-title">评价详情</view>
+          <view class="review-merchant">{{reviewDetail.merchantName || product.merchant}}</view>
+        </view>
+        <text class="review-detail-close" bindtap="closeReviewDetail">×</text>
+      </view>
+      <view class="review-detail-summary">
+        <view class="review-detail-product">{{reviewDetail.productName || product.title}}</view>
+        <view class="review-detail-meta">订单编号：{{reviewDetail.orderNo || product.no}}</view>
+        <view class="review-detail-meta">评价时间：{{reviewDetail.reviewedAt || '暂无'}}</view>
+      </view>
+      <view class="review-section">
+        <view class="review-section-title">产品质量评价</view>
+        <view class="star-row readonly-stars">
+          <text wx:for="{{reviewDetail.productStars}}" wx:key="value" class="star {{item.active ? 'star-active' : ''}}">★</text>
+        </view>
+        <view class="review-detail-content">{{reviewDetail.productContent || '暂无评价内容'}}</view>
+      </view>
+      <view class="review-section">
+        <view class="review-section-title">商家服务评价</view>
+        <view class="star-row readonly-stars">
+          <text wx:for="{{reviewDetail.serviceStars}}" wx:key="value" class="star {{item.active ? 'star-active' : ''}}">★</text>
+        </view>
+        <view class="review-detail-content">{{reviewDetail.merchantContent || '暂无评价内容'}}</view>
+      </view>
+      <button class="detail-close-btn" bindtap="closeReviewDetail">知道了</button>
     </view>
   </view>
 </view>

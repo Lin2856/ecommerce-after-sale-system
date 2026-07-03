@@ -4,7 +4,7 @@ SET NAMES utf8mb4;
 INSERT INTO twenty_mall_account (
   account_no, password_plain, account_role, display_name, phone, bind_status, status
 ) VALUES (
-  '22222222', '123456', 'CONSUMER', '万象商城用户22222222', NULL, 'UNBOUND', 'ACTIVE'
+  '22222222', '123456', 'CONSUMER', '云边小橘', NULL, 'UNBOUND', 'ACTIVE'
 ) ON DUPLICATE KEY UPDATE
   password_plain = VALUES(password_plain),
   display_name = VALUES(display_name),

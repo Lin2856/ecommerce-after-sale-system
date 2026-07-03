@@ -22,6 +22,8 @@ Page({
     merchantReviewScore: 5,
     productReviewText: "",
     merchantReviewText: "",
+    reviewDetailVisible: false,
+    reviewDetail: null,
     productReviewStars: [
       { value: 1, active: true },
       { value: 2, active: true },
@@ -339,6 +341,7 @@ Page({
             evidenceImages: this.normalizeEvidenceImages(data.evidenceImages || []),
             returnTrackingNo: data.returnTrackingNo || "",
             returnShippedAt: data.returnShippedAt || "",
+            disputeStatus: data.disputeStatus || "",
             appliedAt: data.createdAt
           }
         })
@@ -397,6 +400,10 @@ Page({
     })
   },
   openDisputeDialog() {
+    if (this.data.afterSaleDetail && this.data.afterSaleDetail.disputeStatus) {
+      wx.showToast({ title: "该订单已申请过平台介入", icon: "none" })
+      return
+    }
     this.setData({
       disputeDialogVisible: true,
       disputeReasonText: "",
@@ -449,6 +456,11 @@ Page({
   },
   submitDisputeDialog() {
     if (!this.data.product) return
+    if (this.data.afterSaleDetail && this.data.afterSaleDetail.disputeStatus) {
+      wx.showToast({ title: "该订单已申请过平台介入", icon: "none" })
+      this.closeDisputeDialog()
+      return
+    }
     const reason = this.data.disputeReasonText.trim()
     if (!reason) {
       wx.showToast({ title: "请填写平台介入原因", icon: "none" })
@@ -529,7 +541,7 @@ Page({
   },
   openReviewDialog() {
     if (this.data.product && this.data.product.reviewed) {
-      wx.showToast({ title: "该订单已评价", icon: "none" })
+      this.loadReviewDetail()
       return
     }
     this.setData({
@@ -540,6 +552,41 @@ Page({
       merchantReviewText: "",
       productReviewStars: this.buildStars(5),
       merchantReviewStars: this.buildStars(5)
+    })
+  },
+  loadReviewDetail() {
+    if (!this.data.product) return
+    wx.showLoading({ title: "加载中" })
+    wx.request({
+      url: `${API_BASE}/consumer/reviews/detail?orderNo=${encodeURIComponent(this.data.product.no)}`,
+      success: (response) => {
+        const payload = response.data || {}
+        if (payload.code !== "200" || !payload.data) {
+          wx.showToast({ title: payload.message || "暂无评价详情", icon: "none" })
+          return
+        }
+        const detail = payload.data
+        this.setData({
+          reviewDetailVisible: true,
+          reviewDetail: {
+            ...detail,
+            productStars: this.buildStars(Number(detail.productScore || 0)),
+            serviceStars: this.buildStars(Number(detail.serviceScore || 0))
+          }
+        })
+      },
+      fail: () => {
+        wx.showToast({ title: "请先启动后端服务", icon: "none" })
+      },
+      complete: () => {
+        wx.hideLoading()
+      }
+    })
+  },
+  closeReviewDetail() {
+    this.setData({
+      reviewDetailVisible: false,
+      reviewDetail: null
     })
   },
   closeReviewDialog() {

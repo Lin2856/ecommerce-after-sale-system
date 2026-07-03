@@ -1,42 +1,84 @@
 <template>
-  <div class="panel">
-    <div class="toolbar">
+  <div class="review-page">
+    <section class="review-hero">
+      <div>
+        <span class="page-kicker">评价分析</span>
+        <h1>用户评价洞察</h1>
+        <p>聚合万象商城订单评价，识别风险反馈、服务体验和可复盘的优质评价。</p>
+      </div>
+      <el-button class="hero-action" type="primary" :loading="storeAiAnalyzing" @click="openStoreReviewAnalysis">查看店铺评价 AI 分析</el-button>
+    </section>
+
+    <section class="review-metrics">
+      <button
+        v-for="item in metricCards"
+        :key="item.value"
+        type="button"
+        class="metric-card review-metric"
+        :class="{ active: risk === item.value }"
+        @click="risk = item.value"
+      >
+        <span>{{ item.label }}</span>
+        <strong>{{ item.count }}</strong>
+        <em>{{ item.description }}</em>
+      </button>
+    </section>
+
+    <div class="review-toolbar">
       <el-segmented v-model="risk" :options="riskOptions" />
-      <el-button type="primary" @click="batchAnalyze">批量分析</el-button>
+      <span>{{ filteredReviews.length }} 条评价</span>
     </div>
-    <el-table v-loading="loading" :data="filteredReviews">
-      <el-table-column prop="platformCode" label="平台" width="100" />
-      <el-table-column prop="orderNo" label="订单号" min-width="160" />
-      <el-table-column prop="merchantName" label="商家" min-width="150" />
-      <el-table-column label="商品" min-width="180">
-        <template #default="{ row }">{{ cleanProductName(row.productName || '') }}</template>
-      </el-table-column>
-      <el-table-column label="星级" width="150">
-        <template #default="{ row }">
-          <span class="star-rating">{{ starText(row) }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="评价内容" min-width="320">
-        <template #default="{ row }">
-          <div class="review-summary">产品质量：{{ productReviewContent(row) }}</div>
-          <div class="review-summary">商家服务：{{ merchantReviewContent(row) }}</div>
-        </template>
-      </el-table-column>
-      <el-table-column label="异议状态" width="110">
-        <template #default="{ row }">
-          <el-tag v-if="row.deleted" type="danger">已删除</el-tag>
-          <el-tag v-else-if="row.disputeStatus" :type="disputeTagType(row.disputeStatus)">{{ row.disputeStatus }}</el-tag>
-          <span v-else class="muted-text">未提出</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="180">
-        <template #default="{ row }">
-          <el-button link type="primary" @click="openDetail(row)">详细</el-button>
-          <el-button v-if="!row.deleted" link type="warning" :disabled="row.disputeStatus === '待审核'" @click="openDispute(row)">异议</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
-    <el-dialog v-model="detailVisible" title="评价详情" width="720px">
+
+    <section v-loading="loading" class="review-list">
+      <article v-for="row in filteredReviews" :key="row.id" class="review-card">
+        <div class="review-card-main">
+          <div class="review-card-head">
+            <div>
+              <div class="review-title-line">
+                <strong>{{ cleanProductName(row.productName || '') }}</strong>
+                <el-tag size="small" :type="riskTagType(row.riskLevel)">{{ row.deleted ? '已删除' : riskText(row.riskLevel) }}</el-tag>
+              </div>
+              <div class="review-meta">
+                <span>{{ row.platformCode }}</span>
+                <span>{{ row.orderNo }}</span>
+                <span>{{ row.merchantName }}</span>
+              </div>
+            </div>
+            <div class="review-score-block">
+              <span class="star-rating">{{ starText(row) }}</span>
+              <em>综合星级</em>
+            </div>
+          </div>
+
+          <div class="review-content-grid">
+            <div>
+              <span>产品质量</span>
+              <p>{{ productReviewContent(row) }}</p>
+            </div>
+            <div>
+              <span>商家服务</span>
+              <p>{{ merchantReviewContent(row) }}</p>
+            </div>
+          </div>
+        </div>
+
+        <aside class="review-side">
+          <div class="status-line">
+            <span>异议状态</span>
+            <el-tag v-if="row.deleted" size="small" type="danger">已删除</el-tag>
+            <el-tag v-else-if="row.disputeStatus" size="small" :type="disputeTagType(row.disputeStatus)">{{ row.disputeStatus }}</el-tag>
+            <em v-else>未提出</em>
+          </div>
+          <div class="review-actions">
+            <el-button type="primary" plain @click="openDetail(row)">查看详情</el-button>
+            <el-button v-if="!row.deleted" type="warning" plain :disabled="row.disputeStatus === '待审核'" @click="openDispute(row)">提出异议</el-button>
+          </div>
+        </aside>
+      </article>
+      <el-empty v-if="!loading && filteredReviews.length === 0" description="暂无符合条件的评价" />
+    </section>
+
+    <el-dialog v-model="detailVisible" title="评价详情" width="780px" class="review-detail-dialog">
       <el-descriptions v-if="selectedReview" :column="2" border>
         <el-descriptions-item label="平台">{{ selectedReview.platformCode }}</el-descriptions-item>
         <el-descriptions-item label="订单号">{{ selectedReview.orderNo }}</el-descriptions-item>
@@ -44,7 +86,6 @@
         <el-descriptions-item label="商品">{{ cleanProductName(selectedReview.productName || '') }}</el-descriptions-item>
         <el-descriptions-item label="产品质量星级">{{ starTextByScore(selectedReview.productScore) }}</el-descriptions-item>
         <el-descriptions-item label="商家服务星级">{{ starTextByScore(selectedReview.serviceScore) }}</el-descriptions-item>
-        <el-descriptions-item label="情感">{{ sentimentText(selectedReview.sentiment) }}</el-descriptions-item>
         <el-descriptions-item label="风险">{{ riskText(selectedReview.riskLevel) }}</el-descriptions-item>
         <el-descriptions-item label="评价状态">{{ selectedReview.deleted ? '已删除' : '正常展示' }}</el-descriptions-item>
         <el-descriptions-item label="关键词">{{ selectedReview.keywords }}</el-descriptions-item>
@@ -53,13 +94,16 @@
         <el-descriptions-item label="异议状态">{{ selectedReview.disputeStatus || '未提出' }}</el-descriptions-item>
         <el-descriptions-item label="审核说明">{{ selectedReview.disputeAdminNote || '-' }}</el-descriptions-item>
         <el-descriptions-item label="异议原因" :span="2">{{ selectedReview.disputeReason || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="分析摘要" :span="2">{{ selectedReview.analysisSummary }}</el-descriptions-item>
-        <el-descriptions-item label="处理建议" :span="2">{{ selectedReview.suggestion }}</el-descriptions-item>
+        <template v-if="selectedReview.aiAnalyzed">
+          <el-descriptions-item label="情感" :span="2">{{ selectedReview.aiSentiment }}</el-descriptions-item>
+          <el-descriptions-item label="分析摘要" :span="2">{{ selectedReview.aiAnalysisSummary }}</el-descriptions-item>
+          <el-descriptions-item label="处理建议" :span="2">{{ selectedReview.aiSuggestion }}</el-descriptions-item>
+        </template>
       </el-descriptions>
       <template #footer>
         <el-button @click="detailVisible = false">关闭</el-button>
         <el-button v-if="selectedReview && !selectedReview.deleted" type="warning" :disabled="selectedReview.disputeStatus === '待审核'" @click="openDispute(selectedReview)">提出异议</el-button>
-        <el-button v-if="selectedReview" type="primary" @click="analyzeSelectedReview">AI 分析</el-button>
+        <el-button v-if="selectedReview" type="primary" :loading="aiAnalyzing" @click="analyzeSelectedReview">AI 分析</el-button>
       </template>
     </el-dialog>
     <el-dialog v-model="disputeVisible" title="提交评价异议" width="560px">
@@ -84,6 +128,33 @@
         <el-button type="primary" :loading="submittingDispute" @click="submitDispute">提交异议</el-button>
       </template>
     </el-dialog>
+    <el-dialog v-model="storeAnalysisVisible" title="店铺评价 AI 分析" width="720px" class="store-analysis-dialog">
+      <div v-if="storeAnalysisResult" class="store-analysis-panel">
+        <div class="store-analysis-summary">
+          <div>
+            <span>总体情感</span>
+            <strong>{{ storeAnalysisResult.sentiment }}</strong>
+          </div>
+          <div>
+            <span>涉及店铺</span>
+            <strong>{{ storeAnalysisMerchantText }}</strong>
+          </div>
+        </div>
+        <section>
+          <h3>评价摘要</h3>
+          <p>{{ storeAnalysisResult.analysisSummary }}</p>
+        </section>
+        <section>
+          <h3>处理建议</h3>
+          <p>{{ storeAnalysisResult.suggestion }}</p>
+        </section>
+      </div>
+      <el-empty v-else description="暂无店铺评价分析结果" />
+      <template #footer>
+        <el-button @click="storeAnalysisVisible = false">关闭</el-button>
+        <el-button type="primary" :loading="storeAiAnalyzing" @click="openStoreReviewAnalysis">重新分析</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -105,6 +176,10 @@ type ReviewRow = {
   keywords: string
   analysisSummary: string
   suggestion: string
+  aiAnalyzed?: boolean
+  aiSentiment?: string
+  aiAnalysisSummary?: string
+  aiSuggestion?: string
   orderNo?: string
   productName?: string
   merchantName?: string
@@ -133,6 +208,14 @@ const disputeVisible = ref(false)
 const disputeReview = ref<ReviewRow | null>(null)
 const disputeReason = ref('')
 const submittingDispute = ref(false)
+const aiAnalyzing = ref(false)
+const storeAiAnalyzing = ref(false)
+const storeAnalysisVisible = ref(false)
+const storeAnalysisResult = ref<{
+  sentiment: string
+  analysisSummary: string
+  suggestion: string
+} | null>(null)
 
 onMounted(async () => {
   loading.value = true
@@ -154,17 +237,57 @@ const filteredReviews = computed(() => {
   return reviewData.value.filter((item) => !item.deleted && item.riskLevel === risk.value)
 })
 
-function batchAnalyze() {
-  reviewData.value = reviewData.value.map((item) => analyzeReviewItem(item))
-  ElMessage({ type: 'success', message: '已完成当前评价列表分析' })
+const metricCards = computed(() => {
+  const activeReviews = reviewData.value.filter((item) => !item.deleted)
+  return [
+    { label: '全部评价', value: '全部', count: activeReviews.length, description: '当前展示中的评价' },
+    { label: '高风险', value: 'HIGH', count: activeReviews.filter((item) => item.riskLevel === 'HIGH').length, description: '需要优先跟进' },
+    { label: '中风险', value: 'MEDIUM', count: activeReviews.filter((item) => item.riskLevel === 'MEDIUM').length, description: '建议主动回访' },
+    { label: '低风险', value: 'LOW', count: activeReviews.filter((item) => item.riskLevel === 'LOW').length, description: '可沉淀复盘' },
+    { label: '已删除', value: 'DELETED', count: reviewData.value.filter((item) => item.deleted).length, description: '管理员已处理' }
+  ]
+})
+
+const activeReviews = computed(() => reviewData.value.filter((item) => !item.deleted))
+const storeAnalysisMerchantText = computed(() => {
+  const names = Array.from(new Set(activeReviews.value.map((item) => item.merchantName).filter(Boolean)))
+  return names.length ? names.join('、') : '当前店铺'
+})
+
+async function openStoreReviewAnalysis() {
+  const targets = activeReviews.value
+  if (!targets.length) {
+    ElMessage({ type: 'warning', message: '当前店铺暂无未删除评价可分析' })
+    return
+  }
+  storeAiAnalyzing.value = true
+  try {
+    storeAnalysisResult.value = await requestStoreReviewAnalysis(targets)
+    storeAnalysisVisible.value = true
+  } catch {
+    ElMessage({ type: 'error', message: '店铺评价 AI 分析失败，请确认 AI 服务已启动' })
+  } finally {
+    storeAiAnalyzing.value = false
+  }
 }
 
-function analyzeReview(reviewId: number) {
-  reviewData.value = reviewData.value.map((item) => (item.id === reviewId ? analyzeReviewItem(item) : item))
+async function analyzeReview(reviewId: number, showMessage = true) {
+  const review = reviewData.value.find((item) => item.id === reviewId)
+  if (!review) return
+  const analysis = await requestAiReviewAnalysis(review)
+  reviewData.value = reviewData.value.map((item) => (item.id === reviewId ? {
+    ...item,
+    aiAnalyzed: true,
+    aiSentiment: analysis.sentiment,
+    aiAnalysisSummary: analysis.analysisSummary,
+    aiSuggestion: analysis.suggestion
+  } : item))
   if (selectedReview.value?.id === reviewId) {
     selectedReview.value = reviewData.value.find((item) => item.id === reviewId) || null
   }
-  ElMessage({ type: 'success', message: '已生成该评价的分析结果' })
+  if (showMessage) {
+    ElMessage({ type: 'success', message: '已生成该评价的 AI 分析结果' })
+  }
 }
 
 function openDetail(row: ReviewRow) {
@@ -207,33 +330,71 @@ async function submitDispute() {
   }
 }
 
-function analyzeSelectedReview() {
+async function analyzeSelectedReview() {
   if (!selectedReview.value) return
-  analyzeReview(selectedReview.value.id)
+  aiAnalyzing.value = true
+  try {
+    await analyzeReview(selectedReview.value.id)
+  } catch {
+    ElMessage({ type: 'error', message: 'AI 分析失败，请确认 AI 服务已启动' })
+  } finally {
+    aiAnalyzing.value = false
+  }
 }
 
-function analyzeReviewItem(item: ReviewRow) {
-  const negative = item.content.includes('划痕') || item.content.includes('问题') || item.productScore <= 2
-  const logistics = item.content.includes('物流')
-  const serviceGood = item.content.includes('客服') || item.serviceScore >= 4
-  const keywords = [
-    item.content.includes('划痕') ? '商品划痕' : '',
-    logistics ? '物流体验' : '',
-    serviceGood ? '客服服务' : '',
-    negative ? '质量风险' : '正向反馈'
-  ].filter(Boolean).join('、')
-
+async function requestAiReviewAnalysis(item: ReviewRow) {
+  const response = await fetch('http://localhost:9000/api/ai/review-analysis', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      platformName: item.platformCode,
+      orderNo: item.orderNo,
+      merchantName: item.merchantName,
+      productName: cleanProductName(item.productName || ''),
+      productScore: item.productScore,
+      serviceScore: item.serviceScore,
+      productReview: productReviewContent(item),
+      merchantReview: merchantReviewContent(item)
+    })
+  })
+  if (!response.ok) {
+    throw new Error('AI review analysis failed')
+  }
+  const payload = await response.json()
   return {
-    ...item,
-    sentiment: negative ? 'NEGATIVE' : 'POSITIVE',
-    riskLevel: negative ? 'MEDIUM' : 'LOW',
-    keywords,
-    analysisSummary: negative
-      ? '评价包含商品质量或体验风险，需要客服主动跟进。'
-      : '评价整体正向，可用于服务质量复盘和优秀案例沉淀。',
-    suggestion: negative
-      ? '建议在 24 小时内联系用户，核实问题并提供换货、补偿或质检处理方案。'
-      : '建议标记为低风险评价，后续用于客服服务质量样本。'
+    sentiment: payload.sentiment || '中性',
+    analysisSummary: payload.analysisSummary || '暂无分析摘要',
+    suggestion: payload.suggestion || '暂无处理建议'
+  }
+}
+
+async function requestStoreReviewAnalysis(items: ReviewRow[]) {
+  const response = await fetch('http://localhost:9000/api/ai/store-review-analysis', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      platformName: '万象商城',
+      merchantName: storeAnalysisMerchantText.value,
+      reviews: items.map((item) => ({
+        orderNo: item.orderNo,
+        merchantName: item.merchantName,
+        productName: cleanProductName(item.productName || ''),
+        productScore: item.productScore,
+        serviceScore: item.serviceScore,
+        productReview: productReviewContent(item),
+        merchantReview: merchantReviewContent(item),
+        riskLevel: riskText(item.riskLevel)
+      }))
+    })
+  })
+  if (!response.ok) {
+    throw new Error('店铺评价 AI 分析失败')
+  }
+  const payload = await response.json()
+  return {
+    sentiment: payload.sentiment || '中性',
+    analysisSummary: payload.analysisSummary || payload.analysis_summary || '暂无评价摘要',
+    suggestion: payload.suggestion || '暂无处理建议'
   }
 }
 
@@ -271,6 +432,13 @@ function riskText(value: string) {
     NONE: '无风险'
   }
   return map[value] || value
+}
+
+function riskTagType(value: string) {
+  if (value === 'HIGH') return 'danger'
+  if (value === 'MEDIUM') return 'warning'
+  if (value === 'LOW') return 'success'
+  return 'info'
 }
 
 function disputeTagType(status: string) {
@@ -322,6 +490,181 @@ function normalizeRiskRoute(riskValue: unknown, tabValue: unknown) {
 </script>
 
 <style scoped>
+.review-page {
+  display: grid;
+  gap: 18px;
+}
+
+.review-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 24px 28px;
+  overflow: hidden;
+  border: 1px solid #dce7f5;
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(37, 99, 235, 0.1), rgba(255, 255, 255, 0) 42%),
+    linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
+}
+
+.page-kicker {
+  display: inline-flex;
+  margin-bottom: 8px;
+  color: #2563eb;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.review-hero h1 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.review-hero p {
+  margin: 8px 0 0;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.hero-action {
+  min-width: 128px;
+  height: 42px;
+  border-radius: 8px;
+  font-weight: 800;
+}
+
+.review-metrics {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.review-metric {
+  min-height: 108px;
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.review-metric:hover,
+.review-metric.active {
+  border-color: #60a5fa;
+  box-shadow: 0 14px 30px rgba(37, 99, 235, 0.1);
+  transform: translateY(-1px);
+}
+
+.review-metric span,
+.review-metric em {
+  display: block;
+  color: #64748b;
+  font-style: normal;
+}
+
+.review-metric span {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.review-metric strong {
+  display: block;
+  margin: 8px 0 6px;
+  color: #0f172a;
+  font-size: 28px;
+  line-height: 1;
+}
+
+.review-metric em {
+  font-size: 12px;
+}
+
+.review-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.review-toolbar span {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.review-list {
+  display: grid;
+  gap: 14px;
+  min-height: 220px;
+}
+
+.review-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 18px;
+  padding: 18px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.04);
+}
+
+.review-card-head,
+.review-title-line,
+.review-meta,
+.status-line,
+.review-actions {
+  display: flex;
+  align-items: center;
+}
+
+.review-card-head {
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.review-title-line {
+  gap: 10px;
+}
+
+.review-title-line strong {
+  color: #0f172a;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.review-meta {
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.review-meta span {
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.review-score-block {
+  flex-shrink: 0;
+  text-align: right;
+}
+
 .star-rating {
   color: #f59e0b;
   font-size: 18px;
@@ -329,8 +672,180 @@ function normalizeRiskRoute(riskValue: unknown, tabValue: unknown) {
   white-space: nowrap;
 }
 
-.review-summary {
-  line-height: 1.6;
-  color: #344054;
+.review-score-block em {
+  display: block;
+  margin-top: 4px;
+  color: #94a3b8;
+  font-size: 12px;
+  font-style: normal;
+}
+
+.review-content-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.review-content-grid div {
+  min-height: 96px;
+  padding: 14px;
+  border: 1px solid #edf2f7;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.review-content-grid span {
+  display: block;
+  color: #2563eb;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.review-content-grid p {
+  margin: 8px 0 0;
+  color: #334155;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.review-side {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 14px;
+  padding-left: 18px;
+  border-left: 1px solid #edf2f7;
+}
+
+.status-line {
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.status-line span {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.status-line em {
+  color: #94a3b8;
+  font-size: 13px;
+  font-style: normal;
+}
+
+.review-actions {
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.review-actions :deep(.el-button) {
+  margin-left: 0;
+  border-radius: 8px;
+  font-weight: 800;
+}
+
+:deep(.review-detail-dialog .el-dialog) {
+  border-radius: 8px;
+}
+
+:deep(.store-analysis-dialog .el-dialog) {
+  border-radius: 8px;
+}
+
+.store-analysis-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.store-analysis-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 12px;
+}
+
+.store-analysis-summary div,
+.store-analysis-panel section {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.store-analysis-summary div {
+  min-height: 86px;
+  padding: 14px;
+}
+
+.store-analysis-summary span,
+.store-analysis-panel h3 {
+  display: block;
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.store-analysis-summary strong {
+  display: block;
+  margin-top: 10px;
+  color: #0f172a;
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.store-analysis-panel section {
+  padding: 16px 18px;
+  background: #ffffff;
+}
+
+.store-analysis-panel p {
+  margin: 10px 0 0;
+  color: #334155;
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+:deep(.el-segmented) {
+  --el-segmented-item-selected-bg-color: #2563eb;
+  --el-segmented-item-selected-color: #fff;
+  border-radius: 8px;
+}
+
+@media (max-width: 1200px) {
+  .review-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .review-card {
+    grid-template-columns: 1fr;
+  }
+
+  .review-side {
+    padding-left: 0;
+    border-left: 0;
+    border-top: 1px solid #edf2f7;
+    padding-top: 14px;
+  }
+}
+
+@media (max-width: 760px) {
+  .review-hero,
+  .review-toolbar,
+  .review-card-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .review-metrics,
+  .review-content-grid,
+  .store-analysis-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .review-score-block {
+    text-align: left;
+  }
 }
 </style>

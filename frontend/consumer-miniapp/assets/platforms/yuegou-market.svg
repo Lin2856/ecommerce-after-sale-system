@@ -1,0 +1,70 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="150" y1="94" x2="874" y2="900" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFF7ED"/>
+      <stop offset="0.55" stop-color="#FFEDD5"/>
+      <stop offset="1" stop-color="#DBEAFE"/>
+    </linearGradient>
+    <linearGradient id="shopBody" x1="270" y1="398" x2="754" y2="850" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFB74A"/>
+      <stop offset="1" stop-color="#FF6A2F"/>
+    </linearGradient>
+    <linearGradient id="roofBlue" x1="242" y1="162" x2="742" y2="392" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3B82F6"/>
+      <stop offset="1" stop-color="#1D4ED8"/>
+    </linearGradient>
+    <linearGradient id="roofOrange" x1="344" y1="150" x2="710" y2="430" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FF9F1C"/>
+      <stop offset="1" stop-color="#F97316"/>
+    </linearGradient>
+    <filter id="cardShadow" x="86" y="72" width="852" height="900" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+      <feOffset dy="28"/>
+      <feGaussianBlur stdDeviation="34"/>
+      <feComposite in2="hardAlpha" operator="out"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.11 0 0 0 0 0.15 0 0 0 0 0.25 0 0 0 0.18 0"/>
+      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow"/>
+      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow" result="shape"/>
+    </filter>
+    <filter id="softShadow" x="176" y="620" width="672" height="252" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+      <feOffset dy="16"/>
+      <feGaussianBlur stdDeviation="18"/>
+      <feComposite in2="hardAlpha" operator="out"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.55 0 0 0 0 0.22 0 0 0 0 0.04 0 0 0 0.18 0"/>
+      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow"/>
+      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow" result="shape"/>
+    </filter>
+  </defs>
+
+  <rect width="1024" height="1024" rx="224" fill="url(#bg)"/>
+  <circle cx="184" cy="196" r="86" fill="#FDE68A" opacity="0.72"/>
+  <circle cx="836" cy="770" r="120" fill="#BFDBFE" opacity="0.68"/>
+
+  <g filter="url(#cardShadow)">
+    <rect x="170" y="182" width="684" height="674" rx="126" fill="#FFFFFF"/>
+    <rect x="214" y="376" width="596" height="432" rx="86" fill="url(#shopBody)"/>
+
+    <path d="M232 378L288 214C298.8 182.3 328.5 161 362 161H662C695.5 161 725.2 182.3 736 214L792 378H232Z" fill="#FFFFFF"/>
+    <path d="M288 214C298.8 182.3 328.5 161 362 161H432L392 378H232L288 214Z" fill="url(#roofBlue)"/>
+    <path d="M432 161H512V378H392L432 161Z" fill="url(#roofOrange)"/>
+    <path d="M512 161H592L632 378H512V161Z" fill="url(#roofBlue)"/>
+    <path d="M592 161H662C695.5 161 725.2 182.3 736 214L792 378H632L592 161Z" fill="url(#roofOrange)"/>
+
+    <path d="M232 378H392V408C392 456.6 356.2 496 312 496C267.8 496 232 456.6 232 408V378Z" fill="#1D4ED8"/>
+    <path d="M392 378H512V408C512 456.6 485.1 496 452 496C418.9 496 392 456.6 392 408V378Z" fill="#FB923C"/>
+    <path d="M512 378H632V408C632 456.6 605.1 496 572 496C538.9 496 512 456.6 512 408V378Z" fill="#1D4ED8"/>
+    <path d="M632 378H792V408C792 456.6 756.2 496 712 496C667.8 496 632 456.6 632 408V378Z" fill="#FB923C"/>
+
+    <circle cx="394" cy="590" r="34" fill="#FFF7ED"/>
+    <circle cx="630" cy="590" r="34" fill="#FFF7ED"/>
+    <path d="M356 662C397 721 458 750 512 750C566 750 627 721 668 662" stroke="#FFF7ED" stroke-width="34" stroke-linecap="round"/>
+
+    <g filter="url(#softShadow)">
+      <rect x="286" y="732" width="452" height="96" rx="48" fill="#FFF7ED"/>
+      <text x="512" y="795" text-anchor="middle" font-family="'Microsoft YaHei', 'PingFang SC', Arial, sans-serif" font-size="54" font-weight="900" fill="#172033">悦购集市</text>
+    </g>
+  </g>
+</svg>

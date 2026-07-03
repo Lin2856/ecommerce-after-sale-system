@@ -42,6 +42,12 @@
         <view class="bubble {{item.role === 'user' ? 'bubble-user' : ''}}">
           {{item.content}}
         </view>
+        <button
+          wx:if="{{item.showTransfer && mode !== '人工'}}"
+          class="bubble-transfer-btn"
+          data-order-no="{{activeOrderNo}}"
+          bindtap="transferFromAiMessage"
+        >转人工客服</button>
       </view>
       <view wx:if="{{item.role === 'user'}}" class="avatar avatar-user">
         <image wx:if="{{item.avatar}}" src="{{item.avatar}}" mode="aspectFill" />
@@ -54,6 +60,35 @@
   <view class="input-card">
     <input value="{{inputValue}}" bindinput="onInput" placeholder="输入消息，发送“转人工”可接入人工客服" />
     <button class="send-btn" bindtap="sendMessage">发送</button>
+  </view>
+
+  <view wx:if="{{orderSwitcherVisible}}" class="order-switcher-mask" bindtap="closeOrderSwitcher">
+    <view class="order-switcher-panel" catchtap="noop">
+      <view class="order-switcher-head">
+        <view>
+          <view class="order-switcher-title">切换咨询订单</view>
+          <view class="order-switcher-subtitle">选择后将进入对应订单的客服会话</view>
+        </view>
+        <button class="order-switcher-close" bindtap="closeOrderSwitcher">×</button>
+      </view>
+      <scroll-view class="order-switcher-list" scroll-y>
+        <view
+          wx:for="{{orders}}"
+          wx:key="no"
+          class="order-switcher-item {{item.no === activeOrderNo ? 'active' : ''}}"
+          data-no="{{item.no}}"
+          bindtap="switchOrder"
+        >
+          <image class="order-switcher-thumb" src="{{item.image}}" mode="aspectFill" />
+          <view class="order-switcher-info">
+            <view class="order-switcher-name">{{item.title}}</view>
+            <view class="order-switcher-meta">订单编号：{{item.no}}</view>
+            <view class="order-switcher-meta">商家：{{item.merchant}}</view>
+          </view>
+          <view class="order-switcher-status">{{item.no === activeOrderNo ? '当前' : item.afterSale}}</view>
+        </view>
+      </scroll-view>
+    </view>
   </view>
   </block>
 </view>

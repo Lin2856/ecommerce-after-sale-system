@@ -18,6 +18,7 @@ export type MerchantPlatformBinding = {
 const TWENTY_MALL_MERCHANT_NAMES: Record<string, string> = {
   '20230141': '极光外设旗舰店',
   '20230142': '黑曜通勤箱包店',
+  '20230143': '美味食品专卖店',
   '22222223': '晨光数码生活馆',
   '22222224': '云途箱包旗舰店'
 }
@@ -101,19 +102,24 @@ export function clearMerchantBindings() {
 }
 
 function normalizeMerchantBindings(bindings: MerchantPlatformBinding[]) {
-  return bindings.map((item) => {
-    if (item.platformCode !== 'TWENTY_MALL' || !item.accountNo) {
+  const wanxiangMerchantAccounts = new Set(['20230141', '20230142', '20230143', '22222223', '22222224'])
+  return bindings.filter((item) => {
+    if (item.platformCode === 'YUEGOU_MARKET' && item.accountNo && wanxiangMerchantAccounts.has(item.accountNo)) {
+      return false
+    }
+    return true
+  }).map((item) => {
+    if ((item.platformCode !== 'TWENTY_MALL' && item.platformCode !== 'YUEGOU_MARKET') || !item.accountNo) {
       return item
     }
-    const shopName = TWENTY_MALL_MERCHANT_NAMES[item.accountNo]
-    if (!shopName) {
-      return item
-    }
+    const shopName = item.platformCode === 'TWENTY_MALL'
+      ? TWENTY_MALL_MERCHANT_NAMES[item.accountNo] || item.shopName || item.sellerNick || `万象商城商家店铺（${item.accountNo}）`
+      : item.shopName || item.sellerNick || ''
     return {
       ...item,
       shopName,
       sellerNick: shopName,
-      externalShopId: `TM_SHOP_${item.accountNo}`
+      externalShopId: `${item.platformCode}_SHOP_${item.accountNo}`
     }
   })
 }

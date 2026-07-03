@@ -225,15 +225,23 @@ public class ConversationServiceImpl implements ConversationService {
                 conversation.getId(),
                 null,
                 conversation.getStatus(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null
             ));
             if (response != null && response.reply() != null && !response.reply().isBlank()) {
                 return response.reply();
             }
         } catch (Exception ignored) {
-            // Keep the chat channel available if the external AI service is temporarily unavailable.
+            // Keep the chat channel available and avoid exposing technical availability details to consumers.
         }
-        return "AI 服务暂不可用，建议为您转接人工客服继续处理。";
+        return "这个问题目前需要人工进一步核实订单和售后记录，我不能直接给出确定结论。您可以点击下方转人工客服按钮，由人工客服继续协助处理。";
     }
 
     private ConversationSummaryResponse toSummaryResponse(CustomerConversation conversation) {

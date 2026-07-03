@@ -33,7 +33,7 @@ EXECUTE add_new_account_index_stmt;
 DEALLOCATE PREPARE add_new_account_index_stmt;
 
 INSERT INTO twenty_mall_account (id, account_no, password_plain, account_role, display_name, phone, bind_status, status, deleted)
-VALUES (3, '20230141', '123456', 'CONSUMER', '万象商城学生买家', '13338907581', 'UNBOUND', 'ACTIVE', 0)
+VALUES (3, '20230141', '123456', 'CONSUMER', '万象商城学生买家', '13338907583', 'UNBOUND', 'ACTIVE', 0)
 ON DUPLICATE KEY UPDATE
   password_plain = VALUES(password_plain),
   display_name = VALUES(display_name),

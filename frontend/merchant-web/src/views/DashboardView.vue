@@ -1,17 +1,5 @@
 <template>
   <div>
-    <section class="account-card">
-      <el-avatar v-if="primaryProfile.avatar" :size="68" :src="primaryProfile.avatar" />
-      <el-avatar v-else :size="68" class="account-avatar">{{ avatarText }}</el-avatar>
-      <div class="account-main">
-        <div class="account-kicker">商家端一级账号</div>
-        <h2>{{ primaryProfile.displayName || primaryProfile.accountNo || '商家账号' }}</h2>
-        <div class="account-meta">
-          <span>手机号：{{ primaryProfile.phone || '未绑定手机号' }}</span>
-        </div>
-      </div>
-      <el-button type="primary" plain @click="openProfileDialog">编辑资料</el-button>
-    </section>
     <div class="metric-grid">
       <div v-for="item in metrics" :key="item.label" class="metric-card">
         <span>{{ item.label }}</span>
@@ -23,7 +11,9 @@
       <div class="panel">
         <h2 class="section-title">待处理售后</h2>
         <el-table v-loading="loading" :data="afterSaleData" height="310">
-          <el-table-column prop="afterSaleNo" label="售后单号" min-width="150" />
+          <el-table-column label="订单编号" min-width="150">
+            <template #default="{ row }">{{ displayOrderNo(row) }}</template>
+          </el-table-column>
           <el-table-column label="原因">
             <template #default="{ row }">{{ reasonText(row.reasonType) }}</template>
           </el-table-column>
@@ -84,28 +74,6 @@
         <el-button v-if="selectedMail" type="primary" @click="handleSelectedMail">查看详细</el-button>
       </template>
     </el-dialog>
-    <el-dialog v-model="profileDialogVisible" title="编辑一级账号资料" width="520px">
-      <el-form label-width="84px">
-        <el-form-item label="头像">
-          <div class="avatar-editor">
-            <el-avatar v-if="profileForm.avatar" :size="64" :src="profileForm.avatar" />
-            <el-avatar v-else :size="64">{{ profileForm.displayName.slice(0, 1) || '商' }}</el-avatar>
-            <el-button @click="triggerAvatarInput">选择头像</el-button>
-            <input ref="avatarInputRef" class="hidden-file" type="file" accept="image/*" @change="onAvatarChange" />
-          </div>
-        </el-form-item>
-        <el-form-item label="昵称">
-          <el-input v-model="profileForm.displayName" maxlength="32" placeholder="请输入商家端一级账号昵称" />
-        </el-form-item>
-        <el-form-item label="手机号">
-          <el-input :model-value="primaryProfile.phone || '未绑定手机号'" disabled />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="profileDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="profileSaving" @click="savePrimaryProfile">保存</el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
@@ -139,24 +107,10 @@ const afterSaleData = ref<typeof afterSales>([])
 const reviewData = ref<typeof reviews>([])
 const mailData = ref<MailRow[]>([])
 const loading = ref(false)
-const profileDialogVisible = ref(false)
-const profileSaving = ref(false)
 const mailDetailVisible = ref(false)
 const selectedMail = ref<MailRow | null>(null)
 const readMailIds = ref<string[]>([])
 const deletedMailIds = ref<string[]>([])
-const avatarInputRef = ref<HTMLInputElement | null>(null)
-const primaryProfile = ref({
-  accountNo: '',
-  accountType: 'MERCHANT',
-  displayName: '',
-  phone: '',
-  avatar: ''
-})
-const profileForm = ref({
-  displayName: '',
-  avatar: ''
-})
 
 onMounted(async () => {
   loadMailState()
@@ -178,10 +132,7 @@ onMounted(async () => {
     ElMessage({ type: 'error', message: '工作台数据读取失败，请确认后端服务和数据库已启动' })
   }
   loading.value = false
-  await loadPrimaryProfile()
 })
-
-const avatarText = computed(() => (primaryProfile.value.displayName || primaryProfile.value.accountNo || '商').slice(0, 1))
 
 const pendingAfterSaleCount = computed(() => afterSaleData.value.filter((item) => !['COMPLETED', 'CLOSED', 'REJECTED'].includes(item.status)).length)
 const unreadMailCount = computed(() => visibleMailData.value.filter((item) => !isMailRead(item.id)).length)
@@ -230,6 +181,11 @@ function priorityText(value: string) {
     LOW: '低'
   }
   return map[value] || value
+}
+
+function displayOrderNo(row: { orderNo?: string; afterSaleNo?: string }) {
+  if (row.orderNo) return row.orderNo
+  return row.afterSaleNo ? row.afterSaleNo.replace(/^TMAS/, 'TM') : '-'
 }
 
 function boundMerchantAccounts() {
@@ -340,158 +296,12 @@ function mailTypeTag(type: string) {
 
 function currentPrimaryAccountNo() {
   const user = getStoredUser<{ username?: string; userId?: number }>()
-  return user?.username || String(user?.userId || 'merchant_admin_demo')
+  return user?.username || String(user?.userId || '13338907681')
 }
 
-async function loadPrimaryProfile() {
-  try {
-    const accountNo = currentPrimaryAccountNo()
-    const response = await fetch(`http://localhost:8080/api/twenty-mall/primary/profile?accountNo=${encodeURIComponent(accountNo)}&accountType=MERCHANT`)
-    const payload = await response.json()
-    if (payload.code !== '200' || !payload.data) {
-      primaryProfile.value = {
-        accountNo,
-        accountType: 'MERCHANT',
-        displayName: accountNo,
-        phone: '',
-        avatar: ''
-      }
-      return
-    }
-    primaryProfile.value = {
-      accountNo: payload.data.accountNo || accountNo,
-      accountType: payload.data.accountType || 'MERCHANT',
-      displayName: payload.data.displayName || accountNo,
-      phone: payload.data.phone || '',
-      avatar: payload.data.avatar || ''
-    }
-  } catch {
-    const accountNo = currentPrimaryAccountNo()
-    primaryProfile.value = {
-      accountNo,
-      accountType: 'MERCHANT',
-      displayName: accountNo,
-      phone: '',
-      avatar: ''
-    }
-  }
-}
-
-function openProfileDialog() {
-  profileForm.value = {
-    displayName: primaryProfile.value.displayName,
-    avatar: primaryProfile.value.avatar
-  }
-  profileDialogVisible.value = true
-}
-
-function triggerAvatarInput() {
-  avatarInputRef.value?.click()
-}
-
-function onAvatarChange(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-  const reader = new FileReader()
-  reader.onload = () => {
-    profileForm.value.avatar = String(reader.result || '')
-  }
-  reader.readAsDataURL(file)
-  input.value = ''
-}
-
-async function savePrimaryProfile() {
-  if (!profileForm.value.displayName.trim()) {
-    ElMessage({ type: 'warning', message: '请输入昵称' })
-    return
-  }
-  profileSaving.value = true
-  try {
-    const response = await fetch('http://localhost:8080/api/twenty-mall/primary/profile', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        accountNo: primaryProfile.value.accountNo || currentPrimaryAccountNo(),
-        accountType: 'MERCHANT',
-        displayName: profileForm.value.displayName.trim(),
-        avatar: profileForm.value.avatar
-      })
-    })
-    const payload = await response.json()
-    if (payload.code !== '200' || !payload.data) {
-      ElMessage({ type: 'error', message: payload.message || '资料保存失败' })
-      return
-    }
-    primaryProfile.value = {
-      accountNo: payload.data.accountNo,
-      accountType: payload.data.accountType,
-      displayName: payload.data.displayName,
-      phone: payload.data.phone || '',
-      avatar: payload.data.avatar || ''
-    }
-    profileDialogVisible.value = false
-    ElMessage({ type: 'success', message: '资料已保存' })
-  } catch {
-    ElMessage({ type: 'error', message: '资料保存失败，请确认后端服务已启动' })
-  } finally {
-    profileSaving.value = false
-  }
-}
 </script>
 
 <style scoped>
-.account-card {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  padding: 20px 22px;
-  margin-bottom: 20px;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-}
-
-.account-avatar {
-  background: #f59e0b;
-  color: #111827;
-  font-weight: 800;
-}
-
-.account-main {
-  flex: 1;
-  min-width: 0;
-}
-
-.account-kicker {
-  color: #64748b;
-  font-size: 13px;
-}
-
-.account-main h2 {
-  margin: 4px 0 8px;
-  font-size: 22px;
-  color: #0f172a;
-}
-
-.account-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 24px;
-  color: #64748b;
-  font-size: 14px;
-}
-
-.avatar-editor {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.hidden-file {
-  display: none;
-}
-
 .mail-list {
   display: flex;
   flex-direction: column;

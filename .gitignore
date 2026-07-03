@@ -50,6 +50,7 @@ database/*.bak
 database/*.dump
 database/*.sql.gz
 output/
+outputs/
 
 # Deployment
 deploy/.data/

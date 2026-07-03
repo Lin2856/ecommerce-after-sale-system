@@ -12,7 +12,7 @@ Page({
   onLoad() {
     const profile = getConsumerProfile()
     const phone = getPrimaryPhone()
-    this.setData({ phone: phone === "guest" ? "" : phone })
+    this.setData({ phone: this.displayPhone(phone) })
     if (profile) {
       this.setData({
         form: {
@@ -28,7 +28,7 @@ Page({
             nickname: dbProfile.nickname || "",
             avatar: dbProfile.avatar || ""
           },
-          phone: dbProfile.phone || (phone === "guest" ? "" : phone)
+          phone: this.displayPhone(dbProfile.phone) || this.displayPhone(phone)
         })
       }
     })
@@ -65,5 +65,11 @@ Page({
         wx.showToast({ title: message || "资料保存失败", icon: "none" })
       }
     })
+  },
+  displayPhone(phone) {
+    if (!phone || phone === "guest" || phone.startsWith("wx_")) {
+      return ""
+    }
+    return phone
   }
 })

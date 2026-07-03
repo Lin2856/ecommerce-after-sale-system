@@ -42,3 +42,10 @@ app:
     refresh-token-ttl-seconds: 604800
   ai:
     base-url: http://localhost:9000
+  wechat:
+    miniapp:
+      app-id: ${WECHAT_MINIAPP_APPID:}
+      secret: ${WECHAT_MINIAPP_SECRET:}
+    open:
+      app-id: ${WECHAT_OPEN_APPID:}
+      secret: ${WECHAT_OPEN_SECRET:}

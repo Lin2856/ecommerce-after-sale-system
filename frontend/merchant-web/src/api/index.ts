@@ -86,3 +86,35 @@ export async function loadFaqs(params: Record<string, unknown> = {}) {
 export async function loadRules(params: Record<string, unknown> = {}) {
   return unwrap(await api.get('/merchant/knowledge/rules', { params }))
 }
+
+export async function loadOperationLogs(primaryAccount = '') {
+  return unwrap(await api.get('/merchant/operation-logs', { params: { primaryAccount } }))
+}
+
+export async function createOperationLog(payload: Record<string, unknown>) {
+  return unwrap(await api.post('/merchant/operation-logs', payload))
+}
+
+export async function merchantWechatLogin(accountNo: string) {
+  return unwrap(await api.post('/twenty-mall/merchant/wechat-login', { accountNo }))
+}
+
+export async function loadPrimaryBanStatus(accountNo: string, accountType: 'CONSUMER' | 'MERCHANT') {
+  return unwrap(await api.get('/twenty-mall/primary/ban-status', { params: { accountNo, accountType } }))
+}
+
+export async function loadMerchantWechatQrUrl(redirectUri: string) {
+  const response = await api.get('/twenty-mall/merchant/wechat/qr-url', { params: { redirectUri } })
+  if (response.data?.code !== '200' || !response.data?.data) {
+    throw new Error(response.data?.message || '微信扫码登录暂不可用')
+  }
+  return response.data.data
+}
+
+export async function merchantWechatCallbackLogin(code: string, state: string) {
+  const response = await api.post('/twenty-mall/merchant/wechat-login', { code, state })
+  if (response.data?.code !== '200' || !response.data?.data) {
+    throw new Error(response.data?.message || '微信扫码登录失败')
+  }
+  return response.data.data
+}

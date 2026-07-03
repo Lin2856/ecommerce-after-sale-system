@@ -2,6 +2,10 @@ param(
   [string]$DbUrl = "jdbc:mysql://localhost:3306/ecommerce_after_sale?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8",
   [string]$DbUsername = "root",
   [string]$DbPassword = "123456",
+  [string]$WechatMiniAppId = $env:WECHAT_MINIAPP_APPID,
+  [string]$WechatMiniAppSecret = $env:WECHAT_MINIAPP_SECRET,
+  [string]$WechatOpenAppId = $env:WECHAT_OPEN_APPID,
+  [string]$WechatOpenSecret = $env:WECHAT_OPEN_SECRET,
   [switch]$SkipBackend,
   [switch]$SkipFrontend,
   [switch]$SkipAi
@@ -57,7 +61,7 @@ function Start-HiddenProcess {
   $psi.RedirectStandardOutput = $true
   $psi.RedirectStandardError = $true
   foreach ($key in $Environment.Keys) {
-    [Environment]::SetEnvironmentVariable($key, [string]$Environment[$key], "Process")
+    $psi.EnvironmentVariables[$key] = [string]$Environment[$key]
   }
   $process = [System.Diagnostics.Process]::Start($psi)
   $stdout = Join-Path $logDir "$LogName.out.log"
@@ -111,6 +115,10 @@ if (-not $SkipBackend) {
         REDIS_HOST = "localhost"
         REDIS_PORT = "6379"
         APP_AI_BASE_URL = "http://localhost:9000"
+        WECHAT_MINIAPP_APPID = $WechatMiniAppId
+        WECHAT_MINIAPP_SECRET = $WechatMiniAppSecret
+        WECHAT_OPEN_APPID = $WechatOpenAppId
+        WECHAT_OPEN_SECRET = $WechatOpenSecret
       } `
       -LogName "backend"
   }

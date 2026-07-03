@@ -8,6 +8,7 @@ import ConversationsView from '../views/ConversationsView.vue'
 import ReviewsView from '../views/ReviewsView.vue'
 import KnowledgeView from '../views/KnowledgeView.vue'
 import StatisticsView from '../views/StatisticsView.vue'
+import OperationLogsView from '../views/OperationLogsView.vue'
 import { getToken, hasMerchantBinding } from '../utils/auth'
 
 const router = createRouter({
@@ -25,7 +26,8 @@ const router = createRouter({
         { path: 'conversations', component: ConversationsView },
         { path: 'reviews', component: ReviewsView },
         { path: 'statistics', component: StatisticsView },
-        { path: 'knowledge', component: KnowledgeView }
+        { path: 'knowledge', component: KnowledgeView },
+        { path: 'operation-logs', component: OperationLogsView }
       ]
     },
     { path: '/:pathMatch(.*)*', redirect: '/dashboard' }

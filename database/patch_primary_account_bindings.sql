@@ -73,10 +73,10 @@ CREATE TABLE IF NOT EXISTS platform_account_binding (
 
 INSERT INTO primary_account (account_no, account_type, display_name, login_mode, status)
 VALUES
-  ('13338907581', 'CONSUMER', '愤怒的耄耋', 'PHONE_CODE', 'ACTIVE'),
+  ('13338907583', 'CONSUMER', '愤怒的耄耋', 'PHONE_CODE', 'ACTIVE'),
   ('13338907582', 'CONSUMER', '消费者空白一级账号', 'PHONE_CODE', 'ACTIVE'),
-  ('merchant_admin_demo', 'MERCHANT', '商家演示一级账号', 'DEMO_CODE', 'ACTIVE'),
-  ('66666666', 'MERCHANT', '商家空白一级账号', 'DEMO_CODE', 'ACTIVE')
+  ('13338907681', 'MERCHANT', '商家演示一级账号', 'DEMO_CODE', 'ACTIVE'),
+  ('13338907682', 'MERCHANT', '商家空白一级账号', 'DEMO_CODE', 'ACTIVE')
 ON DUPLICATE KEY UPDATE
   display_name = VALUES(display_name),
   login_mode = VALUES(login_mode),
@@ -93,7 +93,7 @@ INSERT INTO platform_account_binding (
 )
 SELECT pa.id, 'TWENTY_MALL', '万象商城', '20230140', 'CONSUMER', 'BOUND', NOW(), 0
 FROM primary_account pa
-WHERE pa.account_no = '13338907581' AND pa.account_type = 'CONSUMER'
+WHERE pa.account_no = '13338907583' AND pa.account_type = 'CONSUMER'
 ON DUPLICATE KEY UPDATE
   primary_account_id = VALUES(primary_account_id),
   platform_name = VALUES(platform_name),
@@ -107,7 +107,7 @@ INSERT INTO platform_account_binding (
 )
 SELECT pa.id, 'TWENTY_MALL', '万象商城', '20230141', 'CONSUMER', 'BOUND', NOW(), 0
 FROM primary_account pa
-WHERE pa.account_no = '13338907581' AND pa.account_type = 'CONSUMER'
+WHERE pa.account_no = '13338907583' AND pa.account_type = 'CONSUMER'
 ON DUPLICATE KEY UPDATE
   primary_account_id = VALUES(primary_account_id),
   platform_name = VALUES(platform_name),
@@ -138,7 +138,7 @@ FROM primary_account pa
 JOIN twenty_mall_account tm ON tm.account_no IN ('20230141', '20230142')
   AND tm.account_role = 'MERCHANT'
   AND tm.deleted = 0
-WHERE pa.account_no = 'merchant_admin_demo' AND pa.account_type = 'MERCHANT'
+WHERE pa.account_no = '13338907681' AND pa.account_type = 'MERCHANT'
 ON DUPLICATE KEY UPDATE
   primary_account_id = VALUES(primary_account_id),
   platform_name = VALUES(platform_name),
@@ -155,7 +155,7 @@ FROM primary_account pa
 JOIN twenty_mall_account tm ON tm.account_no IN ('22222223', '22222224')
   AND tm.account_role = 'MERCHANT'
   AND tm.deleted = 0
-WHERE pa.account_no = '66666666' AND pa.account_type = 'MERCHANT'
+WHERE pa.account_no = '13338907682' AND pa.account_type = 'MERCHANT'
 ON DUPLICATE KEY UPDATE
   primary_account_id = VALUES(primary_account_id),
   platform_name = VALUES(platform_name),

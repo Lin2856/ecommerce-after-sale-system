@@ -6,8 +6,14 @@ from app.api.schemas import (
     AiConfigUpdateRequest,
     ContextReplyRequest,
     IntentResponse,
+    KnowledgeExtractRequest,
+    KnowledgeExtractResponse,
     ReplyResponse,
+    ReviewAnalysisRequest,
+    ReviewAnalysisResponse,
     SentimentResponse,
+    StoreReviewAnalysisRequest,
+    StoreReviewAnalysisResponse,
     TextRequest,
     TicketClassifyResponse,
     TopicResponse,
@@ -31,6 +37,21 @@ def intent(request: TextRequest) -> IntentResponse:
 @router.post("/sentiment", response_model=SentimentResponse)
 def sentiment(request: TextRequest) -> SentimentResponse:
     return analyze_sentiment(request.text)
+
+
+@router.post("/review-analysis", response_model=ReviewAnalysisResponse)
+def review_analysis(request: ReviewAnalysisRequest) -> ReviewAnalysisResponse:
+    return llm_client.analyze_review(request)
+
+
+@router.post("/store-review-analysis", response_model=StoreReviewAnalysisResponse)
+def store_review_analysis(request: StoreReviewAnalysisRequest) -> StoreReviewAnalysisResponse:
+    return llm_client.analyze_store_reviews(request)
+
+
+@router.post("/knowledge/extract", response_model=KnowledgeExtractResponse)
+def knowledge_extract(request: KnowledgeExtractRequest) -> KnowledgeExtractResponse:
+    return llm_client.extract_knowledge(request)
 
 
 @router.post("/topic", response_model=TopicResponse)

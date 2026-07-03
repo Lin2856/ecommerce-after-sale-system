@@ -32,6 +32,33 @@ export function getTwentyMallBindingOwnerKey(accountNo) {
   return `twentyMallBindingOwner:${accountNo}`
 }
 
+const LOCAL_PLATFORM_CONFIGS = {
+  TWENTY_MALL: {
+    name: "万象商城",
+    apiPrefix: "/api/twenty-mall",
+    bindingKeyPrefix: "twentyMallBinding",
+    ownerKeyPrefix: "twentyMallBindingOwner"
+  },
+  YUEGOU_MARKET: {
+    name: "悦购集市",
+    apiPrefix: "/api/yuegou-market",
+    bindingKeyPrefix: "yuegouMarketBinding",
+    ownerKeyPrefix: "yuegouMarketBindingOwner"
+  }
+}
+
+export function getLocalPlatformConfig(platformCode = "TWENTY_MALL") {
+  return LOCAL_PLATFORM_CONFIGS[platformCode] || LOCAL_PLATFORM_CONFIGS.TWENTY_MALL
+}
+
+export function getLocalPlatformBindingKey(platformCode = "TWENTY_MALL", phone = getPrimaryPhone()) {
+  return `${getLocalPlatformConfig(platformCode).bindingKeyPrefix}:${phone}`
+}
+
+export function getLocalPlatformBindingOwnerKey(platformCode = "TWENTY_MALL", accountNo) {
+  return `${getLocalPlatformConfig(platformCode).ownerKeyPrefix}:${accountNo}`
+}
+
 export function getConsumerProfileKey(phone = getPrimaryPhone()) {
   return `consumerProfile:${phone}`
 }
@@ -61,7 +88,7 @@ export function fetchPrimaryProfileFromDatabase({ success, fail } = {}) {
       const data = res.data.data
       const profile = {
         nickname: data.displayName || "",
-        phone: data.phone || data.accountNo || phone,
+        phone: displayablePhone(data.phone) || displayablePhone(data.accountNo || phone),
         avatar: normalizeDisplayAvatar(data.avatar || ""),
         bindingCount: data.bindingCount || 0
       }
@@ -103,7 +130,7 @@ function submitPrimaryProfile(profile, phone, success, fail) {
       const data = res.data.data
       const nextProfile = {
         nickname: data.displayName || profile.nickname || "",
-        phone: data.phone || data.accountNo || phone,
+        phone: displayablePhone(data.phone) || displayablePhone(data.accountNo || phone),
         avatar: normalizeDisplayAvatar(data.avatar || profile.avatar || ""),
         bindingCount: data.bindingCount || 0
       }
@@ -121,6 +148,17 @@ function normalizeDisplayAvatar(avatar) {
     return ""
   }
   return avatar
+}
+
+function isWechatPrimaryAccount(accountNo) {
+  return typeof accountNo === "string" && accountNo.startsWith("wx_")
+}
+
+function displayablePhone(phone) {
+  if (!phone || phone === "guest" || isWechatPrimaryAccount(phone)) {
+    return ""
+  }
+  return phone
 }
 
 function normalizeAvatarForDatabase(avatar, callbacks) {
@@ -187,11 +225,16 @@ export function clearConsumerAccountData(phone = getPrimaryPhone()) {
 }
 
 export function getTwentyMallBindings() {
-  const stored = wx.getStorageSync(getTwentyMallBindingKey())
+  return getLocalPlatformBindings("TWENTY_MALL")
+}
+
+export function getLocalPlatformBindings(platformCode = "TWENTY_MALL") {
+  const config = getLocalPlatformConfig(platformCode)
+  const stored = wx.getStorageSync(getLocalPlatformBindingKey(platformCode))
   if (Array.isArray(stored)) {
-    return stored.filter((item) => item && item.platform === "万象商城")
+    return stored.filter((item) => item && item.platform === config.name)
   }
-  if (stored && stored.platform === "万象商城") {
+  if (stored && stored.platform === config.name) {
     return [stored]
   }
   return []
@@ -202,24 +245,29 @@ export function getTwentyMallBinding() {
 }
 
 export function fetchTwentyMallBindingsFromDatabase({ success, fail } = {}) {
+  fetchLocalPlatformBindingsFromDatabase("TWENTY_MALL", { success, fail })
+}
+
+export function fetchLocalPlatformBindingsFromDatabase(platformCode = "TWENTY_MALL", { success, fail } = {}) {
   const phone = getPrimaryPhone()
+  const config = getLocalPlatformConfig(platformCode)
   wx.request({
-    url: `http://localhost:8080/api/twenty-mall/primary/bindings?primaryAccountNo=${encodeURIComponent(phone)}&primaryAccountType=CONSUMER&secondaryAccountRole=CONSUMER`,
+    url: `http://localhost:8080${config.apiPrefix}/primary/bindings?primaryAccountNo=${encodeURIComponent(phone)}&primaryAccountType=CONSUMER&secondaryAccountRole=CONSUMER`,
     success: (res) => {
       const rows = (res.data && res.data.data) || []
       const bindings = rows
-        .filter((item) => item && item.secondaryAccountNo)
+        .filter((item) => item && item.secondaryAccountNo && (item.platformCode ? item.platformCode === platformCode : (item.platformName || config.name) === config.name))
         .map((item) => ({
           accountNo: item.secondaryAccountNo,
           role: "CONSUMER",
-          platform: item.platformName || "万象商城",
+          platform: item.platformName || config.name,
           boundAt: item.boundAt || ""
         }))
-      wx.setStorageSync(getTwentyMallBindingKey(phone), bindings)
+      wx.setStorageSync(getLocalPlatformBindingKey(platformCode, phone), bindings)
       if (success) success(bindings)
     },
     fail: () => {
-      const cachedBindings = getTwentyMallBindings()
+      const cachedBindings = getLocalPlatformBindings(platformCode)
       if (fail) {
         fail(cachedBindings)
         return
@@ -230,11 +278,20 @@ export function fetchTwentyMallBindingsFromDatabase({ success, fail } = {}) {
 }
 
 export function getTwentyMallBindingOwner(accountNo) {
-  return wx.getStorageSync(getTwentyMallBindingOwnerKey(accountNo)) || ""
+  return getLocalPlatformBindingOwner("TWENTY_MALL", accountNo)
+}
+
+export function getLocalPlatformBindingOwner(platformCode = "TWENTY_MALL", accountNo) {
+  return wx.getStorageSync(getLocalPlatformBindingOwnerKey(platformCode, accountNo)) || ""
 }
 
 export function canBindTwentyMallAccount(accountNo, phone = getPrimaryPhone()) {
-  const owner = getTwentyMallBindingOwner(accountNo)
+  return canBindLocalPlatformAccount("TWENTY_MALL", accountNo, phone)
+}
+
+export function canBindLocalPlatformAccount(platformCode = "TWENTY_MALL", accountNo, phone = getPrimaryPhone()) {
+  const config = getLocalPlatformConfig(platformCode)
+  const owner = getLocalPlatformBindingOwner(platformCode, accountNo)
   if (owner) {
     return owner === phone
   }
@@ -242,53 +299,71 @@ export function canBindTwentyMallAccount(accountNo, phone = getPrimaryPhone()) {
     if (knownPhone === phone) {
       return false
     }
-    const bindings = wx.getStorageSync(getTwentyMallBindingKey(knownPhone))
+    const bindings = wx.getStorageSync(getLocalPlatformBindingKey(platformCode, knownPhone))
     if (Array.isArray(bindings)) {
-      return bindings.some((item) => item && item.platform === "万象商城" && item.accountNo === accountNo)
+      return bindings.some((item) => item && item.platform === config.name && item.accountNo === accountNo)
     }
-    return bindings && bindings.platform === "万象商城" && bindings.accountNo === accountNo
+    return bindings && bindings.platform === config.name && bindings.accountNo === accountNo
   })
   if (legacyOwner) {
-    wx.setStorageSync(getTwentyMallBindingOwnerKey(accountNo), legacyOwner)
+    wx.setStorageSync(getLocalPlatformBindingOwnerKey(platformCode, accountNo), legacyOwner)
     return false
   }
   return true
 }
 
 export function occupyTwentyMallBinding(accountNo, phone = getPrimaryPhone()) {
-  wx.setStorageSync(getTwentyMallBindingOwnerKey(accountNo), phone)
+  occupyLocalPlatformBinding("TWENTY_MALL", accountNo, phone)
+}
+
+export function occupyLocalPlatformBinding(platformCode = "TWENTY_MALL", accountNo, phone = getPrimaryPhone()) {
+  wx.setStorageSync(getLocalPlatformBindingOwnerKey(platformCode, accountNo), phone)
 }
 
 export function saveTwentyMallBinding(binding) {
+  saveLocalPlatformBinding("TWENTY_MALL", binding)
+}
+
+export function saveLocalPlatformBinding(platformCode = "TWENTY_MALL", binding) {
   const phone = getPrimaryPhone()
-  const bindings = getTwentyMallBindings()
-  const nextBinding = { ...binding, boundAt: Date.now() }
+  const config = getLocalPlatformConfig(platformCode)
+  const bindings = getLocalPlatformBindings(platformCode)
+  const normalizedBinding = { ...binding, platform: binding.platform || config.name }
+  const nextBinding = { ...normalizedBinding, boundAt: Date.now() }
   const nextBindings = bindings.some((item) => item.accountNo === binding.accountNo)
     ? bindings.map((item) => item.accountNo === binding.accountNo ? nextBinding : item)
     : [...bindings, nextBinding]
-  wx.setStorageSync(getTwentyMallBindingKey(), nextBindings)
-  occupyTwentyMallBinding(binding.accountNo, phone)
-  wx.removeStorageSync("twentyMallBinding")
+  wx.setStorageSync(getLocalPlatformBindingKey(platformCode), nextBindings)
+  occupyLocalPlatformBinding(platformCode, binding.accountNo, phone)
+  wx.removeStorageSync(getLocalPlatformConfig(platformCode).bindingKeyPrefix)
 }
 
 export function removeTwentyMallBinding(accountNo) {
+  removeLocalPlatformBinding("TWENTY_MALL", accountNo)
+}
+
+export function removeLocalPlatformBinding(platformCode = "TWENTY_MALL", accountNo) {
   const phone = getPrimaryPhone()
-  const nextBindings = getTwentyMallBindings().filter((item) => item.accountNo !== accountNo)
-  wx.setStorageSync(getTwentyMallBindingKey(), nextBindings)
-  if (getTwentyMallBindingOwner(accountNo) === phone) {
-    wx.removeStorageSync(getTwentyMallBindingOwnerKey(accountNo))
+  const nextBindings = getLocalPlatformBindings(platformCode).filter((item) => item.accountNo !== accountNo)
+  wx.setStorageSync(getLocalPlatformBindingKey(platformCode), nextBindings)
+  if (getLocalPlatformBindingOwner(platformCode, accountNo) === phone) {
+    wx.removeStorageSync(getLocalPlatformBindingOwnerKey(platformCode, accountNo))
   }
-  wx.removeStorageSync("twentyMallBinding")
+  wx.removeStorageSync(getLocalPlatformConfig(platformCode).bindingKeyPrefix)
 }
 
 export function clearTwentyMallBinding(phone = getPrimaryPhone()) {
-  getTwentyMallBindings().forEach((binding) => {
-    if (getTwentyMallBindingOwner(binding.accountNo) === phone) {
-      wx.removeStorageSync(getTwentyMallBindingOwnerKey(binding.accountNo))
+  clearLocalPlatformBinding("TWENTY_MALL", phone)
+}
+
+export function clearLocalPlatformBinding(platformCode = "TWENTY_MALL", phone = getPrimaryPhone()) {
+  getLocalPlatformBindings(platformCode).forEach((binding) => {
+    if (getLocalPlatformBindingOwner(platformCode, binding.accountNo) === phone) {
+      wx.removeStorageSync(getLocalPlatformBindingOwnerKey(platformCode, binding.accountNo))
     }
   })
-  wx.removeStorageSync(getTwentyMallBindingKey(phone))
-  wx.removeStorageSync("twentyMallBinding")
+  wx.removeStorageSync(getLocalPlatformBindingKey(platformCode, phone))
+  wx.removeStorageSync(getLocalPlatformConfig(platformCode).bindingKeyPrefix)
 }
 
 export function getDemoToken() {
@@ -302,6 +377,7 @@ export function clearDemoToken() {
 export function clearPrimaryAccountData() {
   const phone = getPrimaryPhone()
   clearTwentyMallBinding(phone)
+  clearLocalPlatformBinding("YUEGOU_MARKET", phone)
   clearConsumerAccountData(phone)
   wx.removeStorageSync("primaryAccount")
   wx.removeStorageSync("consumerProfile")

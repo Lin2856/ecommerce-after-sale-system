@@ -18,19 +18,19 @@
         v-for="item in platformOptions"
         :key="item.code"
         class="platform-card"
-        :class="{ bound: platformBindingCount(item.code) > 0, planned: item.code !== 'TWENTY_MALL' }"
+        :class="{ bound: platformBindingCount(item.code) > 0, planned: !isSelfBuiltPlatform(item.code) }"
       >
         <img :src="item.icon" :alt="item.name" />
         <div class="platform-info">
           <div class="platform-title-row">
             <strong>{{ item.name }}</strong>
             <el-tag v-if="platformBindingCount(item.code) > 0" type="success" size="small">已绑定 {{ platformBindingCount(item.code) }}</el-tag>
-            <el-tag v-else-if="item.code !== 'TWENTY_MALL'" type="info" size="small">待接入</el-tag>
+            <el-tag v-else-if="!isSelfBuiltPlatform(item.code)" type="info" size="small">待接入</el-tag>
             <el-tag v-else type="warning" size="small">未绑定</el-tag>
           </div>
           <span>{{ item.desc }}</span>
         </div>
-        <el-button :type="item.code === 'TWENTY_MALL' ? 'primary' : 'default'" @click="bindPlatform(item)">绑定</el-button>
+          <el-button :type="isSelfBuiltPlatform(item.code) ? 'primary' : 'default'" @click="bindPlatform(item)">绑定</el-button>
       </div>
     </div>
     <div class="binding-notice" :class="{ warning: !bindingData.length }">
@@ -98,24 +98,24 @@
         </div>
       </div>
     </div>
-    <el-dialog v-model="twentyMallDialogVisible" title="绑定万象商城账号" width="460px">
+    <el-dialog v-model="selfBuiltDialogVisible" :title="`绑定${selectedSelfBuiltPlatform?.name || '自建商城'}账号`" width="460px">
       <el-alert
-        title="商家端演示账号：20230141 / 123456（极光外设旗舰店），20230142 / 123456（黑曜通勤箱包店），22222223 / 123456（晨光数码生活馆），22222224 / 123456（云途箱包旗舰店）"
+        :title="selfBuiltDemoHint"
         type="info"
         :closable="false"
         style="margin-bottom: 16px"
       />
       <el-form label-width="88px">
         <el-form-item label="账号">
-          <el-input v-model="twentyMallForm.accountNo" placeholder="请输入万象商城商家账号" />
+          <el-input v-model="selfBuiltForm.accountNo" :placeholder="`请输入${selectedSelfBuiltPlatform?.name || '自建商城'}商家账号`" />
         </el-form-item>
         <el-form-item label="密码">
-          <el-input v-model="twentyMallForm.password" type="password" show-password placeholder="请输入密码" />
+          <el-input v-model="selfBuiltForm.password" type="password" show-password placeholder="请输入密码" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="twentyMallDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="twentyMallBinding" @click="submitTwentyMallBind">确认绑定</el-button>
+        <el-button @click="selfBuiltDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="selfBuiltBinding" @click="submitSelfBuiltBind">确认绑定</el-button>
       </template>
     </el-dialog>
   </div>
@@ -124,6 +124,7 @@
 <script setup lang="ts">
 import { computed, onMounted, watch, ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 import { loadSyncTasks, triggerSync } from '../api'
 import { syncTasks } from '../data/mock'
 import { isDemoMode } from '../utils/auth'
@@ -133,21 +134,24 @@ import taobaoIcon from '../assets/platforms/taobao.png'
 import pddIcon from '../assets/platforms/pinduoduo.png'
 import jdIcon from '../assets/platforms/jd.png'
 import twentyMallIcon from '../assets/platforms/twenty-mall.png'
+import yuegouMarketIcon from '../assets/platforms/yuegou-market.svg?url'
 
 const bindingData = ref<MerchantPlatformBinding[]>([])
 const syncTaskData = ref<typeof syncTasks>(syncTasks)
 const loading = ref(false)
 const syncingType = ref('')
-const twentyMallDialogVisible = ref(false)
-const twentyMallBinding = ref(false)
-const twentyMallForm = ref({ accountNo: '', password: '' })
+const selfBuiltDialogVisible = ref(false)
+const selfBuiltBinding = ref(false)
+const selfBuiltForm = ref({ accountNo: '', password: '' })
 const platformOptions = [
   { code: 'DOUYIN', name: '抖音商城', desc: '同步抖店订单与售后', icon: douyinIcon },
   { code: 'TAOBAO', name: '淘宝', desc: '预留淘宝店铺接入', icon: taobaoIcon },
   { code: 'PDD', name: '拼多多', desc: '预留拼多多店铺接入', icon: pddIcon },
   { code: 'JD', name: '京东', desc: '预留京东店铺接入', icon: jdIcon },
-  { code: 'TWENTY_MALL', name: '万象商城', desc: '自建数据库模拟电商平台', icon: twentyMallIcon }
+  { code: 'TWENTY_MALL', name: '万象商城', desc: '自建数据库模拟电商平台', icon: twentyMallIcon },
+  { code: 'YUEGOU_MARKET', name: '悦购集市', desc: '第二个自建数据库模拟电商平台', icon: yuegouMarketIcon }
 ]
+const selectedSelfBuiltPlatform = ref<(typeof platformOptions)[number] | null>(null)
 const platformPrepareSteps = [
   { index: 1, title: '准备 App Key', desc: '用于识别开放平台应用身份', done: true },
   { index: 2, title: '配置 App Secret', desc: '用于接口签名和访问令牌换取', done: true },
@@ -171,6 +175,12 @@ const overviewMetrics = computed(() => [
     description: '订单、售后、评价同步任务'
   }
 ])
+const selfBuiltDemoHint = computed(() => {
+  if (selectedSelfBuiltPlatform.value?.code === 'YUEGOU_MARKET') {
+    return '当前暂无已创建的悦购集市商家账号。请先在数据库中创建该平台的真实商家账号，再在这里绑定。'
+  }
+  return '商家端演示账号：20230141 / 123456（极光外设旗舰店），20230142 / 123456（黑曜通勤箱包店），22222223 / 123456（晨光数码生活馆），22222224 / 123456（云途箱包旗舰店）'
+})
 
 onMounted(async () => {
   if (new URLSearchParams(window.location.search).get('needBind') === '1') {
@@ -189,26 +199,30 @@ watch(bindingData, async (value) => {
 
 async function loadLocalBindings() {
   try {
-    const response = await fetch(`/api/twenty-mall/primary/bindings?primaryAccountNo=${encodeURIComponent(currentPrimaryAccountNo())}&primaryAccountType=MERCHANT&secondaryAccountRole=MERCHANT`)
+    const response = await fetch(`http://localhost:8080/api/twenty-mall/primary/bindings?primaryAccountNo=${encodeURIComponent(currentPrimaryAccountNo())}&primaryAccountType=MERCHANT&secondaryAccountRole=MERCHANT`)
     const payload = await response.json()
     if (payload.code === '200') {
       const bindings = (payload.data || []).map((item: {
+        platformCode?: string
         secondaryAccountNo: string
         platformName: string
         secondaryDisplayName: string
         bindStatus: string
         boundAt: string
-      }) => ({
-        id: Number(item.secondaryAccountNo) || Date.now(),
-        platformCode: 'TWENTY_MALL',
-        platformName: item.platformName || '万象商城',
-        authStatus: item.bindStatus === '已绑定' ? 'ACTIVE' : 'UNBOUND',
-        externalShopId: `TM_SHOP_${item.secondaryAccountNo}`,
-        shopName: item.secondaryDisplayName || getTwentyMallMerchantName(item.secondaryAccountNo),
-        sellerNick: item.secondaryDisplayName || getTwentyMallMerchantName(item.secondaryAccountNo),
-        accountNo: item.secondaryAccountNo,
-        lastSyncedAt: item.boundAt
-      })) as MerchantPlatformBinding[]
+      }) => {
+        const platformCode = item.platformCode || platformCodeByName(item.platformName)
+        return {
+          id: Number(item.secondaryAccountNo) || Date.now(),
+          platformCode,
+          platformName: item.platformName || platformNameByCode(platformCode),
+          authStatus: item.bindStatus === '已绑定' ? 'ACTIVE' : 'UNBOUND',
+          externalShopId: `${platformCode}_SHOP_${item.secondaryAccountNo}`,
+          shopName: item.secondaryDisplayName || getSelfBuiltMerchantName(item.secondaryAccountNo, item.platformName),
+          sellerNick: item.secondaryDisplayName || getSelfBuiltMerchantName(item.secondaryAccountNo, item.platformName),
+          accountNo: item.secondaryAccountNo,
+          lastSyncedAt: item.boundAt
+        }
+      }) as MerchantPlatformBinding[]
       clearMerchantBindings()
       bindings.forEach((binding) => saveMerchantBinding(binding))
       bindingData.value = bindings
@@ -244,24 +258,30 @@ async function runSync(syncType: string) {
 }
 
 function bindPlatform(item: (typeof platformOptions)[number]) {
-  if (item.code === 'TWENTY_MALL') {
-    twentyMallForm.value = { accountNo: '', password: '' }
-    twentyMallDialogVisible.value = true
+  if (isSelfBuiltPlatform(item.code)) {
+    selectedSelfBuiltPlatform.value = item
+    selfBuiltForm.value = { accountNo: '', password: '' }
+    selfBuiltDialogVisible.value = true
     return
   }
   mockAuthorize(item.name)
 }
 
-async function submitTwentyMallBind() {
-  const accountNo = twentyMallForm.value.accountNo.trim()
-  const password = twentyMallForm.value.password.trim()
-  if (!accountNo || !password) {
-    ElMessage({ type: 'warning', message: '请输入万象商城账号和密码' })
+async function submitSelfBuiltBind() {
+  const platform = selectedSelfBuiltPlatform.value
+  const accountNo = selfBuiltForm.value.accountNo.trim()
+  const password = selfBuiltForm.value.password.trim()
+  if (!platform) {
+    ElMessage({ type: 'warning', message: '请选择要绑定的平台' })
     return
   }
-  twentyMallBinding.value = true
+  if (!accountNo || !password) {
+    ElMessage({ type: 'warning', message: `请输入${platform.name}账号和密码` })
+    return
+  }
+  selfBuiltBinding.value = true
   try {
-    const response = await fetch('/api/twenty-mall/bind', {
+    const response = await fetch(`http://localhost:8080${selfBuiltApiPrefix(platform.code)}/bind`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -278,19 +298,19 @@ async function submitTwentyMallBind() {
       ElMessage({ type: 'error', message: payload.message || '账号或密码错误' })
       return
     }
-    mockAuthorize('万象商城', accountNo)
-    twentyMallDialogVisible.value = false
-    ElMessage({ type: 'success', message: `万象商城商家账号 ${accountNo} 绑定成功` })
+    await loadLocalBindings()
+    selfBuiltDialogVisible.value = false
+    ElMessage({ type: 'success', message: `${platform.name}商家账号 ${accountNo} 绑定成功` })
   } catch {
     ElMessage({ type: 'error', message: '请先启动后端服务' })
   } finally {
-    twentyMallBinding.value = false
+    selfBuiltBinding.value = false
   }
 }
 
 function currentPrimaryAccountNo() {
   const user = getStoredUser<{ username?: string; userId?: number }>()
-  return user?.username || String(user?.userId || 'merchant_admin_demo')
+  return user?.username || String(user?.userId || '13338907681')
 }
 
 function currentPrimaryDisplayName() {
@@ -299,11 +319,22 @@ function currentPrimaryDisplayName() {
 }
 
 async function unbindPlatform(row: MerchantPlatformBinding) {
-  const confirmed = window.confirm(`确定要解绑 ${row.platformName} 店铺 ${row.shopName} 吗？解绑后该店铺数据将不再显示。`)
-  if (!confirmed) return
-  if (row.platformCode === 'TWENTY_MALL' && row.accountNo) {
+  try {
+    await ElMessageBox.confirm(
+      `确定要解绑 ${row.platformName} 店铺 ${row.shopName} 吗？解绑后该店铺数据将不再显示。`,
+      '解绑店铺账号',
+      {
+        confirmButtonText: '确认解绑',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+  } catch {
+    return
+  }
+  if (isSelfBuiltPlatform(row.platformCode) && row.accountNo) {
     try {
-      await fetch('/api/twenty-mall/unbind', {
+      const response = await fetch(`http://localhost:8080${selfBuiltApiPrefix(row.platformCode)}/unbind`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -313,12 +344,17 @@ async function unbindPlatform(row: MerchantPlatformBinding) {
           primaryAccountType: 'MERCHANT'
         })
       })
-    } catch {
-      ElMessage({ type: 'warning', message: '后端解绑同步失败，已先移除本地绑定' })
+      const payload = await response.json()
+      if (payload.code !== '200') {
+        throw new Error(payload.message || '解绑失败')
+      }
+    } catch (error) {
+      ElMessage({ type: 'error', message: error instanceof Error ? error.message : '后端解绑失败，请确认后端服务已启动' })
+      return
     }
   }
   removeMerchantBinding(row.platformCode, row.externalShopId)
-  loadLocalBindings()
+  await loadLocalBindings()
   ElMessage({ type: 'success', message: '已解绑' })
 }
 
@@ -340,13 +376,36 @@ function platformIcon(code: string) {
   return platformOptions.find((item) => item.code === code)?.icon || twentyMallIcon
 }
 
+function isSelfBuiltPlatform(code: string) {
+  return code === 'TWENTY_MALL' || code === 'YUEGOU_MARKET'
+}
+
+function selfBuiltApiPrefix(code: string) {
+  return code === 'YUEGOU_MARKET' ? '/api/yuegou-market' : '/api/twenty-mall'
+}
+
+function platformCodeByName(platformName = '') {
+  return platformName === '悦购集市' ? 'YUEGOU_MARKET' : 'TWENTY_MALL'
+}
+
+function platformNameByCode(platformCode = '') {
+  return platformCode === 'YUEGOU_MARKET' ? '悦购集市' : '万象商城'
+}
+
+function getSelfBuiltMerchantName(accountNo: string, platformName = '万象商城') {
+  return platformName === '悦购集市'
+    ? `悦购集市商家店铺（${accountNo}）`
+    : getTwentyMallMerchantName(accountNo)
+}
+
 function mockAuthorize(platformName = '抖音商城', accountNo = '') {
   const codeMap: Record<string, string> = {
     抖音商城: 'DOUYIN',
     淘宝: 'TAOBAO',
     拼多多: 'PDD',
     京东: 'JD',
-    '万象商城': 'TWENTY_MALL'
+    '万象商城': 'TWENTY_MALL',
+    '悦购集市': 'YUEGOU_MARKET'
   }
   const code = codeMap[platformName] || 'MOCK'
   const binding: MerchantPlatformBinding = {
@@ -354,9 +413,9 @@ function mockAuthorize(platformName = '抖音商城', accountNo = '') {
     platformCode: code,
     platformName,
     authStatus: 'ACTIVE',
-    externalShopId: accountNo ? `TM_SHOP_${accountNo}` : `${code}_SHOP_DEMO`,
-    shopName: accountNo ? getTwentyMallMerchantName(accountNo) : `${platformName}模拟店铺`,
-    sellerNick: accountNo ? getTwentyMallMerchantName(accountNo) : `${platformName}商家`,
+    externalShopId: accountNo ? `${code}_SHOP_${accountNo}` : `${code}_SHOP_DEMO`,
+    shopName: accountNo ? getSelfBuiltMerchantName(accountNo, platformName) : `${platformName}模拟店铺`,
+    sellerNick: accountNo ? getSelfBuiltMerchantName(accountNo, platformName) : `${platformName}商家`,
     accountNo: accountNo || '模拟授权',
     lastSyncedAt: '2026-06-27 16:20:00'
   }

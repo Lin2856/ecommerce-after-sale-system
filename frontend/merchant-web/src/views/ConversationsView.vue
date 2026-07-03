@@ -126,7 +126,9 @@
 import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { conversations } from '../data/mock'
 import { ElMessage } from 'element-plus'
+import { createOperationLog } from '../api'
 import { getMerchantBindings, getStoredUser } from '../utils/auth'
+import { getConfirmedStaff, requireStaffIdentity } from '../utils/staffAuth'
 import aiAvatar from '../assets/avatars/ai-bot.png'
 
 type DemoConversation = {
@@ -245,7 +247,7 @@ async function loadConversations(showError = true) {
 
 async function loadMerchantAvatar() {
   const user = getStoredUser<{ username?: string }>()
-  const accountNo = user?.username || 'merchant_admin_demo'
+  const accountNo = user?.username || '13338907681'
   merchantAvatar.value = await loadPrimaryAvatar(accountNo, 'MERCHANT')
 }
 
@@ -303,6 +305,10 @@ async function sendReply() {
     ElMessage({ type: 'warning', message: '请输入回复内容' })
     return
   }
+  const staff = requireStaffIdentity()
+  if (!staff) {
+    return
+  }
   const optimisticMessage: DemoMessage = {
     id: `local-${Date.now()}`,
     orderNo: conversation.orderNo,
@@ -327,6 +333,7 @@ async function sendReply() {
     }
     await loadConversations(false)
     await loadMessages(false)
+    recordChatOperation(conversation, content)
     ElMessage({ type: 'success', message: '回复已发送，用户端会自动刷新显示' })
   } catch (error) {
     chatMessages.value = chatMessages.value.filter((item) => item.id !== optimisticMessage.id)
@@ -334,6 +341,24 @@ async function sendReply() {
     replyContent.value = content
     ElMessage({ type: 'error', message: error instanceof Error ? error.message : '发送失败，请确认后端服务已启动' })
   }
+}
+
+function recordChatOperation(conversation: DemoConversation, content: string) {
+  const staff = getConfirmedStaff()
+  const user = getStoredUser<{ username?: string; phone?: string }>()
+  if (!staff) {
+    return
+  }
+  createOperationLog({
+    primaryAccount: user?.username || user?.phone || '',
+    staffCode: staff.code,
+    staffName: staff.name,
+    actionType: 'CUSTOMER_SERVICE_REPLY',
+    actionName: '人工客服发送消息',
+    targetType: '客服会话',
+    targetId: conversation.orderNo,
+    detail: `回复消费者：${content}`
+  }).catch(() => undefined)
 }
 
 function useQuickReply(content: string) {

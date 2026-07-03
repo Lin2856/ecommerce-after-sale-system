@@ -17,14 +17,20 @@ function normalizeMessage(item) {
   const senderType = item.senderType || "AI"
   const isUser = senderType === "CONSUMER"
   const isStaff = senderType === "STAFF"
+  const content = item.content || ""
   return {
     id: item.id,
     role: isUser ? "user" : (isStaff ? "staff" : "ai"),
     speaker: isUser ? "我" : (isStaff ? "人工客服" : "AI客服"),
     avatarText: isUser ? "我" : (isStaff ? "人" : "AI"),
     time: formatMessageTime(item.createdAt),
-    content: item.content
+    content,
+    showTransfer: !isUser && !isStaff && shouldShowTransferButton(content)
   }
+}
+
+function shouldShowTransferButton(content) {
+  return /转人工|人工客服|人工处理|人工协助|联系人工|接入人工|无法直接|无法确认|不能直接|不能代替|需要人工|建议.*人工|平台管理员|商家进一步处理/.test(content || "")
 }
 
 function formatNow() {
@@ -44,7 +50,8 @@ Page({
     scrollTarget: "",
     lastMessageKey: "",
     consumerAvatar: "",
-    merchantAvatar: ""
+    merchantAvatar: "",
+    orderSwitcherVisible: false
   },
   onLoad() {
     this.loadConsumerAvatar()
@@ -176,16 +183,16 @@ Page({
     this.doSwitchOrder(no)
   },
   openOrderSwitcher() {
-    if (!this.data.orders.length) return
-    wx.showActionSheet({
-      itemList: this.data.orders.map((item) => `${item.title}｜${item.merchant}`.slice(0, 20)),
-      success: (res) => {
-        const order = this.data.orders[res.tapIndex]
-        if (order) {
-          this.doSwitchOrder(order.no)
-        }
-      }
-    })
+    if (!this.data.orders.length) {
+      wx.showToast({ title: "暂无可切换订单", icon: "none" })
+      return
+    }
+    this.setData({ orderSwitcherVisible: true })
+  },
+  closeOrderSwitcher() {
+    this.setData({ orderSwitcherVisible: false })
+  },
+  noop() {
   },
   doSwitchOrder(no) {
     const order = this.data.orders.find((item) => item.no === no)
@@ -196,7 +203,8 @@ Page({
       mode: "AI",
       inputValue: "",
       messages: [],
-      lastMessageKey: ""
+      lastMessageKey: "",
+      orderSwitcherVisible: false
     })
     this.loadMerchantAvatar(order.merchantPrimaryAccountNo || "")
     this.stopPolling()
@@ -285,6 +293,10 @@ Page({
         wx.showToast({ title: "转人工失败，请稍后重试", icon: "none" })
       }
     })
+  },
+  transferFromAiMessage(e) {
+    const orderNo = e.currentTarget.dataset.orderNo || this.data.activeOrderNo
+    this.transferToStaff(orderNo)
   },
   loadConversation(orderNo = this.data.activeOrderNo) {
     if (!this.data.platformBound || !orderNo) return

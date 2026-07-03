@@ -216,6 +216,7 @@ CREATE TABLE twenty_mall_order_item (
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   deleted TINYINT(1) NOT NULL DEFAULT 0,
   KEY idx_twenty_mall_order_item_order (order_id),
+  KEY idx_twenty_mall_order_item_product (product_id),
   CONSTRAINT fk_twenty_mall_order_item_order FOREIGN KEY (order_id) REFERENCES twenty_mall_order (id),
   CONSTRAINT fk_twenty_mall_order_item_product FOREIGN KEY (product_id) REFERENCES twenty_mall_product (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='万象商城模拟订单明细';
@@ -877,6 +878,7 @@ CREATE TABLE twenty_mall_after_sale_dispute (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   deleted TINYINT(1) NOT NULL DEFAULT 0,
+  UNIQUE KEY uk_twenty_dispute_order_no (order_no),
   KEY idx_twenty_dispute_after_sale (after_sale_id),
   KEY idx_twenty_dispute_order (order_no),
   KEY idx_twenty_dispute_status (status)

@@ -1,0 +1,48 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bag" x1="278" y1="366" x2="766" y2="826" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFB84D"/>
+      <stop offset="1" stop-color="#FF6B35"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="314" y1="196" x2="732" y2="558" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#38BDF8"/>
+      <stop offset="1" stop-color="#2563EB"/>
+    </linearGradient>
+    <filter id="shadow" x="116" y="110" width="792" height="830" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+      <feOffset dy="28"/>
+      <feGaussianBlur stdDeviation="38"/>
+      <feComposite in2="hardAlpha" operator="out"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.12 0 0 0 0 0.18 0 0 0 0 0.30 0 0 0 0.18 0"/>
+      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_1_2"/>
+      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_1_2" result="shape"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#shadow)" transform="translate(-138 -151) scale(1.27)">
+    <path d="M236 372C236 335.549 265.549 306 302 306H722C758.451 306 788 335.549 788 372V786C788 822.451 758.451 852 722 852H302C265.549 852 236 822.451 236 786V372Z" fill="white"/>
+    <path d="M280 424C280 392.52 305.52 367 337 367H687C718.48 367 744 392.52 744 424V757C744 788.48 718.48 814 687 814H337C305.52 814 280 788.48 280 757V424Z" fill="url(#bag)"/>
+    <path d="M329 437C335.049 378.862 382.283 333 441.5 333H582.5C641.717 333 688.951 378.862 695 437" stroke="#FFF7ED" stroke-width="42" stroke-linecap="round"/>
+    <path d="M372 438C377.144 404.242 406.24 378 441.5 378H582.5C617.76 378 646.856 404.242 652 438" stroke="#1D4ED8" stroke-width="24" stroke-linecap="round"/>
+
+    <path d="M236 374L286 226C296.522 194.854 325.729 174 358.606 174H665.394C698.271 174 727.478 194.854 738 226L788 374H236Z" fill="url(#blue)"/>
+    <path d="M286 226C296.522 194.854 325.729 174 358.606 174H418L382 374H236L286 226Z" fill="#2563EB"/>
+    <path d="M418 174H512V374H382L418 174Z" fill="#F97316"/>
+    <path d="M512 174H606L642 374H512V174Z" fill="#2563EB"/>
+    <path d="M606 174H665.394C698.271 174 727.478 194.854 738 226L788 374H642L606 174Z" fill="#F97316"/>
+
+    <path d="M236 374H382V402C382 442.317 349.317 475 309 475C268.683 475 236 442.317 236 402V374Z" fill="#1D4ED8"/>
+    <path d="M382 374H512V402C512 442.317 482.899 475 447 475C411.101 475 382 442.317 382 402V374Z" fill="#FB923C"/>
+    <path d="M512 374H642V402C642 442.317 612.899 475 577 475C541.101 475 512 442.317 512 402V374Z" fill="#1D4ED8"/>
+    <path d="M642 374H788V402C788 442.317 755.317 475 715 475C674.683 475 642 442.317 642 402V374Z" fill="#FB923C"/>
+
+    <path d="M370 612C407.5 677.5 473.5 711 512 711C550.5 711 616.5 677.5 654 612" stroke="#FFF7ED" stroke-width="32" stroke-linecap="round"/>
+    <circle cx="414" cy="564" r="28" fill="#FFF7ED"/>
+    <circle cx="610" cy="564" r="28" fill="#FFF7ED"/>
+
+    <rect x="342" y="744" width="340" height="72" rx="36" fill="#FFFFFF" opacity="0.94"/>
+    <text x="512" y="794" text-anchor="middle" font-family="'Microsoft YaHei', 'PingFang SC', Arial, sans-serif" font-size="44" font-weight="900" fill="#1E293B">悦购集市</text>
+  </g>
+
+</svg>

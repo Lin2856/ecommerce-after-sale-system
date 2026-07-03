@@ -341,3 +341,52 @@
   background: #1f7ae0;
   color: #fff;
 }
+
+.dialog-mask {
+  background: rgba(15, 23, 42, 0.52);
+  backdrop-filter: blur(8rpx);
+}
+
+.dialog {
+  padding: 38rpx;
+  border: 1rpx solid rgba(226, 232, 240, 0.95);
+  border-radius: 30rpx;
+  box-shadow: 0 30rpx 80rpx rgba(15, 23, 42, 0.18);
+}
+
+.dialog::before {
+  content: "";
+  display: block;
+  width: 72rpx;
+  height: 8rpx;
+  margin: -10rpx auto 26rpx;
+  border-radius: 999rpx;
+  background: #dbe3ef;
+}
+
+.dialog-input {
+  height: 92rpx;
+  border-color: #dbe3ef;
+  border-radius: 18rpx;
+  background: #fbfdff;
+  color: #0f172a;
+  font-size: 28rpx;
+}
+
+.cancel-btn,
+.confirm-btn {
+  height: 82rpx;
+  line-height: 82rpx;
+  border-radius: 18rpx;
+  font-weight: 800;
+}
+
+.cancel-btn {
+  background: #f8fafc;
+  color: #334155;
+}
+
+.confirm-btn {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  box-shadow: 0 12rpx 24rpx rgba(37, 99, 235, 0.22);
+}

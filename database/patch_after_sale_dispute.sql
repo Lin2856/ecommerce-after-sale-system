@@ -12,7 +12,26 @@ CREATE TABLE IF NOT EXISTS twenty_mall_after_sale_dispute (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   deleted TINYINT(1) NOT NULL DEFAULT 0,
+  UNIQUE KEY uk_twenty_dispute_order_no (order_no),
   KEY idx_twenty_dispute_after_sale (after_sale_id),
   KEY idx_twenty_dispute_order (order_no),
   KEY idx_twenty_dispute_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='万象商城售后争议订单';
+
+SET @has_twenty_dispute_order_unique := (
+  SELECT COUNT(1)
+  FROM INFORMATION_SCHEMA.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'twenty_mall_after_sale_dispute'
+    AND INDEX_NAME = 'uk_twenty_dispute_order_no'
+);
+
+SET @add_twenty_dispute_order_unique := IF(
+  @has_twenty_dispute_order_unique = 0,
+  'ALTER TABLE twenty_mall_after_sale_dispute ADD UNIQUE KEY uk_twenty_dispute_order_no (order_no)',
+  'SELECT 1'
+);
+
+PREPARE stmt FROM @add_twenty_dispute_order_unique;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;

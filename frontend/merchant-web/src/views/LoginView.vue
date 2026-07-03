@@ -64,48 +64,72 @@
         <div class="demo-panel">
           <div>
             <span>演示手机号</span>
-            <strong>merchant_admin_demo / 123456</strong>
+            <strong>13338907681 / 123456</strong>
           </div>
           <div>
             <span>空白账号</span>
-            <strong>66666666 / 123456</strong>
+            <strong>13338907682 / 123456</strong>
           </div>
         </div>
       </section>
     </div>
+
+    <el-dialog v-model="wechatDialogVisible" class="wechat-login-dialog" title="微信登录" width="420px" align-center>
+      <div class="wechat-auth-panel">
+        <div v-if="wechatQrUrl" class="wechat-qr-frame">
+          <iframe :src="wechatQrUrl" title="微信扫码登录"></iframe>
+        </div>
+        <div v-else class="wechat-qr-card">
+          <img :src="wechatIcon" alt="" />
+          <div class="qr-grid"></div>
+        </div>
+        <h3>商家微信扫码登录</h3>
+        <p>{{ wechatQrTip }}</p>
+      </div>
+      <template #footer>
+        <el-button @click="wechatDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="wechatLoading" @click="refreshWechatQr">刷新二维码</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { clearMerchantBindings, setAuth } from '../utils/auth'
+import { clearStaffIdentity } from '../utils/staffAuth'
+import { loadMerchantWechatQrUrl, loadPrimaryBanStatus, merchantWechatCallbackLogin } from '../api'
 import wechatIcon from '../assets/platforms/wechat.png'
 import brandIcon from '../assets/brand/fusion-after-sale-icon.png'
 
 const router = useRouter()
-const phone = ref('merchant_admin_demo')
+const phone = ref('13338907681')
 const code = ref('123456')
 const loading = ref(false)
+const wechatDialogVisible = ref(false)
+const wechatLoading = ref(false)
+const wechatQrUrl = ref('')
+const wechatQrTip = ref('请使用微信扫描二维码登录商家端')
 const demoAccounts = [
   {
-    phone: 'merchant_admin_demo',
+    phone: '13338907681',
     code: '123456',
     user: {
       userId: 2,
-      username: 'merchant_admin_demo',
+      username: '13338907681',
       nickname: '店铺管理员',
       merchantId: 1,
       roles: ['MERCHANT_ADMIN']
     }
   },
   {
-    phone: '66666666',
+    phone: '13338907682',
     code: '123456',
     user: {
-      userId: 66666666,
-      username: '66666666',
+      userId: 13338907682,
+      username: '13338907682',
       nickname: '',
       merchantId: null,
       roles: ['MERCHANT_ADMIN']
@@ -113,7 +137,7 @@ const demoAccounts = [
   }
 ]
 
-function login() {
+async function login() {
   loading.value = true
   try {
     const account = demoAccounts.find((item) => item.phone === phone.value.trim() && item.code === code.value.trim())
@@ -121,20 +145,89 @@ function login() {
       ElMessage({ type: 'error', message: '手机号或验证码错误' })
       return
     }
+    const banStatus = await loadPrimaryBanStatus(account.user.username, 'MERCHANT') as { allowed?: boolean; message?: string }
+    if (banStatus.allowed === false) {
+      ElMessage({ type: 'error', message: banStatus.message || '该账号已被封禁' })
+      return
+    }
     setAuth('demo-token', account.user)
-    if (account.phone === '66666666' && localStorage.getItem('merchant_blank_account_initialized:66666666') !== '1') {
+    clearStaffIdentity()
+    if (account.phone === '13338907682' && localStorage.getItem('merchant_blank_account_initialized:13338907682') !== '1') {
       clearMerchantBindings()
-      localStorage.setItem('merchant_blank_account_initialized:66666666', '1')
+      localStorage.setItem('merchant_blank_account_initialized:13338907682', '1')
     }
     router.push('/platform')
+  } catch (error) {
+    ElMessage({ type: 'error', message: error instanceof Error ? error.message : '登录失败，请确认后端服务已启动' })
   } finally {
     loading.value = false
   }
 }
 
 function wechatLogin() {
-  ElMessage({ type: 'info', message: '微信一键登录后续接入' })
+  wechatDialogVisible.value = true
+  refreshWechatQr()
 }
+
+async function refreshWechatQr() {
+  wechatLoading.value = true
+  try {
+    const redirectUri = `${window.location.origin}/login?wechat=merchant`
+    const result = await loadMerchantWechatQrUrl(redirectUri) as { qrUrl?: string; message?: string }
+    if (!result?.qrUrl) {
+      throw new Error(result?.message || '微信扫码登录暂不可用，请检查微信开放平台配置')
+    }
+    wechatQrUrl.value = result.qrUrl
+    wechatQrTip.value = result.message || '请使用微信扫描二维码登录商家端'
+  } catch (error) {
+    wechatQrUrl.value = ''
+    wechatQrTip.value = error instanceof Error ? error.message : '微信扫码登录暂不可用，请检查微信开放平台配置'
+    ElMessage({ type: 'error', message: wechatQrTip.value })
+  } finally {
+    wechatLoading.value = false
+  }
+}
+
+async function handleWechatCallback() {
+  const params = new URLSearchParams(window.location.search)
+  if (params.get('wechat') !== 'merchant') return
+  const callbackCode = params.get('code') || ''
+  const state = params.get('state') || ''
+  if (!callbackCode) return
+  loading.value = true
+  try {
+    const result = await merchantWechatCallbackLogin(callbackCode, state) as {
+      token: string
+      user: {
+        userId: number
+        username: string
+        nickname: string
+        phone?: string
+        avatar?: string
+        merchantId?: number | null
+        roles: string[]
+        loginMode?: string
+      }
+    }
+    setAuth(result.token, result.user)
+    clearStaffIdentity()
+    if (result.user.username === '13338907682' && localStorage.getItem('merchant_blank_account_initialized:13338907682') !== '1') {
+      clearMerchantBindings()
+      localStorage.setItem('merchant_blank_account_initialized:13338907682', '1')
+    }
+    ElMessage({ type: 'success', message: '微信扫码登录成功' })
+    router.replace('/platform')
+  } catch (error) {
+    ElMessage({ type: 'error', message: error instanceof Error ? error.message : '微信扫码登录失败' })
+    router.replace('/login')
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => {
+  handleWechatCallback()
+})
 </script>
 
 <style scoped>
@@ -360,6 +453,78 @@ function wechatLogin() {
   width: 22px;
   height: 22px;
   border-radius: 5px;
+}
+
+.wechat-login-dialog :deep(.el-dialog) {
+  border-radius: 20px;
+}
+
+.wechat-auth-panel {
+  text-align: center;
+}
+
+.wechat-qr-card {
+  width: 156px;
+  height: 156px;
+  position: relative;
+  display: grid;
+  place-items: center;
+  margin: 2px auto 18px;
+  border-radius: 18px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+}
+
+.wechat-qr-frame {
+  width: 300px;
+  height: 360px;
+  margin: 0 auto 18px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  background: #ffffff;
+}
+
+.wechat-qr-frame iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.wechat-qr-card img {
+  position: relative;
+  z-index: 1;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  box-shadow: 0 10px 20px rgba(22, 163, 74, 0.2);
+}
+
+.qr-grid {
+  position: absolute;
+  inset: 18px;
+  opacity: 0.48;
+  background:
+    linear-gradient(90deg, #0f172a 8px, transparent 8px) 0 0 / 22px 22px,
+    linear-gradient(#0f172a 8px, transparent 8px) 0 0 / 22px 22px,
+    linear-gradient(90deg, transparent 10px, #0f172a 10px 14px, transparent 14px) 0 0 / 26px 26px,
+    linear-gradient(transparent 10px, #0f172a 10px 14px, transparent 14px) 0 0 / 26px 26px;
+}
+
+.wechat-auth-panel h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.wechat-auth-panel p {
+  margin: 10px auto 18px;
+  max-width: 320px;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.65;
 }
 
 .demo-panel {

@@ -1,5 +1,74 @@
 <template>
-  <el-container class="shell">
+  <div v-if="!currentAdmin" class="admin-login-page">
+    <section class="admin-login-brand">
+      <div class="admin-login-logo">
+        <img :src="adminBrandIcon" alt="" />
+      </div>
+      <span class="admin-login-kicker">FUSION AFTER-SALE GOVERNANCE</span>
+      <h1>平台管理后台</h1>
+      <p>面向多平台订单、售后、评价与争议流程的统一运营管理中心。</p>
+      <div class="admin-login-features">
+        <div>
+          <strong>账号治理</strong>
+          <span>统一维护一级账号与平台绑定关系</span>
+        </div>
+        <div>
+          <strong>风险审核</strong>
+          <span>集中处理评价异议与售后争议</span>
+        </div>
+        <div>
+          <strong>AI 配置</strong>
+          <span>管理客服问答与评价分析调用能力</span>
+        </div>
+      </div>
+    </section>
+    <section class="admin-login-card">
+      <div class="admin-login-head">
+        <span>ADMIN LOGIN</span>
+        <h2>管理员秘钥登录</h2>
+        <p>当前系统已配置 4 个管理员身份</p>
+      </div>
+      <el-form class="admin-login-form" label-position="top" @submit.prevent>
+        <el-form-item label="选择管理员">
+          <div class="admin-selector">
+            <button
+              v-for="admin in adminAccounts"
+              :key="admin.id"
+              type="button"
+              :class="{ active: selectedAdminId === admin.id }"
+              @click="selectLoginAdmin(admin.id)"
+            >
+              <img :src="admin.avatar" :alt="admin.name" />
+              <strong>{{ admin.name }}</strong>
+            </button>
+          </div>
+        </el-form-item>
+        <el-form-item label="管理员秘钥">
+          <el-input
+            v-model="adminLoginKey"
+            size="large"
+            show-password
+            :placeholder="selectedAdmin ? `请输入${selectedAdmin.name}的 8 位秘钥` : '请输入 8 位管理员秘钥'"
+            @keyup.enter="loginAdmin"
+          />
+        </el-form-item>
+        <el-button class="admin-login-submit" type="primary" size="large" :loading="adminLoginLoading" @click="loginAdmin">
+          登录管理员端
+        </el-button>
+      </el-form>
+      <div class="admin-key-list">
+        <header>
+          <span>当前选择：{{ selectedAdmin?.name || '未选择管理员' }}</span>
+          <em>演示秘钥</em>
+        </header>
+        <div v-for="admin in adminAccounts" :key="admin.id" :class="{ active: selectedAdminId === admin.id }" @click="selectLoginAdmin(admin.id)">
+          <span>{{ admin.name }}</span>
+          <strong>{{ admin.key }}</strong>
+        </div>
+      </div>
+    </section>
+  </div>
+  <el-container v-else class="shell">
     <el-aside width="230px" class="aside">
       <div class="brand">
         <img class="brand-logo" :src="adminBrandIcon" alt="" />
@@ -18,7 +87,14 @@
     <el-container>
       <el-header class="header">
         <h1>{{ active }}</h1>
-        <el-tag type="success">系统运行中</el-tag>
+        <div class="header-actions">
+          <el-tag type="success">系统运行中</el-tag>
+          <div class="admin-session">
+            <img v-if="currentAdminAvatar" :src="currentAdminAvatar" alt="" />
+            <span>{{ currentAdmin.name }}</span>
+            <el-button size="small" plain @click="logoutAdmin">退出登录</el-button>
+          </div>
+        </div>
       </el-header>
       <el-main>
         <section v-if="active === '系统概览'" class="overview-page">
@@ -154,7 +230,7 @@
                 </div>
                 <div>
                   <span>接入类型</span>
-                  <strong>{{ item.code === 'TWENTY_MALL' ? '自建数据库' : '开放平台' }}</strong>
+                  <strong>{{ isSelfBuiltPlatform(item.code) ? '自建数据库' : '开放平台' }}</strong>
                 </div>
               </div>
               <div class="platform-access-footer">
@@ -176,7 +252,7 @@
               <div class="platform-config-grid">
                 <div>
                   <span>接入类型</span>
-                  <strong>{{ selectedPlatform.code === 'TWENTY_MALL' ? '自建数据库' : '开放平台' }}</strong>
+                  <strong>{{ isSelfBuiltPlatform(selectedPlatform.code) ? '自建数据库' : '开放平台' }}</strong>
                 </div>
                 <div>
                   <span>绑定店铺数</span>
@@ -188,7 +264,7 @@
                 </div>
                 <div>
                   <span>数据范围</span>
-                  <strong>{{ selectedPlatform.code === 'TWENTY_MALL' ? '订单、售后、评价' : '待开放平台授权' }}</strong>
+                  <strong>{{ isSelfBuiltPlatform(selectedPlatform.code) ? '订单、售后、评价' : '待开放平台授权' }}</strong>
                 </div>
               </div>
               <div class="platform-config-section">
@@ -287,7 +363,7 @@
             </template>
           </el-dialog>
         </section>
-        <section v-else-if="active === '用户管理'" class="user-management-page">
+        <section v-else-if="active === '消费者管理'" class="user-management-page">
           <div class="user-metrics">
             <div v-for="item in consumerBindingMetrics" :key="item.label" class="card user-metric">
               <span>{{ item.label }}</span>
@@ -314,7 +390,17 @@
                   </div>
                 </div>
                 <div class="user-group-meta">
+                  <el-tag :type="group.primaryBanStatus === '已封禁' ? 'danger' : 'success'">
+                    {{ group.primaryBanStatus || '正常' }}
+                  </el-tag>
                   <el-tag type="primary">{{ group.bindings.length }} 个绑定账号</el-tag>
+                  <el-button
+                    :type="group.primaryBanStatus === '已封禁' ? 'success' : 'danger'"
+                    plain
+                    @click="group.primaryBanStatus === '已封禁' ? unbanPrimaryAccount(group, 'CONSUMER') : openBanDialog(group, 'CONSUMER')"
+                  >
+                    {{ group.primaryBanStatus === '已封禁' ? '解除封禁' : '封禁账号' }}
+                  </el-button>
                   <el-button type="primary" plain @click="selectedConsumerBindingGroup = group">查看详情</el-button>
                 </div>
               </div>
@@ -349,6 +435,16 @@
                 <div>
                   <strong>{{ selectedConsumerBindingGroup.primaryDisplayName || '未设置昵称' }}</strong>
                   <span>一级账号：{{ selectedConsumerBindingGroup.primaryAccountNo }}</span>
+                  <span>账号状态：{{ selectedConsumerBindingGroup.primaryBanStatus || '正常' }}{{ selectedConsumerBindingGroup.primaryBanUntil ? `（${selectedConsumerBindingGroup.primaryBanUntil}）` : '' }}</span>
+                </div>
+                <div class="dialog-account-actions">
+                  <el-button
+                    :type="selectedConsumerBindingGroup.primaryBanStatus === '已封禁' ? 'success' : 'danger'"
+                    plain
+                    @click="selectedConsumerBindingGroup.primaryBanStatus === '已封禁' ? unbanPrimaryAccount(selectedConsumerBindingGroup, 'CONSUMER') : openBanDialog(selectedConsumerBindingGroup, 'CONSUMER')"
+                  >
+                    {{ selectedConsumerBindingGroup.primaryBanStatus === '已封禁' ? '解除封禁' : '封禁账号' }}
+                  </el-button>
                 </div>
               </div>
               <el-table :data="selectedConsumerBindingGroup.bindings" border>
@@ -394,7 +490,17 @@
                   </div>
                 </div>
                 <div class="user-group-meta">
+                  <el-tag :type="group.primaryBanStatus === '已封禁' ? 'danger' : 'success'">
+                    {{ group.primaryBanStatus || '正常' }}
+                  </el-tag>
                   <el-tag type="success">{{ group.bindings.length }} 个绑定店铺</el-tag>
+                  <el-button
+                    :type="group.primaryBanStatus === '已封禁' ? 'success' : 'danger'"
+                    plain
+                    @click="group.primaryBanStatus === '已封禁' ? unbanPrimaryAccount(group, 'MERCHANT') : openBanDialog(group, 'MERCHANT')"
+                  >
+                    {{ group.primaryBanStatus === '已封禁' ? '解除封禁' : '封禁账号' }}
+                  </el-button>
                   <el-button type="primary" plain @click="selectedMerchantBindingGroup = group">查看详情</el-button>
                 </div>
               </div>
@@ -429,6 +535,16 @@
                 <div>
                   <strong>{{ selectedMerchantBindingGroup.primaryDisplayName || '未设置名称' }}</strong>
                   <span>一级商家账号：{{ selectedMerchantBindingGroup.primaryAccountNo }}</span>
+                  <span>账号状态：{{ selectedMerchantBindingGroup.primaryBanStatus || '正常' }}{{ selectedMerchantBindingGroup.primaryBanUntil ? `（${selectedMerchantBindingGroup.primaryBanUntil}）` : '' }}</span>
+                </div>
+                <div class="dialog-account-actions">
+                  <el-button
+                    :type="selectedMerchantBindingGroup.primaryBanStatus === '已封禁' ? 'success' : 'danger'"
+                    plain
+                    @click="selectedMerchantBindingGroup.primaryBanStatus === '已封禁' ? unbanPrimaryAccount(selectedMerchantBindingGroup, 'MERCHANT') : openBanDialog(selectedMerchantBindingGroup, 'MERCHANT')"
+                  >
+                    {{ selectedMerchantBindingGroup.primaryBanStatus === '已封禁' ? '解除封禁' : '封禁账号' }}
+                  </el-button>
                 </div>
               </div>
               <el-table :data="selectedMerchantBindingGroup.bindings" border>
@@ -593,46 +709,91 @@
             </div>
           </div>
         </section>
-        <section v-else-if="active === '评价分析'" class="review-page">
-          <div class="review-stats">
-            <div v-for="item in reviewMetrics" :key="item.label" class="card review-stat">
-              <span>{{ item.label }}</span>
-              <strong>{{ item.value }}</strong>
+        <section v-else-if="active === '评价分析'" class="review-page admin-review-page">
+          <div class="card admin-review-hero">
+            <div>
+              <span class="section-eyebrow">评价风控中心</span>
+              <h2>评价分析</h2>
+              <p>集中查看消费者评价、AI 分析结果与商家异议状态，优先处理高风险和待审核内容。</p>
+            </div>
+            <div class="admin-review-hero-side">
+              <strong>{{ reviewHeroRiskText }}</strong>
+              <span>当前待关注评价</span>
             </div>
           </div>
-          <div class="card">
-            <el-table :data="adminReviews" border>
-              <el-table-column prop="platform" label="平台" width="96" />
-              <el-table-column prop="orderNo" label="订单号" min-width="150" />
-              <el-table-column prop="merchantName" label="商家" min-width="170" />
-              <el-table-column prop="productName" label="商品" min-width="180" />
-              <el-table-column label="星级" width="130">
-                <template #default="{ row }">
+          <div class="review-stats admin-review-stats">
+            <div v-for="item in reviewMetrics" :key="item.label" class="card review-stat admin-review-stat">
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }}</strong>
+              <em>{{ item.description }}</em>
+            </div>
+          </div>
+          <div class="admin-review-insights">
+            <div class="card review-insight-card">
+              <div class="panel-title">
+                <div>
+                  <h2>情感分布</h2>
+                  <p>按照评价文本和星级结果进行归类。</p>
+                </div>
+              </div>
+              <div class="review-chip-list">
+                <div v-for="item in reviewSentimentSummary" :key="item.label" class="review-chip-row">
+                  <span>{{ item.label }}</span>
+                  <strong>{{ item.count }}</strong>
+                  <em :style="{ width: item.percent + '%' }"></em>
+                </div>
+              </div>
+            </div>
+            <div class="card review-insight-card">
+              <div class="panel-title">
+                <div>
+                  <h2>风险分布</h2>
+                  <p>帮助管理员快速定位需要介入的评价。</p>
+                </div>
+              </div>
+              <div class="review-chip-list">
+                <div v-for="item in reviewRiskSummary" :key="item.label" class="review-chip-row">
+                  <span>{{ item.label }}</span>
+                  <strong>{{ item.count }}</strong>
+                  <em :style="{ width: item.percent + '%' }"></em>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="card admin-review-list">
+            <div class="panel-title admin-review-list-head">
+              <div>
+                <h2>评价明细</h2>
+                <p>保留关键字段，详细分析与处置操作进入详情页完成。</p>
+              </div>
+              <el-button :loading="loadingAdminReviews" @click="loadAdminReviews">刷新数据</el-button>
+            </div>
+            <div class="admin-review-cards">
+              <div v-for="row in adminReviews" :key="row.id" class="admin-review-card">
+                <div class="admin-review-main">
+                  <div class="admin-review-title-line">
+                    <strong>{{ row.productName }}</strong>
+                    <div class="admin-review-tags">
+                      <el-tag :type="sentimentTagType(row.sentiment)" effect="light">{{ row.sentiment }}</el-tag>
+                      <el-tag :type="riskTagType(row.riskLevel)" effect="light">{{ row.riskLevel }}</el-tag>
+                      <el-tag :type="disputeTagType(row.disputeStatus)" effect="plain">{{ row.disputeStatus || '未提出异议' }}</el-tag>
+                    </div>
+                  </div>
+                  <p class="admin-review-content">{{ row.content }}</p>
+                  <div class="admin-review-meta">
+                    <span>{{ row.platform }}</span>
+                    <span>{{ row.merchantName }}</span>
+                    <span>{{ row.orderNo }}</span>
+                    <span>{{ row.reviewedAt || '暂无评价时间' }}</span>
+                  </div>
+                </div>
+                <div class="admin-review-action">
                   <el-rate :model-value="row.score" disabled size="small" />
-                </template>
-              </el-table-column>
-              <el-table-column prop="content" label="评价内容" min-width="260" show-overflow-tooltip />
-              <el-table-column prop="sentiment" label="情感" width="96">
-                <template #default="{ row }">
-                  <el-tag :type="sentimentTagType(row.sentiment)">{{ row.sentiment }}</el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column prop="riskLevel" label="风险" width="96">
-                <template #default="{ row }">
-                  <el-tag :type="riskTagType(row.riskLevel)">{{ row.riskLevel }}</el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column label="异议状态" width="112">
-                <template #default="{ row }">
-                  <el-tag :type="disputeTagType(row.disputeStatus)">{{ row.disputeStatus || '未提出' }}</el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column label="操作" width="120">
-                <template #default="{ row }">
-                  <el-button type="primary" link @click="selectedReview = row">详细</el-button>
-                </template>
-              </el-table-column>
-            </el-table>
+                  <el-button type="primary" plain @click="selectedReview = row">查看详情</el-button>
+                </div>
+              </div>
+              <el-empty v-if="adminReviews.length === 0" description="暂无评价数据" />
+            </div>
           </div>
         </section>
         <section v-else-if="active === '争议订单处理'" class="dispute-page">
@@ -765,12 +926,94 @@
             </div>
           </div>
         </section>
+        <section v-else-if="active === '操作日志'" class="operation-log-page">
+          <div class="operation-log-toolbar card">
+            <div>
+              <h2>操作日志</h2>
+              <p>记录管理员对账号、争议订单、评价异议、规则和知识库的关键操作。</p>
+            </div>
+            <div class="operation-log-actions">
+              <el-select v-model="operationLogFilter" placeholder="操作类型" style="width: 180px">
+                <el-option label="全部操作" value="ALL" />
+                <el-option v-for="item in operationLogTypes" :key="item" :label="item" :value="item" />
+              </el-select>
+              <el-button plain type="danger" @click="clearOperationLogs">清空日志</el-button>
+            </div>
+          </div>
+          <div class="card operation-log-card">
+            <el-table :data="filteredOperationLogs" border>
+              <el-table-column prop="time" label="操作时间" min-width="170" />
+              <el-table-column label="管理员" width="160">
+                <template #default="{ row }">
+                  <div class="operation-admin-cell">
+                    <img v-if="adminAvatarById(row.adminId)" :src="adminAvatarById(row.adminId)" alt="" />
+                    <span>{{ row.adminName }}</span>
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column prop="type" label="操作类型" width="150" />
+              <el-table-column prop="target" label="操作对象" min-width="220" />
+              <el-table-column prop="detail" label="操作内容" min-width="300" />
+            </el-table>
+            <el-empty v-if="filteredOperationLogs.length === 0" description="暂无操作日志" />
+          </div>
+        </section>
         <section v-else class="card">
           <h2>{{ active }}</h2>
           <p>该模块已预留管理入口，后续接入真实接口。</p>
         </section>
       </el-main>
     </el-container>
+    <el-dialog v-model="banDialogVisible" class="ban-dialog" width="520px" :show-close="false" align-center>
+      <div class="ban-dialog-head">
+        <div>
+          <span>ACCOUNT CONTROL</span>
+          <h2>账号封禁处理</h2>
+          <p>封禁后，该一级账号在消费者端或商家端登录时会被系统拦截。</p>
+        </div>
+        <button class="ban-dialog-close" @click="banDialogVisible = false">×</button>
+      </div>
+      <div v-if="banTarget" class="ban-account-card">
+        <el-avatar :size="52" :src="banTarget.primaryAvatar">
+          {{ avatarText(banTarget.primaryDisplayName, banTarget.primaryAccountNo) }}
+        </el-avatar>
+        <div>
+          <strong>{{ banTarget.primaryDisplayName || '未设置名称' }}</strong>
+          <span>{{ banTargetType === 'CONSUMER' ? '消费者一级账号' : '商家一级账号' }}：{{ banTarget.primaryAccountNo }}</span>
+        </div>
+        <el-tag :type="banTarget.primaryBanStatus === '已封禁' ? 'danger' : 'success'">
+          {{ banTarget.primaryBanStatus || '正常' }}
+        </el-tag>
+      </div>
+      <div v-if="banTarget?.primaryBanStatus === '已封禁'" class="ban-current-status">
+        <strong>当前封禁</strong>
+        <span>{{ banTarget.primaryBanDuration || '已封禁' }} · {{ banTarget.primaryBanUntil || '永久' }}</span>
+      </div>
+      <div class="ban-duration-panel">
+        <div class="ban-section-title">
+          <strong>选择封禁时长</strong>
+          <span>到期后系统会自动恢复登录权限</span>
+        </div>
+        <div class="ban-duration-grid">
+          <button
+            v-for="item in banDurationOptions"
+            :key="item.value"
+            type="button"
+            :class="{ active: banDuration === item.value }"
+            @click="banDuration = item.value"
+          >
+            {{ item.label }}
+          </button>
+        </div>
+      </div>
+      <template #footer>
+        <el-button v-if="banTarget?.primaryBanStatus === '已封禁'" type="success" plain :loading="banSubmitting" @click="unbanCurrentTarget">
+          解除封禁
+        </el-button>
+        <el-button @click="banDialogVisible = false">取消</el-button>
+        <el-button type="danger" :loading="banSubmitting" @click="submitPrimaryBan">确认封禁</el-button>
+      </template>
+    </el-dialog>
         <el-dialog v-model="reviewDetailVisible" title="评价分析详细" width="720px">
       <el-descriptions v-if="selectedReview" border :column="2">
         <el-descriptions-item label="平台">{{ selectedReview.platform }}</el-descriptions-item>
@@ -919,9 +1162,10 @@
           v-if="selectedAfterSaleDispute?.status === '待审核'"
           type="primary"
           plain
-          @click="setDisputeRefundAmount"
+          :loading="reviewingAfterSaleDispute"
+          @click="partialRefundAfterSaleDispute"
         >
-          退款金额
+          部分退款
         </el-button>
         <el-button
           v-if="selectedAfterSaleDispute?.status === '待审核'"
@@ -1028,8 +1272,43 @@
         <el-descriptions-item label="答案" :span="2">{{ selectedFaq.answer }}</el-descriptions-item>
       </el-descriptions>
     </el-dialog>
-    <el-dialog v-model="articleEditorVisible" :title="articleForm.id ? '编辑知识文章' : '新增知识文章'" width="720px">
+    <el-dialog v-model="articleEditorVisible" :title="articleForm.id ? '编辑知识文章' : '新增知识文章'" width="760px">
       <el-form label-width="96px">
+        <template v-if="!articleForm.id">
+          <div class="ai-knowledge-source">
+            <div class="ai-source-head">
+              <div>
+                <strong>AI 识别原始材料</strong>
+                <span>粘贴平台政策、处理规范或选择文本、PDF、DOCX 文件，系统会自动识别标题、分类和知识内容。</span>
+              </div>
+              <label class="file-picker">
+                选择文件
+                <input
+                  type="file"
+                  accept=".txt,.md,.csv,.json,.log,.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  @change="handleAdminKnowledgeFileChange"
+                />
+              </label>
+            </div>
+            <el-input
+              v-model="adminKnowledgeSourceText"
+              type="textarea"
+              :rows="5"
+              placeholder="例如：平台介入争议订单时，需要核对订单信息、聊天记录、售后凭证、商家审核意见和处理时间线。"
+            />
+            <div class="ai-source-actions">
+              <span>{{ selectedAdminKnowledgeFileName || '未选择文件' }}</span>
+              <el-button type="primary" :loading="extractingAdminKnowledge" @click="extractAdminKnowledge('article')">AI 识别并填充</el-button>
+            </div>
+          </div>
+          <el-alert
+            v-if="articleKnowledgeExtracted"
+            type="success"
+            show-icon
+            :closable="false"
+            title="AI 已完成识别，请确认下方标题、分类和内容是否准确，确认无误后点击保存。"
+          />
+        </template>
         <el-form-item label="标题"><el-input v-model="articleForm.title" /></el-form-item>
         <el-form-item label="分类">
           <el-select v-model="articleForm.category" style="width: 100%">
@@ -1058,8 +1337,43 @@
         <el-button type="primary" :loading="savingKnowledge" @click="saveArticle">保存</el-button>
       </template>
     </el-dialog>
-    <el-dialog v-model="faqEditorVisible" :title="faqForm.id ? '编辑常见问题' : '新增常见问题'" width="720px">
+    <el-dialog v-model="faqEditorVisible" :title="faqForm.id ? '编辑常见问题' : '新增常见问题'" width="760px">
       <el-form label-width="96px">
+        <template v-if="!faqForm.id">
+          <div class="ai-knowledge-source">
+            <div class="ai-source-head">
+              <div>
+                <strong>AI 识别原始材料</strong>
+                <span>粘贴一段客服问答材料，或选择文本、PDF、DOCX 文件，系统会自动识别问题、分类和答案。</span>
+              </div>
+              <label class="file-picker">
+                选择文件
+                <input
+                  type="file"
+                  accept=".txt,.md,.csv,.json,.log,.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  @change="handleAdminKnowledgeFileChange"
+                />
+              </label>
+            </div>
+            <el-input
+              v-model="adminKnowledgeSourceText"
+              type="textarea"
+              :rows="5"
+              placeholder="例如：用户咨询商品发货后是否可以仅退款，需要说明未签收、物流异常、商家同意等场景下的处理方式。"
+            />
+            <div class="ai-source-actions">
+              <span>{{ selectedAdminKnowledgeFileName || '未选择文件' }}</span>
+              <el-button type="primary" :loading="extractingAdminKnowledge" @click="extractAdminKnowledge('faq')">AI 识别并填充</el-button>
+            </div>
+          </div>
+          <el-alert
+            v-if="faqKnowledgeExtracted"
+            type="success"
+            show-icon
+            :closable="false"
+            title="AI 已完成识别，请确认下方问题、分类和答案是否准确，确认无误后点击保存。"
+          />
+        </template>
         <el-form-item label="问题"><el-input v-model="faqForm.question" /></el-form-item>
         <el-form-item label="分类">
           <el-select v-model="faqForm.category" style="width: 100%">
@@ -1091,16 +1405,30 @@ import jdIcon from './assets/platforms/jd.png'
 import pddIcon from './assets/platforms/pinduoduo.png'
 import taobaoIcon from './assets/platforms/taobao.png'
 import twentyMallIcon from './assets/platforms/twenty-mall.png'
+import yuegouMarketIcon from './assets/platforms/yuegou-market-v2.svg'
 import deepseekLogo from './assets/deepseek-logo.png'
 import adminBrandIcon from './assets/brand/fusion-after-sale-icon.png'
 import productBackpack from './assets/products/twenty-backpack-real.png'
 import productCup from './assets/products/twenty-cup.png'
 import productKeyboard from './assets/products/twenty-keyboard-real.png'
 import productLamp from './assets/products/twenty-lamp.png'
+import adminAvatarA from './assets/admins/admin-a.svg'
+import adminAvatarB from './assets/admins/admin-b.svg'
+import adminAvatarC from './assets/admins/admin-c.svg'
+import adminAvatarD from './assets/admins/admin-d.svg'
+
+const ADMIN_AUTH_STORAGE_KEY = 'admin-web-current-admin'
+const ADMIN_OPERATION_LOG_STORAGE_KEY = 'admin-web-operation-logs'
+const adminAccounts = [
+  { id: 'admin-a', name: '管理员 A', key: 'A7mP4qR2', avatar: adminAvatarA },
+  { id: 'admin-b', name: '管理员 B', key: 'z9KxT3vB', avatar: adminAvatarB },
+  { id: 'admin-c', name: '管理员 C', key: 'Q6nL8sWa', avatar: adminAvatarC },
+  { id: 'admin-d', name: '管理员 D', key: 'b2Hc7YdM', avatar: adminAvatarD }
+]
 
 const sections = [
   { label: '系统概览', icon: '总' },
-  { label: '用户管理', icon: '用' },
+  { label: '消费者管理', icon: '用' },
   { label: '商家管理', icon: '商' },
   { label: '外部平台', icon: '平' },
   { label: '同步监控', icon: '同' },
@@ -1108,9 +1436,16 @@ const sections = [
   { label: '规则配置', icon: '规' },
   { label: '评价分析', icon: '评' },
   { label: '争议订单处理', icon: '争' },
-  { label: 'AI 配置', icon: 'AI' }
+  { label: 'AI 配置', icon: 'AI' },
+  { label: '操作日志', icon: '志' }
 ]
 const active = ref('系统概览')
+const selectedAdminId = ref(adminAccounts[0].id)
+const adminLoginKey = ref('')
+const adminLoginLoading = ref(false)
+const currentAdmin = ref<{ id: string; name: string } | null>(loadSavedAdmin())
+const selectedAdmin = computed(() => adminAccounts.find((item) => item.id === selectedAdminId.value) || adminAccounts[0])
+const currentAdminAvatar = computed(() => adminAccounts.find((item) => item.id === currentAdmin.value?.id)?.avatar || '')
 const aiConfigLoading = ref(false)
 const aiConfig = ref({
   healthy: false,
@@ -1170,17 +1505,24 @@ type BindingRow = {
   primaryAccountNo: string
   primaryDisplayName: string
   primaryAvatar?: string
+  platformCode?: string
   platformName: string
   secondaryAccountNo: string
   secondaryDisplayName: string
   bindStatus: string
   secondaryStatus: string
   boundAt: string
+  primaryBanStatus?: string
+  primaryBanDuration?: string
+  primaryBanUntil?: string
 }
 type BindingGroup = {
   primaryAccountNo: string
   primaryDisplayName: string
   primaryAvatar?: string
+  primaryBanStatus?: string
+  primaryBanDuration?: string
+  primaryBanUntil?: string
   bindings: BindingRow[]
 }
 type PlatformRow = {
@@ -1273,6 +1615,15 @@ type FaqRow = {
   enabled: boolean
   updatedAt: string
 }
+type AdminOperationLogRow = {
+  id: string
+  adminId: string
+  adminName: string
+  time: string
+  type: string
+  target: string
+  detail: string
+}
 const consumerBindings = ref<BindingRow[]>([])
 const merchantBindings = ref<BindingRow[]>([])
 const consumerBindingKeyword = ref('')
@@ -1281,6 +1632,21 @@ const selectedConsumerBindingGroup = ref<BindingGroup | null>(null)
 const merchantBindingKeyword = ref('')
 const merchantBindingPlatformFilter = ref('ALL')
 const selectedMerchantBindingGroup = ref<BindingGroup | null>(null)
+const banDialogVisible = ref(false)
+const banSubmitting = ref(false)
+const banTarget = ref<BindingGroup | null>(null)
+const banTargetType = ref<'CONSUMER' | 'MERCHANT'>('CONSUMER')
+const banDuration = ref('7D')
+const banDurationOptions = [
+  { label: '1天', value: '1D' },
+  { label: '3天', value: '3D' },
+  { label: '7天', value: '7D' },
+  { label: '一个月', value: '1M' },
+  { label: '半年', value: '6M' },
+  { label: '一年', value: '1Y' },
+  { label: '十年', value: '10Y' },
+  { label: '永久', value: 'PERMANENT' }
+]
 const selectedPlatform = ref<PlatformRow | null>(null)
 const syncLogs = ref<SyncLogRow[]>([])
 const selectedSyncLog = ref<SyncLogRow | null>(null)
@@ -1304,6 +1670,7 @@ const selectedKnowledge = ref<KnowledgeArticleRow | null>(null)
 const selectedFaq = ref<FaqRow | null>(null)
 const deletingReview = ref(false)
 const reviewingDispute = ref(false)
+const loadingAdminReviews = ref(false)
 const loadingAfterSaleDisputes = ref(false)
 const reviewingAfterSaleDispute = ref(false)
 const ruleEditorVisible = ref(false)
@@ -1312,6 +1679,14 @@ const knowledgeTab = ref('articles')
 const articleEditorVisible = ref(false)
 const faqEditorVisible = ref(false)
 const savingKnowledge = ref(false)
+const operationLogs = ref<AdminOperationLogRow[]>(loadSavedOperationLogs())
+const operationLogFilter = ref('ALL')
+const operationLogTypes = ['封禁账号', '解封账号', '争议订单处理', '评价异议处理', '规则配置', '知识库新增']
+const adminKnowledgeSourceText = ref('')
+const selectedAdminKnowledgeFileName = ref('')
+const extractingAdminKnowledge = ref(false)
+const articleKnowledgeExtracted = ref(false)
+const faqKnowledgeExtracted = ref(false)
 const ruleForm = ref<RuleRow>({
   id: 0,
   ruleName: '',
@@ -1538,6 +1913,12 @@ const merchantBindingMetrics = computed(() => {
     { label: '多店铺商家', value: formatNumber(multiShopTotal), description: '绑定多个店铺的一级商家' }
   ]
 })
+const filteredOperationLogs = computed(() => {
+  if (operationLogFilter.value === 'ALL') {
+    return operationLogs.value
+  }
+  return operationLogs.value.filter((item) => item.type === operationLogFilter.value)
+})
 const trendData = computed(() => {
   const rows = overview.value.trendRows.length > 0
     ? overview.value.trendRows
@@ -1566,11 +1947,46 @@ const reviewMetrics = computed(() => {
     ? '0.0'
     : (adminReviews.value.reduce((sum, item) => sum + item.score, 0) / total).toFixed(1)
   return [
-    { label: '评价总数', value: formatNumber(total) },
-    { label: '平均星级', value: averageScore },
-    { label: '负向评价', value: formatNumber(negative) },
-    { label: '高风险评价', value: formatNumber(highRisk) }
+    { label: '评价总数', value: formatNumber(total), description: '当前可见评价记录' },
+    { label: '平均星级', value: averageScore, description: '综合商品与服务评分' },
+    { label: '负向评价', value: formatNumber(negative), description: '需要重点跟进的反馈' },
+    { label: '高风险评价', value: formatNumber(highRisk), description: '可能影响商家信誉' }
   ]
+})
+const reviewHeroRiskText = computed(() => {
+  const pendingDisputes = adminReviews.value.filter((item) => item.disputeStatus === '待审核').length
+  const highRisk = adminReviews.value.filter((item) => item.riskLevel === '高风险').length
+  if (pendingDisputes > 0) {
+    return `${pendingDisputes} 条异议待审`
+  }
+  if (highRisk > 0) {
+    return `${highRisk} 条高风险`
+  }
+  return '暂无紧急风险'
+})
+const reviewSentimentSummary = computed(() => {
+  const labels = ['正向', '中性', '负向']
+  const total = Math.max(1, adminReviews.value.length)
+  return labels.map((label) => {
+    const count = adminReviews.value.filter((item) => item.sentiment === label).length
+    return {
+      label,
+      count: formatNumber(count),
+      percent: Math.max(count === 0 ? 4 : 10, Math.round((count / total) * 100))
+    }
+  })
+})
+const reviewRiskSummary = computed(() => {
+  const labels = ['低风险', '中风险', '高风险', '已删除']
+  const total = Math.max(1, adminReviews.value.length)
+  return labels.map((label) => {
+    const count = adminReviews.value.filter((item) => item.riskLevel === label).length
+    return {
+      label,
+      count: formatNumber(count),
+      percent: Math.max(count === 0 ? 4 : 10, Math.round((count / total) * 100))
+    }
+  })
 })
 const afterSaleDisputeMetrics = computed(() => {
   const total = afterSaleDisputes.value.length
@@ -1667,6 +2083,7 @@ const filteredFaqItems = computed(() => faqItems.value.filter((item) => {
 }))
 const platforms = computed(() => {
   const twentyMallShopCount = countUniqueBoundShops('万象商城')
+  const yuegouShopCount = countUniqueBoundShops('悦购集市')
   return [
     { code: 'DOUYIN', name: '抖音电商', description: '真实抖店开放平台待接入', status: '未接入', shops: 0, icon: douyinIcon },
     { code: 'TAOBAO', name: '淘宝', description: '预留淘宝开放平台接入', status: '规划中', shops: 0, icon: taobaoIcon },
@@ -1679,6 +2096,14 @@ const platforms = computed(() => {
       status: twentyMallShopCount > 0 ? '启用' : '未绑定',
       shops: twentyMallShopCount,
       icon: twentyMallIcon
+    },
+    {
+      code: 'YUEGOU_MARKET',
+      name: '悦购集市',
+      description: '第二个自建数据库模拟电商平台，可独立绑定账号并同步业务关系',
+      status: yuegouShopCount > 0 ? '启用' : '未绑定',
+      shops: yuegouShopCount,
+      icon: yuegouMarketIcon
     }
   ]
 })
@@ -1694,7 +2119,71 @@ const platformMetrics = computed(() => {
     { label: '绑定店铺数', value: formatNumber(shopTotal), description: '全部平台累计绑定店铺' }
   ]
 })
-onMounted(() => {
+
+function loadSavedAdmin() {
+  try {
+    const saved = localStorage.getItem(ADMIN_AUTH_STORAGE_KEY)
+    if (!saved) return null
+    const parsed = JSON.parse(saved) as { id?: string; name?: string }
+    const matched = adminAccounts.find((item) => item.id === parsed.id)
+    return matched ? { id: matched.id, name: matched.name } : null
+  } catch {
+    return null
+  }
+}
+
+function loadSavedOperationLogs(): AdminOperationLogRow[] {
+  try {
+    const saved = localStorage.getItem(ADMIN_OPERATION_LOG_STORAGE_KEY)
+    if (!saved) return []
+    const rows = JSON.parse(saved)
+    return Array.isArray(rows) ? rows : []
+  } catch {
+    return []
+  }
+}
+
+function saveOperationLogs() {
+  localStorage.setItem(ADMIN_OPERATION_LOG_STORAGE_KEY, JSON.stringify(operationLogs.value.slice(0, 300)))
+}
+
+function adminAvatarById(adminId: string) {
+  return adminAccounts.find((item) => item.id === adminId)?.avatar || ''
+}
+
+function recordAdminOperation(type: string, target: string, detail: string) {
+  const admin = currentAdmin.value || selectedAdmin.value
+  operationLogs.value = [
+    {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      adminId: admin.id,
+      adminName: admin.name,
+      time: formatLocalDateTime(new Date()),
+      type,
+      target,
+      detail
+    },
+    ...operationLogs.value
+  ].slice(0, 300)
+  saveOperationLogs()
+}
+
+async function clearOperationLogs() {
+  try {
+    await ElMessageBox.confirm('确认清空管理员操作日志吗？此操作只会清空当前浏览器保存的日志。', '清空操作日志', {
+      confirmButtonText: '确认清空',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+  } catch {
+    return
+  }
+  operationLogs.value = []
+  saveOperationLogs()
+  ElMessage.success('操作日志已清空')
+}
+
+function loadAdminData() {
   loadOverview()
   loadAccountBindings()
   loadSyncLogs()
@@ -1703,6 +2192,43 @@ onMounted(() => {
   loadAdminRules()
   loadKnowledge()
   loadAiConfig()
+}
+
+function selectLoginAdmin(adminId: string) {
+  selectedAdminId.value = adminId
+  adminLoginKey.value = ''
+}
+
+function loginAdmin() {
+  adminLoginLoading.value = true
+  try {
+    const key = adminLoginKey.value.trim()
+    const matched = selectedAdmin.value
+    if (!matched || matched.key !== key) {
+      ElMessage({ type: 'error', message: `${matched?.name || '管理员'}秘钥错误，请重新输入` })
+      return
+    }
+    currentAdmin.value = { id: matched.id, name: matched.name }
+    localStorage.setItem(ADMIN_AUTH_STORAGE_KEY, JSON.stringify(currentAdmin.value))
+    adminLoginKey.value = ''
+    ElMessage({ type: 'success', message: `${matched.name} 登录成功` })
+    loadAdminData()
+  } finally {
+    adminLoginLoading.value = false
+  }
+}
+
+function logoutAdmin() {
+  currentAdmin.value = null
+  localStorage.removeItem(ADMIN_AUTH_STORAGE_KEY)
+  adminLoginKey.value = ''
+  active.value = '系统概览'
+}
+
+onMounted(() => {
+  if (currentAdmin.value) {
+    loadAdminData()
+  }
 })
 
 async function loadAiConfig() {
@@ -1873,10 +2399,118 @@ async function loadAccountBindings() {
     if (payload.code === '200' && payload.data) {
       consumerBindings.value = payload.data.consumerBindings || []
       merchantBindings.value = payload.data.merchantBindings || []
+      return
     }
+    ElMessage.error(payload.message || '账号绑定数据读取失败')
   } catch {
     consumerBindings.value = []
     merchantBindings.value = []
+    ElMessage.error('账号绑定数据读取失败，请确认后端服务已启动')
+  }
+}
+
+function openBanDialog(group: BindingGroup, accountType: 'CONSUMER' | 'MERCHANT') {
+  banTarget.value = group
+  banTargetType.value = accountType
+  banDuration.value = '7D'
+  banDialogVisible.value = true
+}
+
+async function submitPrimaryBan() {
+  if (!banTarget.value) return
+  banSubmitting.value = true
+  try {
+    const response = await fetch('http://localhost:8080/api/twenty-mall/admin/primary-accounts/ban', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        accountNo: banTarget.value.primaryAccountNo,
+        accountType: banTargetType.value,
+        duration: banDuration.value
+      })
+    })
+    const payload = await response.json()
+    if (payload.code !== '200') {
+      throw new Error(payload.message || '封禁失败')
+    }
+    recordAdminOperation(
+      '封禁账号',
+      `${banTargetType.value === 'CONSUMER' ? '消费者' : '商家'}：${banTarget.value.primaryAccountNo}`,
+      `封禁账号“${banTarget.value.primaryDisplayName || banTarget.value.primaryAccountNo}”，封禁时长：${banDurationOptions.find((item) => item.value === banDuration.value)?.label || banDuration.value}`
+    )
+    ElMessage.success('账号已封禁，登录时将提示该账号已被封禁')
+    banDialogVisible.value = false
+    banTarget.value = null
+    await loadAccountBindings()
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '封禁失败')
+  } finally {
+    banSubmitting.value = false
+  }
+}
+
+async function unbanPrimaryAccount(group: BindingGroup, accountType: 'CONSUMER' | 'MERCHANT') {
+  try {
+    await ElMessageBox.confirm(`确认解除 ${group.primaryDisplayName || group.primaryAccountNo} 的封禁吗？`, '解除封禁', {
+      confirmButtonText: '确认解除',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    const response = await fetch('http://localhost:8080/api/twenty-mall/admin/primary-accounts/unban', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        accountNo: group.primaryAccountNo,
+        accountType
+      })
+    })
+    const payload = await response.json()
+    if (payload.code !== '200') {
+      throw new Error(payload.message || '解除封禁失败')
+    }
+    recordAdminOperation(
+      '解封账号',
+      `${accountType === 'CONSUMER' ? '消费者' : '商家'}：${group.primaryAccountNo}`,
+      `解除账号“${group.primaryDisplayName || group.primaryAccountNo}”的封禁`
+    )
+    ElMessage.success('账号已解除封禁')
+    await loadAccountBindings()
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error(error instanceof Error ? error.message : '解除封禁失败')
+    }
+  }
+}
+
+async function unbanCurrentTarget() {
+  if (!banTarget.value) return
+  banSubmitting.value = true
+  try {
+    const response = await fetch('http://localhost:8080/api/twenty-mall/admin/primary-accounts/unban', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        accountNo: banTarget.value.primaryAccountNo,
+        accountType: banTargetType.value
+      })
+    })
+    const payload = await response.json()
+    if (payload.code !== '200') {
+      throw new Error(payload.message || '解除封禁失败')
+    }
+    recordAdminOperation(
+      '解封账号',
+      `${banTargetType.value === 'CONSUMER' ? '消费者' : '商家'}：${banTarget.value.primaryAccountNo}`,
+      `解除账号“${banTarget.value.primaryDisplayName || banTarget.value.primaryAccountNo}”的封禁`
+    )
+    ElMessage.success('账号已解除封禁')
+    banDialogVisible.value = false
+    banTarget.value = null
+    await loadAccountBindings()
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '解除封禁失败')
+  } finally {
+    banSubmitting.value = false
   }
 }
 
@@ -1900,6 +2534,7 @@ async function loadSyncLogs() {
 }
 
 async function loadAdminReviews() {
+  loadingAdminReviews.value = true
   try {
     const response = await fetch('http://localhost:8080/api/twenty-mall/admin/reviews')
     const payload = await response.json()
@@ -1930,6 +2565,8 @@ async function loadAdminReviews() {
     }
   } catch {
     // 页面保持空状态，避免展示不真实的模拟数据。
+  } finally {
+    loadingAdminReviews.value = false
   }
   adminReviews.value = []
 }
@@ -2031,6 +2668,7 @@ async function loadKnowledge() {
 }
 
 function openArticleEditor(row?: KnowledgeArticleRow) {
+  resetAdminKnowledgeExtractor()
   articleForm.value = row
     ? { ...row }
     : {
@@ -2044,10 +2682,12 @@ function openArticleEditor(row?: KnowledgeArticleRow) {
         statusText: '已发布',
         updatedAt: ''
       }
+  articleKnowledgeExtracted.value = Boolean(row)
   articleEditorVisible.value = true
 }
 
 function openFaqEditor(row?: FaqRow) {
+  resetAdminKnowledgeExtractor()
   faqForm.value = row
     ? { ...row }
     : {
@@ -2060,10 +2700,160 @@ function openFaqEditor(row?: FaqRow) {
         enabled: true,
         updatedAt: ''
       }
+  faqKnowledgeExtracted.value = Boolean(row)
   faqEditorVisible.value = true
 }
 
+function resetAdminKnowledgeExtractor() {
+  adminKnowledgeSourceText.value = ''
+  selectedAdminKnowledgeFileName.value = ''
+  extractingAdminKnowledge.value = false
+  articleKnowledgeExtracted.value = false
+  faqKnowledgeExtracted.value = false
+}
+
+async function handleAdminKnowledgeFileChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) {
+    return
+  }
+  selectedAdminKnowledgeFileName.value = file.name
+  try {
+    adminKnowledgeSourceText.value = await readAdminKnowledgeFile(file)
+    if (!adminKnowledgeSourceText.value.trim()) {
+      ElMessage.warning('未能从文件中读取到文本内容，请改为复制文本后粘贴')
+    }
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '文件读取失败，请改为复制文本后粘贴')
+  } finally {
+    input.value = ''
+  }
+}
+
+async function readAdminKnowledgeFile(file: File) {
+  const fileName = file.name.toLowerCase()
+  if (fileName.endsWith('.pdf') || file.type === 'application/pdf') {
+    return extractAdminPdfText(await file.arrayBuffer())
+  }
+  if (
+    fileName.endsWith('.docx')
+    || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  ) {
+    return extractAdminDocxText(await file.arrayBuffer())
+  }
+  return file.text()
+}
+
+async function extractAdminPdfText(buffer: ArrayBuffer) {
+  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
+  const documentTask = pdfjs.getDocument({ data: new Uint8Array(buffer), disableWorker: true } as Record<string, unknown>)
+  const pdf = await documentTask.promise
+  const pages: string[] = []
+  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+    const page = await pdf.getPage(pageNumber)
+    const content = await page.getTextContent()
+    pages.push(content.items.map((item) => ('str' in item ? item.str : '')).join(' '))
+  }
+  return pages.join('\n').trim()
+}
+
+async function extractAdminDocxText(buffer: ArrayBuffer) {
+  const mammothModule = await import('mammoth/mammoth.browser')
+  const mammoth = 'default' in mammothModule ? mammothModule.default : mammothModule
+  const result = await mammoth.extractRawText({ arrayBuffer: buffer })
+  return String(result.value || '').trim()
+}
+
+async function extractAdminKnowledge(target: 'article' | 'faq') {
+  const source = adminKnowledgeSourceText.value.trim()
+  if (!source) {
+    ElMessage.warning('请先粘贴文本或选择文件')
+    return
+  }
+  extractingAdminKnowledge.value = true
+  try {
+    const response = await fetch('http://localhost:9000/api/ai/knowledge/extract', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: source,
+        knowledgeType: target === 'article' ? 'rules' : 'faq'
+      })
+    })
+    const data = await response.json()
+    if (!response.ok || !data) {
+      throw new Error(data?.message || 'AI 识别失败')
+    }
+    if (target === 'article') {
+      articleForm.value = {
+        ...articleForm.value,
+        title: String(data.title || '').trim(),
+        content: String(data.content || '').trim(),
+        category: mapAdminArticleCategory(String(data.category || '')),
+        tagsJson: buildAdminKnowledgeTags(String(data.title || ''), String(data.category || '')),
+        status: 'PUBLISHED',
+        statusText: '已发布'
+      }
+      articleKnowledgeExtracted.value = true
+    } else {
+      faqForm.value = {
+        ...faqForm.value,
+        question: String(data.title || '').trim(),
+        answer: String(data.content || '').trim(),
+        category: mapAdminFaqCategory(String(data.category || '')),
+        enabled: true
+      }
+      faqKnowledgeExtracted.value = true
+    }
+    ElMessage.success('AI 已识别，请确认内容后保存')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : 'AI 识别失败，请确认 AI 服务已启动')
+  } finally {
+    extractingAdminKnowledge.value = false
+  }
+}
+
+function mapAdminArticleCategory(category: string) {
+  const map: Record<string, string> = {
+    RETURN_REFUND: 'AFTER_SALE_POLICY',
+    REFUND_ONLY: 'AFTER_SALE_POLICY',
+    QUALITY_RETURN: 'AFTER_SALE_POLICY',
+    REPAIR: 'AFTER_SALE_POLICY',
+    PRICE_PROTECTION: 'AFTER_SALE_POLICY',
+    FREIGHT_INSURANCE: 'AFTER_SALE_POLICY',
+    LOGISTICS: 'PLATFORM_POLICY',
+    PLATFORM_INTERVENTION: 'PLATFORM_POLICY',
+    SPECIAL_GOODS: 'PRODUCT_POLICY',
+    CUSTOMER_SERVICE: 'SERVICE_SCRIPT'
+  }
+  return map[category] || 'PLATFORM_POLICY'
+}
+
+function mapAdminFaqCategory(category: string) {
+  const map: Record<string, string> = {
+    REFUND_ONLY: 'REFUND',
+    RETURN_REFUND: 'RETURN',
+    QUALITY_RETURN: 'AFTER_SALE',
+    REPAIR: 'AFTER_SALE',
+    PRICE_PROTECTION: 'AFTER_SALE',
+    FREIGHT_INSURANCE: 'AFTER_SALE',
+    PLATFORM_INTERVENTION: 'AFTER_SALE',
+    CUSTOMER_SERVICE: 'ACCOUNT'
+  }
+  return map[category] || category || 'AFTER_SALE'
+}
+
+function buildAdminKnowledgeTags(title: string, category: string) {
+  const tags = [title.slice(0, 8), category].filter(Boolean)
+  return JSON.stringify(Array.from(new Set(tags)))
+}
+
 async function saveArticle() {
+  if (!articleForm.value.id && !articleKnowledgeExtracted.value) {
+    ElMessage.warning('请先上传文本或文件，并完成 AI 识别后再保存')
+    return
+  }
   if (!articleForm.value.title.trim() || !articleForm.value.content.trim()) {
     ElMessage.warning('请填写标题和内容')
     return
@@ -2086,6 +2876,11 @@ async function saveArticle() {
     if (payload.code !== '200') {
       throw new Error(payload.message || '保存失败')
     }
+    recordAdminOperation(
+      '知识库新增',
+      articleForm.value.title,
+      `${articleForm.value.id ? '编辑' : '新增'}知识文章，分类：${articleForm.value.category}`
+    )
     ElMessage.success('知识文章已保存')
     articleEditorVisible.value = false
     await loadKnowledge()
@@ -2097,6 +2892,10 @@ async function saveArticle() {
 }
 
 async function saveFaq() {
+  if (!faqForm.value.id && !faqKnowledgeExtracted.value) {
+    ElMessage.warning('请先上传文本或文件，并完成 AI 识别后再保存')
+    return
+  }
   if (!faqForm.value.question.trim() || !faqForm.value.answer.trim()) {
     ElMessage.warning('请填写问题和答案')
     return
@@ -2119,6 +2918,11 @@ async function saveFaq() {
     if (payload.code !== '200') {
       throw new Error(payload.message || '保存失败')
     }
+    recordAdminOperation(
+      '知识库新增',
+      faqForm.value.question,
+      `${faqForm.value.id ? '编辑' : '新增'}常见问题，分类：${faqForm.value.category}`
+    )
     ElMessage.success('常见问题已保存')
     faqEditorVisible.value = false
     await loadKnowledge()
@@ -2231,6 +3035,11 @@ async function saveRule() {
     if (payload.code !== '200') {
       throw new Error(payload.message || '保存失败')
     }
+    recordAdminOperation(
+      '规则配置',
+      ruleForm.value.ruleName,
+      `${ruleForm.value.id ? '编辑' : '新增'}售后规则，状态：${ruleForm.value.enabled ? '启用' : '停用'}`
+    )
     ElMessage.success('规则已保存')
     ruleEditorVisible.value = false
     await loadAdminRules()
@@ -2252,6 +3061,11 @@ async function toggleRule(row: RuleRow) {
     if (payload.code !== '200') {
       throw new Error(payload.message || '状态更新失败')
     }
+    recordAdminOperation(
+      '规则配置',
+      row.ruleName,
+      `${row.enabled ? '启用' : '停用'}售后规则`
+    )
     ElMessage.success(row.enabled ? '规则已启用' : '规则已停用')
   } catch (error) {
     row.enabled = !row.enabled
@@ -2281,6 +3095,7 @@ async function deleteRule(row: RuleRow) {
     if (payload.code !== '200') {
       throw new Error(payload.message || '删除失败')
     }
+    recordAdminOperation('规则配置', row.ruleName, '删除售后规则')
     ElMessage.success('规则已删除')
     await loadAdminRules()
   } catch (error) {
@@ -2315,6 +3130,11 @@ async function deleteSelectedReview() {
     if (payload.code !== '200') {
       throw new Error(payload.message || '删除失败')
     }
+    recordAdminOperation(
+      '评价异议处理',
+      `订单 ${review.orderNo}`,
+      `删除评价：${review.content.slice(0, 40)}${review.content.length > 40 ? '...' : ''}`
+    )
     ElMessage.success('评价已删除')
     selectedReview.value = null
     await loadAdminReviews()
@@ -2362,6 +3182,11 @@ async function reviewSelectedDispute(result: 'APPROVE' | 'REJECT') {
     if (payload.code !== '200') {
       throw new Error(payload.message || '审核失败')
     }
+    recordAdminOperation(
+      '评价异议处理',
+      `订单 ${review.orderNo}`,
+      `${isApprove ? '通过评价异议并删除评价' : '拒绝评价异议并保留评价'}；说明：${adminNote}`
+    )
     ElMessage.success(isApprove ? '异议已通过，评价已删除' : '异议已拒绝，评价保留')
     selectedReview.value = null
     await loadAdminReviews()
@@ -2421,23 +3246,27 @@ function disputeRefundAmountText(dispute: AfterSaleDisputeRow | null) {
     return ''
   }
   const amount = afterSaleDisputeRefundAmounts.value[dispute.id]
-  return amount ? `￥${amount}` : ''
+  if (amount) {
+    return `￥${amount}`
+  }
+  const matched = dispute.adminNote?.match(/￥\s*(\d+(?:\.\d{1,2})?)/)
+  return matched ? `￥${Number(matched[1]).toFixed(2)}` : ''
 }
 
 async function promptDisputeRefundAmount(dispute: AfterSaleDisputeRow) {
   const currentAmount = afterSaleDisputeRefundAmounts.value[dispute.id] || ''
   const result = await ElMessageBox.prompt(
-    `请输入订单 ${dispute.orderNo} 本次平台裁定的退款金额。`,
-    '设置退款金额',
+    `请输入订单 ${dispute.orderNo} 本次平台裁定的部分退款金额，确认后将直接退还给消费者。`,
+    '设置部分退款金额',
     {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       inputType: 'number',
       inputValue: currentAmount,
-      inputPlaceholder: '请输入退款金额，例如 129.00',
+      inputPlaceholder: '请输入部分退款金额，例如 129.00',
       inputValidator: (value) => {
         const amount = Number(value)
-        return (Number.isFinite(amount) && amount > 0) || '请输入大于 0 的退款金额'
+        return (Number.isFinite(amount) && amount > 0) || '请输入大于 0 的部分退款金额'
       }
     }
   )
@@ -2449,15 +3278,55 @@ async function promptDisputeRefundAmount(dispute: AfterSaleDisputeRow) {
   return normalized
 }
 
-async function setDisputeRefundAmount() {
+async function partialRefundAfterSaleDispute() {
   if (!selectedAfterSaleDispute.value) {
     return
   }
+  const dispute = selectedAfterSaleDispute.value
+  let refundAmount = ''
+  let adminNote = ''
   try {
-    await promptDisputeRefundAmount(selectedAfterSaleDispute.value)
-    ElMessage.success('退款金额已记录')
+    refundAmount = await promptDisputeRefundAmount(dispute)
+    const promptResult = await ElMessageBox.prompt(
+      `确认对订单 ${dispute.orderNo} 执行部分退款 ￥${refundAmount} 吗？请填写平台处理说明。`,
+      '部分退款',
+      {
+        confirmButtonText: '确认退款',
+        cancelButtonText: '取消',
+        inputType: 'textarea',
+        inputPlaceholder: '例如：经平台核验，双方证据均有部分依据，裁定向消费者部分退款。',
+        inputValidator: (value) => Boolean(value && value.trim()) || '请填写平台处理说明'
+      }
+    )
+    adminNote = `部分退款金额：￥${refundAmount}。${promptResult.value.trim()}`
   } catch {
     // 用户取消输入时不提示错误。
+    return
+  }
+  reviewingAfterSaleDispute.value = true
+  try {
+    const response = await fetch(`http://localhost:8080/api/twenty-mall/admin/after-sales/disputes/${dispute.id}/review`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ result: 'PARTIAL_REFUND', adminNote, refundAmount })
+    })
+    const payload = await response.json()
+    if (payload.code !== '200') {
+      throw new Error(payload.message || '部分退款处理失败')
+    }
+    recordAdminOperation(
+      '争议订单处理',
+      `订单 ${dispute.orderNo}`,
+      `平台裁定部分退款 ￥${refundAmount}；说明：${adminNote}`
+    )
+    ElMessage.success(`已完成部分退款，金额 ￥${refundAmount} 已退还消费者`)
+    selectedAfterSaleDispute.value = null
+    await loadAfterSaleDisputes()
+    await loadOverview()
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '部分退款处理失败')
+  } finally {
+    reviewingAfterSaleDispute.value = false
   }
 }
 
@@ -2467,14 +3336,6 @@ async function reviewAfterSaleDispute(result: 'SUPPORT_CONSUMER' | 'SUPPORT_MERC
   }
   const dispute = selectedAfterSaleDispute.value
   const supportConsumer = result === 'SUPPORT_CONSUMER'
-  let refundAmount = afterSaleDisputeRefundAmounts.value[dispute.id] || ''
-  if (supportConsumer && !refundAmount) {
-    try {
-      refundAmount = await promptDisputeRefundAmount(dispute)
-    } catch {
-      return
-    }
-  }
   let adminNote = ''
   try {
     const promptResult = await ElMessageBox.prompt(
@@ -2493,9 +3354,6 @@ async function reviewAfterSaleDispute(result: 'SUPPORT_CONSUMER' | 'SUPPORT_MERC
       }
     )
     adminNote = promptResult.value.trim()
-    if (supportConsumer && refundAmount) {
-      adminNote = `裁定退款金额：￥${refundAmount}。${adminNote}`
-    }
   } catch {
     return
   }
@@ -2504,12 +3362,17 @@ async function reviewAfterSaleDispute(result: 'SUPPORT_CONSUMER' | 'SUPPORT_MERC
     const response = await fetch(`http://localhost:8080/api/twenty-mall/admin/after-sales/disputes/${dispute.id}/review`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ result, adminNote, refundAmount: refundAmount || null })
+      body: JSON.stringify({ result, adminNote })
     })
     const payload = await response.json()
     if (payload.code !== '200') {
       throw new Error(payload.message || '争议订单处理失败')
     }
+    recordAdminOperation(
+      '争议订单处理',
+      `订单 ${dispute.orderNo}`,
+      `${supportConsumer ? '支持消费者' : '支持商家'}；说明：${adminNote}`
+    )
     ElMessage.success(supportConsumer ? '已支持消费者，售后将继续进入退款处理' : '已支持商家，维持商家拒绝结果')
     selectedAfterSaleDispute.value = null
     await loadAfterSaleDisputes()
@@ -2559,6 +3422,9 @@ function groupBindingsByPrimary(rows: BindingRow[]) {
         primaryAccountNo: item.primaryAccountNo,
         primaryDisplayName: item.primaryDisplayName,
         primaryAvatar: item.primaryAvatar,
+        primaryBanStatus: item.primaryBanStatus || '正常',
+        primaryBanDuration: item.primaryBanDuration || '',
+        primaryBanUntil: item.primaryBanUntil || '',
         bindings: []
       })
     }
@@ -2569,6 +3435,11 @@ function groupBindingsByPrimary(rows: BindingRow[]) {
       }
       if (!group.primaryDisplayName && item.primaryDisplayName) {
         group.primaryDisplayName = item.primaryDisplayName
+      }
+      if (item.primaryBanStatus === '已封禁') {
+        group.primaryBanStatus = item.primaryBanStatus
+        group.primaryBanDuration = item.primaryBanDuration || ''
+        group.primaryBanUntil = item.primaryBanUntil || ''
       }
       group.bindings.push(item)
     }
@@ -2588,6 +3459,9 @@ function platformIconByName(platformName: string) {
   }
   if (platformName.includes('京东')) {
     return jdIcon
+  }
+  if (platformName.includes('悦购集市')) {
+    return yuegouMarketIcon
   }
   return twentyMallIcon
 }
@@ -2613,13 +3487,17 @@ function platformStatusDescription(status: string) {
 }
 
 function platformNextStep(platform: PlatformRow) {
-  if (platform.code === 'TWENTY_MALL') {
-    return '继续维护本地数据库中的平台账号、订单、售后、评价和知识库数据，确保三端读取同一套业务数据。'
+  if (isSelfBuiltPlatform(platform.code)) {
+    return `继续维护${platform.name}中的平台账号、订单、售后、评价和知识库数据，确保三端读取同一套业务数据。`
   }
   if (platform.status === '规划中') {
     return '后续需要补充开放平台授权、店铺绑定回调、订单同步、售后回写和评价同步等真实接口能力。'
   }
   return '当前平台尚未接入，建议先完成开放平台应用申请和接口权限配置后再启用。'
+}
+
+function isSelfBuiltPlatform(code: string) {
+  return code === 'TWENTY_MALL' || code === 'YUEGOU_MARKET'
 }
 
 function syncProgress(count: number) {
@@ -2732,7 +3610,11 @@ function afterSaleTypeText(type?: string) {
 function adminDisputeResultText(result?: string) {
   const map: Record<string, string> = {
     SUPPORT_CONSUMER: '支持消费者',
-    SUPPORT_MERCHANT: '支持商家'
+    SUPPORT_MERCHANT: '支持商家',
+    PARTIAL_REFUND: '部分退款',
+    支持消费者: '支持消费者',
+    支持商家: '支持商家',
+    部分退款: '部分退款'
   }
   return map[result || ''] || '暂无处理结果'
 }
@@ -2747,6 +3629,471 @@ function shouldShowPrimaryCell(rows: BindingRow[], row: BindingRow, index: numbe
 </script>
 
 <style scoped>
+:global(.el-overlay) {
+  background: rgba(15, 23, 42, 0.52) !important;
+  backdrop-filter: blur(6px);
+}
+
+:global(.el-dialog) {
+  overflow: hidden;
+  border: 1px solid rgba(226, 232, 240, 0.96);
+  border-radius: 18px !important;
+  background: #ffffff;
+  box-shadow: 0 28px 80px rgba(15, 23, 42, 0.24) !important;
+}
+
+:global(.el-dialog__header) {
+  min-height: 62px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-right: 0 !important;
+  padding: 20px 24px 16px !important;
+  border-bottom: 1px solid #eef2f7;
+  background:
+    linear-gradient(135deg, rgba(239, 246, 255, 0.88), rgba(255, 255, 255, 0.96)),
+    #fff;
+  box-sizing: border-box;
+}
+
+:global(.el-dialog__title) {
+  color: #0f172a;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+:global(.el-dialog__headerbtn) {
+  top: 16px !important;
+  right: 18px !important;
+  width: 34px !important;
+  height: 34px !important;
+  border-radius: 10px;
+  transition: background 0.18s ease;
+}
+
+:global(.el-dialog__headerbtn:hover) {
+  background: #f1f5f9;
+}
+
+:global(.el-dialog__body) {
+  padding: 22px 24px !important;
+  color: #334155;
+}
+
+:global(.el-dialog__footer) {
+  padding: 16px 24px 22px !important;
+  border-top: 1px solid #eef2f7;
+  background: #fbfdff;
+}
+
+:global(.el-dialog__footer .el-button),
+:global(.el-message-box__btns .el-button) {
+  min-width: 92px;
+  height: 38px;
+  border-radius: 10px;
+  font-weight: 800;
+}
+
+:global(.el-descriptions__label.el-descriptions__cell) {
+  width: 132px;
+  background: #f8fafc !important;
+  color: #475569;
+  font-weight: 800;
+}
+
+:global(.el-descriptions__content.el-descriptions__cell) {
+  color: #0f172a;
+  line-height: 1.65;
+}
+
+:global(.el-message-box) {
+  width: min(520px, calc(100vw - 48px)) !important;
+  overflow: hidden;
+  border: 1px solid rgba(226, 232, 240, 0.96) !important;
+  border-radius: 18px !important;
+  box-shadow: 0 28px 80px rgba(15, 23, 42, 0.26) !important;
+}
+
+:global(.el-message-box__header) {
+  padding: 22px 24px 12px !important;
+}
+
+:global(.el-message-box__title) {
+  color: #0f172a;
+  font-size: 20px !important;
+  font-weight: 900;
+}
+
+:global(.el-message-box__content) {
+  padding: 14px 24px 20px !important;
+  color: #334155 !important;
+  font-size: 15px;
+  line-height: 1.75;
+}
+
+:global(.el-message-box__status) {
+  width: 34px !important;
+  height: 34px !important;
+  display: inline-grid !important;
+  place-items: center;
+  border-radius: 50%;
+  background: #fff7ed;
+}
+
+:global(.el-message-box__status.el-message-box-icon--warning) {
+  color: #f59e0b !important;
+}
+
+:global(.el-message-box__message) {
+  padding-left: 48px !important;
+}
+
+:global(.el-message-box__btns) {
+  gap: 12px;
+  padding: 0 24px 22px !important;
+}
+
+:global(.el-form-item__label) {
+  color: #475569 !important;
+  font-weight: 800;
+}
+
+:global(.el-input__wrapper),
+:global(.el-textarea__inner) {
+  border-radius: 10px !important;
+  box-shadow: 0 0 0 1px #dbe3ef inset !important;
+}
+
+:global(.el-input__wrapper.is-focus),
+:global(.el-textarea__inner:focus) {
+  box-shadow: 0 0 0 1px #2563eb inset, 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
+}
+
+.admin-login-page {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(420px, 0.94fr) minmax(430px, 0.72fr);
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 56px;
+  box-sizing: border-box;
+  background:
+    linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(19, 50, 96, 0.92)) left / 46% 100% no-repeat,
+    linear-gradient(135deg, #f5f8ff 0%, #f8fafc 52%, #fff8ee 100%);
+}
+
+.admin-login-brand {
+  position: relative;
+  width: min(580px, 100%);
+  min-height: 620px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 58px 54px;
+  border-radius: 28px 0 0 28px;
+  background:
+    radial-gradient(circle at 18% 16%, rgba(96, 165, 250, 0.24), transparent 34%),
+    linear-gradient(180deg, rgba(15, 23, 42, 0.2), rgba(15, 23, 42, 0.04));
+  color: #fff;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.admin-login-brand::after {
+  content: "";
+  position: absolute;
+  right: -90px;
+  bottom: -110px;
+  width: 300px;
+  height: 300px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 50%;
+}
+
+.admin-login-logo {
+  width: 88px;
+  height: 88px;
+  display: grid;
+  place-items: center;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 22px 44px rgba(0, 0, 0, 0.18);
+}
+
+.admin-login-logo img {
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  object-fit: cover;
+}
+
+.admin-login-kicker {
+  margin-top: 34px;
+  color: #93c5fd;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+}
+
+.admin-login-brand h1 {
+  margin: 14px 0 14px;
+  color: #fff;
+  font-size: 46px;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.admin-login-brand p {
+  margin: 0;
+  max-width: 460px;
+  color: #cbd5e1;
+  font-size: 16px;
+  line-height: 1.75;
+}
+
+.admin-login-features {
+  display: grid;
+  gap: 12px;
+  width: min(440px, 100%);
+  margin-top: 38px;
+}
+
+.admin-login-features div {
+  padding: 15px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(8px);
+}
+
+.admin-login-features strong,
+.admin-login-features span {
+  display: block;
+}
+
+.admin-login-features strong {
+  color: #fff;
+  font-size: 15px;
+}
+
+.admin-login-features span {
+  margin-top: 6px;
+  color: #b6c6dd;
+  font-size: 13px;
+}
+
+.admin-login-card {
+  width: min(480px, 100%);
+  min-height: 620px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 46px;
+  border: 1px solid rgba(226, 232, 240, 0.92);
+  border-left: 0;
+  border-radius: 0 28px 28px 0;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 32px 88px rgba(15, 23, 42, 0.16);
+  backdrop-filter: blur(12px);
+  box-sizing: border-box;
+}
+
+.admin-login-head span {
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+}
+
+.admin-login-head h2 {
+  margin: 10px 0 8px;
+  color: #0f172a;
+  font-size: 30px;
+  font-weight: 900;
+}
+
+.admin-login-head p {
+  margin: 0 0 26px;
+  color: #64748b;
+}
+
+.admin-login-form :deep(.el-form-item__label) {
+  color: #475569;
+  font-weight: 800;
+}
+
+.admin-login-form :deep(.el-input__wrapper) {
+  min-height: 48px;
+  border-radius: 13px;
+  box-shadow: 0 0 0 1px #dbe5f1 inset;
+}
+
+.admin-selector {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.admin-selector button {
+  height: 76px;
+  border: 1px solid #dbe5f1;
+  border-radius: 14px;
+  background: #fff;
+  color: #334155;
+  cursor: pointer;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease, background 0.18s ease;
+}
+
+.admin-selector button:hover {
+  border-color: #93c5fd;
+  transform: translateY(-1px);
+}
+
+.admin-selector button.active {
+  border-color: #2563eb;
+  background: #eff6ff;
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.14);
+}
+
+.admin-selector button img,
+.admin-selector button strong {
+  display: block;
+}
+
+.admin-selector button img {
+  width: 40px;
+  height: 40px;
+  margin: 0 auto 7px;
+  border-radius: 14px;
+  object-fit: cover;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.1);
+}
+
+.admin-selector button.active img {
+  box-shadow: 0 10px 20px rgba(37, 99, 235, 0.22);
+}
+
+.admin-selector button strong {
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.admin-login-submit {
+  width: 100%;
+  height: 48px;
+  border-radius: 13px;
+  font-weight: 900;
+  box-shadow: 0 14px 26px rgba(37, 99, 235, 0.22);
+}
+
+.admin-key-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 24px;
+  padding: 14px 16px;
+  border: 1px solid #e7eef8;
+  border-radius: 16px;
+  background: #f8fbff;
+}
+
+.admin-key-list header,
+.admin-key-list div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.admin-key-list div {
+  padding: 4px 8px;
+  border-radius: 9px;
+  cursor: pointer;
+}
+
+.admin-key-list div.active {
+  background: #eff6ff;
+}
+
+.admin-key-list header {
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e7eef8;
+}
+
+.admin-key-list span {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.admin-key-list em {
+  color: #94a3b8;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.admin-key-list strong {
+  color: #0f172a;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+}
+
+.header-actions,
+.admin-session {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.admin-session {
+  padding: 5px 5px 5px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #f8fafc;
+}
+
+.admin-session img {
+  width: 26px;
+  height: 26px;
+  margin-left: -5px;
+  border-radius: 9px;
+  object-fit: cover;
+}
+
+.admin-session span {
+  color: #334155;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+@media (max-width: 980px) {
+  .admin-login-page {
+    grid-template-columns: 1fr;
+    padding: 24px;
+    background: linear-gradient(135deg, #f5f8ff 0%, #f8fafc 52%, #fff8ee 100%);
+  }
+
+  .admin-login-brand,
+  .admin-login-card {
+    width: min(560px, 100%);
+    min-height: auto;
+    justify-self: center;
+    border-radius: 24px;
+  }
+
+  .admin-login-brand {
+    padding: 34px;
+  }
+
+  .admin-login-card {
+    padding: 34px;
+    border-left: 1px solid rgba(226, 232, 240, 0.92);
+  }
+}
+
 .overview-page {
   display: flex;
   flex-direction: column;
@@ -3470,6 +4817,69 @@ function shouldShowPrimaryCell(rows: BindingRow[], row: BindingRow, index: numbe
   font-size: 13px;
 }
 
+.ai-knowledge-source {
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.ai-source-head,
+.ai-source-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.ai-source-head {
+  margin-bottom: 12px;
+}
+
+.ai-source-head strong,
+.ai-source-head span {
+  display: block;
+}
+
+.ai-source-head strong {
+  color: #0f172a;
+  font-size: 15px;
+}
+
+.ai-source-head span,
+.ai-source-actions span {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.ai-source-actions {
+  margin-top: 12px;
+}
+
+.file-picker {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid #409eff;
+  border-radius: 6px;
+  color: #1677ff;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.file-picker input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
 .rule-workbench {
   padding: 0;
   overflow: hidden;
@@ -4031,6 +5441,218 @@ function shouldShowPrimaryCell(rows: BindingRow[], row: BindingRow, index: numbe
   background: #f8fafc;
 }
 
+.dialog-account-actions {
+  margin-left: auto;
+}
+
+.ban-dialog :deep(.el-dialog) {
+  border-radius: 18px;
+  overflow: hidden;
+}
+
+.ban-dialog :deep(.el-dialog__header) {
+  display: none;
+}
+
+.ban-dialog :deep(.el-dialog__body) {
+  padding: 0;
+}
+
+.ban-dialog :deep(.el-dialog__footer) {
+  padding: 16px 22px 20px;
+  border-top: 1px solid #eef2f7;
+}
+
+.ban-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 24px 24px 18px;
+  border-bottom: 1px solid #eef2f7;
+  background: linear-gradient(135deg, #fff7ed 0%, #fff 62%, #f8fbff 100%);
+}
+
+.ban-dialog-head span {
+  color: #dc2626;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+}
+
+.ban-dialog-head h2 {
+  margin: 8px 0;
+  color: #0f172a;
+  font-size: 24px;
+  font-weight: 900;
+}
+
+.ban-dialog-head p {
+  margin: 0;
+  max-width: 360px;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.ban-dialog-close {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  background: #fff;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.ban-account-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  margin: 20px 24px 14px;
+  padding: 16px;
+  border: 1px solid #e7eef8;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.ban-account-card strong,
+.ban-account-card span {
+  display: block;
+}
+
+.ban-account-card strong {
+  color: #0f172a;
+  font-size: 16px;
+}
+
+.ban-account-card span {
+  margin-top: 5px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.ban-current-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 24px 14px;
+  padding: 10px 12px;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  background: #fff1f2;
+  color: #991b1b;
+  font-size: 13px;
+}
+
+.ban-duration-panel {
+  margin: 0 24px 22px;
+}
+
+.ban-section-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.ban-section-title strong {
+  color: #0f172a;
+  font-size: 15px;
+}
+
+.ban-section-title span {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.ban-duration-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ban-duration-grid button {
+  height: 42px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  color: #334155;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.ban-duration-grid button:hover {
+  border-color: #fca5a5;
+  color: #dc2626;
+}
+
+.ban-duration-grid button.active {
+  border-color: #ef4444;
+  background: #fff1f2;
+  color: #dc2626;
+  box-shadow: 0 8px 18px rgba(239, 68, 68, 0.12);
+}
+
+.operation-log-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.operation-log-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.operation-log-toolbar h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 22px;
+}
+
+.operation-log-toolbar p {
+  margin: 8px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.operation-log-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.operation-log-card {
+  padding: 16px;
+}
+
+.operation-admin-cell {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.operation-admin-cell img {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  object-fit: cover;
+}
+
+.operation-admin-cell span {
+  color: #0f172a;
+  font-weight: 800;
+}
+
 .review-page,
 .knowledge-page {
   display: flex;
@@ -4082,6 +5704,192 @@ function shouldShowPrimaryCell(rows: BindingRow[], row: BindingRow, index: numbe
   margin-top: 12px;
   color: #0f172a;
   font-size: 28px;
+}
+
+.admin-review-page {
+  gap: 18px;
+}
+
+.admin-review-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  overflow: hidden;
+  border: 1px solid #dbeafe;
+  background:
+    linear-gradient(135deg, rgba(239, 246, 255, 0.96), rgba(255, 255, 255, 0.98)),
+    #fff;
+}
+
+.section-eyebrow {
+  display: inline-flex;
+  margin-bottom: 8px;
+  color: #2563eb;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.admin-review-hero h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 26px;
+}
+
+.admin-review-hero p {
+  max-width: 620px;
+  margin: 10px 0 0;
+  color: #64748b;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.admin-review-hero-side {
+  min-width: 180px;
+  padding: 18px 20px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #fff;
+  text-align: right;
+}
+
+.admin-review-hero-side strong,
+.admin-review-hero-side span,
+.admin-review-stat em {
+  display: block;
+}
+
+.admin-review-hero-side strong {
+  color: #1d4ed8;
+  font-size: 24px;
+}
+
+.admin-review-hero-side span {
+  margin-top: 6px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.admin-review-stat {
+  position: relative;
+  border: 1px solid #e2e8f0;
+}
+
+.admin-review-stat em {
+  margin-top: 8px;
+  color: #94a3b8;
+  font-size: 12px;
+  font-style: normal;
+}
+
+.admin-review-insights {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.review-insight-card {
+  min-height: 210px;
+}
+
+.review-insight-card .panel-title p,
+.admin-review-list-head p {
+  margin: 5px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.review-chip-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.review-chip-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 88px 56px minmax(120px, 1fr);
+  align-items: center;
+  gap: 12px;
+  color: #334155;
+  font-size: 14px;
+}
+
+.review-chip-row strong {
+  color: #0f172a;
+}
+
+.review-chip-row em {
+  display: block;
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #2563eb, #38bdf8);
+}
+
+.admin-review-list {
+  padding-bottom: 18px;
+}
+
+.admin-review-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.admin-review-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 160px;
+  gap: 18px;
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.admin-review-title-line,
+.admin-review-meta,
+.admin-review-action {
+  display: flex;
+  align-items: center;
+}
+
+.admin-review-title-line {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.admin-review-title-line strong {
+  overflow: hidden;
+  color: #0f172a;
+  font-size: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-review-tags,
+.admin-review-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-review-content {
+  margin: 10px 0;
+  color: #334155;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.admin-review-meta span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.admin-review-action {
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+  border-left: 1px solid #e5e7eb;
 }
 
 .evidence-list {

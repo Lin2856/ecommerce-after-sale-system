@@ -10,6 +10,14 @@ public record AiReplyRequest(
     Long businessId,
     String orderStatus,
     String afterSaleStatus,
+    String platformName,
+    String orderNo,
+    String merchantName,
+    String productName,
+    String productSku,
+    String productDescription,
+    String productPrice,
+    String productQuantity,
     String userTone
 ) {
 }

@@ -10,7 +10,7 @@ INSERT INTO sys_role (id, role_code, role_name, description) VALUES
 
 INSERT INTO sys_user (id, username, password_hash, nickname, avatar_url, phone, email, status) VALUES
   (1, 'consumer_demo', '{noop}123456', '演示买家', NULL, '13800000001', 'consumer@example.com', 'ACTIVE'),
-  (2, 'merchant_admin_demo', '{noop}123456', '店铺管理员', NULL, '13800000002', 'merchant@example.com', 'ACTIVE'),
+  (2, '13338907681', '{noop}123456', '店铺管理员', NULL, '13338907681', 'merchant@example.com', 'ACTIVE'),
   (3, 'service_demo', '{noop}123456', '客服小林', NULL, '13800000003', 'service@example.com', 'ACTIVE'),
   (4, 'admin_demo', '{noop}123456', '平台管理员', NULL, '13800000004', 'admin@example.com', 'ACTIVE');
 
@@ -34,10 +34,10 @@ INSERT INTO external_platform (id, platform_code, platform_name, api_base_url, a
 INSERT INTO twenty_mall_account (
   id, account_no, password_plain, account_role, display_name, phone, bind_status, status
 ) VALUES
-  (1, '20230140', '123456', 'CONSUMER', '万象商城演示买家', '13338907581', 'UNBOUND', 'ACTIVE'),
+  (1, '20230140', '123456', 'CONSUMER', '万象商城演示买家', '13338907583', 'UNBOUND', 'ACTIVE'),
   (2, '20230141', '123456', 'MERCHANT', '极光外设旗舰店', '13900002020', 'UNBOUND', 'ACTIVE'),
   (4, '20230142', '123456', 'MERCHANT', '黑曜通勤箱包店', '13900002021', 'UNBOUND', 'ACTIVE'),
-  (3, '20230141', '123456', 'CONSUMER', '万象商城学生买家', '13338907581', 'UNBOUND', 'ACTIVE');
+  (3, '20230141', '123456', 'CONSUMER', '万象商城学生买家', '13338907583', 'UNBOUND', 'ACTIVE');
 
 INSERT INTO twenty_mall_product (
   id, merchant_account_id, product_no, product_name, product_image_url, price, stock, category, description, status

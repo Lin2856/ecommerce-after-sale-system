@@ -29,6 +29,8 @@ public class SecurityConfig {
                     "/api/health",
                     "/api/demo-chat/**",
                     "/api/twenty-mall/**",
+                    "/api/yuegou-market/**",
+                    "/api/merchant/operation-logs/**",
                     "/v3/api-docs/**",
                     "/swagger-ui/**",
                     "/swagger-ui.html"

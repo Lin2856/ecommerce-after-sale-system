@@ -65,13 +65,55 @@
         <el-button type="primary" @click="detailVisible = false">知道了</el-button>
       </template>
     </el-dialog>
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="560px">
+    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="680px" class="knowledge-editor-dialog">
       <el-form label-width="88px">
+        <template v-if="dialogMode === 'create'">
+          <div class="ai-knowledge-source">
+            <div class="ai-source-head">
+              <div>
+                <strong>AI 识别原始材料</strong>
+                <span>粘贴一段售后说明，或选择文本文件，系统会自动识别问题、分类和知识内容。</span>
+              </div>
+              <label class="file-picker">
+                选择文件
+                <input
+                  type="file"
+                  accept=".txt,.md,.csv,.json,.log,.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  @change="handleKnowledgeFileChange"
+                />
+              </label>
+            </div>
+            <el-input
+              v-model="knowledgeSourceText"
+              type="textarea"
+              :rows="5"
+              placeholder="例如：用户咨询商品发货后是否可以仅退款，需要说明未签收、物流异常、商家同意等场景下的处理方式。"
+            />
+            <div class="ai-source-actions">
+              <span>{{ selectedKnowledgeFileName || '未选择文件' }}</span>
+              <el-button type="primary" :loading="extractingKnowledge" @click="extractKnowledgeByAi">AI 识别并填充</el-button>
+            </div>
+          </div>
+          <el-alert
+            v-if="knowledgeExtracted"
+            type="success"
+            show-icon
+            :closable="false"
+            title="AI 已完成识别，请确认下方问题、分类和内容是否准确，确认无误后点击保存。"
+          />
+        </template>
         <el-form-item :label="mainColumn.label">
           <el-input v-model="knowledgeForm.title" />
         </el-form-item>
         <el-form-item :label="active === 'rules' ? '政策类型' : '分类'">
-          <el-input v-model="knowledgeForm.category" />
+          <el-select v-model="knowledgeForm.category" filterable allow-create default-first-option>
+            <el-option
+              v-for="item in formCategoryOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item label="启用">
           <el-switch v-model="knowledgeForm.enabled" active-text="启用" inactive-text="停用" />
@@ -91,9 +133,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { faqs, rules } from '../data/mock'
-import { loadFaqs, loadRules } from '../api'
+import { createOperationLog, loadFaqs, loadRules } from '../api'
 import { loadListWithFallback } from '../api/normalize'
 import { ElMessage } from 'element-plus'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
+import { getStoredUser } from '../utils/auth'
+import { getConfirmedStaff, requireStaffIdentity } from '../utils/staffAuth'
 
 type KnowledgeMode = 'create' | 'edit'
 type KnowledgeForm = {
@@ -117,10 +162,15 @@ const dialogVisible = ref(false)
 const detailVisible = ref(false)
 const dialogMode = ref<KnowledgeMode>('create')
 const knowledgeForm = ref<KnowledgeForm>(emptyForm())
+const knowledgeSourceText = ref('')
+const selectedKnowledgeFileName = ref('')
+const extractingKnowledge = ref(false)
+const knowledgeExtracted = ref(false)
 const detailRow = ref<Record<string, unknown> | null>(null)
 const categoryFilter = ref('ALL')
 const enabledFilter = ref('ALL')
 const searchKeyword = ref('')
+const user = computed(() => getStoredUser<{ username?: string; phone?: string }>())
 
 async function loadCurrentTab() {
   loading.value = true
@@ -176,6 +226,44 @@ const categoryOptions = computed(() => {
     map.set(value, active.value === 'rules' ? ruleTypeText(value) : categoryText(value))
   })
   return Array.from(map.entries()).map(([value, label]) => ({ value, label }))
+})
+
+const formCategoryOptions = computed(() => {
+  const baseOptions = active.value === 'rules'
+    ? [
+        'RETURN_REFUND',
+        'REFUND_ONLY',
+        'QUALITY_RETURN',
+        'REPAIR',
+        'PRICE_PROTECTION',
+        'FREIGHT_INSURANCE',
+        'LOGISTICS',
+        'PLATFORM_INTERVENTION',
+        'SPECIAL_GOODS',
+        'CUSTOM'
+      ]
+    : [
+        'AFTER_SALE',
+        'REFUND',
+        'RETURN',
+        'LOGISTICS',
+        'PRICE_PROTECTION',
+        'EXCHANGE',
+        'REPAIR',
+        'CUSTOMER_SERVICE',
+        'GENERAL'
+      ]
+  const options = baseOptions.map((value) => ({
+    value,
+    label: active.value === 'rules' ? ruleTypeText(value) : categoryText(value)
+  }))
+  if (knowledgeForm.value.category && !options.some((item) => item.value === knowledgeForm.value.category)) {
+    options.push({
+      value: knowledgeForm.value.category,
+      label: active.value === 'rules' ? ruleTypeText(knowledgeForm.value.category) : categoryText(knowledgeForm.value.category)
+    })
+  }
+  return options
 })
 
 const categoryHeaderText = computed(() => {
@@ -245,6 +333,9 @@ function emptyForm(): KnowledgeForm {
 function openCreateDialog() {
   dialogMode.value = 'create'
   knowledgeForm.value = emptyForm()
+  knowledgeSourceText.value = ''
+  selectedKnowledgeFileName.value = ''
+  knowledgeExtracted.value = false
   dialogVisible.value = true
 }
 
@@ -259,6 +350,95 @@ function openEditDialog(row: Record<string, unknown>) {
     enabled: Boolean(row.enabled ?? true)
   }
   dialogVisible.value = true
+}
+
+async function handleKnowledgeFileChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) {
+    return
+  }
+  selectedKnowledgeFileName.value = file.name
+  try {
+    knowledgeSourceText.value = await readKnowledgeFile(file)
+    if (!knowledgeSourceText.value.trim()) {
+      ElMessage({ type: 'warning', message: '未能从文件中读取到文本内容，请改为复制文本后粘贴' })
+    }
+  } catch (error) {
+    ElMessage({ type: 'error', message: error instanceof Error ? error.message : '文件读取失败，请改为复制文本后粘贴' })
+  } finally {
+    input.value = ''
+  }
+}
+
+async function readKnowledgeFile(file: File) {
+  const fileName = file.name.toLowerCase()
+  if (fileName.endsWith('.pdf') || file.type === 'application/pdf') {
+    return extractPdfText(await file.arrayBuffer())
+  }
+  if (
+    fileName.endsWith('.docx')
+    || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  ) {
+    return extractDocxText(await file.arrayBuffer())
+  }
+  return file.text()
+}
+
+async function extractPdfText(buffer: ArrayBuffer) {
+  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
+  const documentTask = pdfjs.getDocument({ data: new Uint8Array(buffer), disableWorker: true } as Record<string, unknown>)
+  const pdf = await documentTask.promise
+  const pages: string[] = []
+  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+    const page = await pdf.getPage(pageNumber)
+    const content = await page.getTextContent()
+    pages.push(content.items.map((item) => ('str' in item ? item.str : '')).join(' '))
+  }
+  return pages.join('\n').trim()
+}
+
+async function extractDocxText(buffer: ArrayBuffer) {
+  const mammothModule = await import('mammoth/mammoth.browser')
+  const mammoth = 'default' in mammothModule ? mammothModule.default : mammothModule
+  const result = await mammoth.extractRawText({ arrayBuffer: buffer })
+  return String(result.value || '').trim()
+}
+
+async function extractKnowledgeByAi() {
+  const source = knowledgeSourceText.value.trim()
+  if (!source) {
+    ElMessage({ type: 'warning', message: '请先粘贴文本或选择文件' })
+    return
+  }
+  extractingKnowledge.value = true
+  try {
+    const response = await fetch('http://localhost:9000/api/ai/knowledge/extract', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: source,
+        knowledgeType: active.value === 'rules' ? 'rules' : 'faq'
+      })
+    })
+    const payload = await response.json()
+    const data = payload?.title ? payload : payload?.data
+    if (!response.ok || !data) {
+      throw new Error(payload?.message || 'AI 识别失败')
+    }
+    knowledgeForm.value = {
+      ...knowledgeForm.value,
+      title: String(data.title || '').trim(),
+      category: String(data.category || '').trim(),
+      content: String(data.content || '').trim()
+    }
+    knowledgeExtracted.value = true
+    ElMessage({ type: 'success', message: 'AI 已识别，请确认内容后保存' })
+  } catch (error) {
+    ElMessage({ type: 'error', message: error instanceof Error ? error.message : 'AI 识别失败，请确认 AI 服务已启动' })
+  } finally {
+    extractingKnowledge.value = false
+  }
 }
 
 function openDetailDialog(row: Record<string, unknown>) {
@@ -280,6 +460,13 @@ function rowSummary(row: Record<string, unknown>) {
 }
 
 function saveKnowledge() {
+  if (!requireStaffIdentity()) {
+    return
+  }
+  if (dialogMode.value === 'create' && !knowledgeExtracted.value) {
+    ElMessage({ type: 'warning', message: '请先上传文本或文件，并完成 AI 识别后再保存' })
+    return
+  }
   const title = knowledgeForm.value.title.trim()
   if (!title) {
     ElMessage({ type: 'warning', message: `请输入${mainColumn.value.label}` })
@@ -295,13 +482,15 @@ function saveKnowledge() {
 function createKnowledge() {
   const title = knowledgeForm.value.title.trim()
   const createdAt = '2026-06-25 19:30:00'
+  const id = Date.now()
   if (active.value === 'faq') {
-    faqData.value = [{ id: Date.now(), question: title, answer: knowledgeForm.value.content, category: knowledgeForm.value.category || 'GENERAL', priority: 0, enabled: knowledgeForm.value.enabled, createdAt }, ...faqData.value]
+    faqData.value = [{ id, question: title, answer: knowledgeForm.value.content, category: knowledgeForm.value.category || 'GENERAL', priority: 0, enabled: knowledgeForm.value.enabled, createdAt }, ...faqData.value]
     saveKnowledgeList('faq', faqData.value)
   } else if (active.value === 'rules') {
-    ruleData.value = [{ id: Date.now(), ruleName: title, ruleType: knowledgeForm.value.category || 'CUSTOM', content: knowledgeForm.value.content, enabled: knowledgeForm.value.enabled, createdAt }, ...ruleData.value]
+    ruleData.value = [{ id, ruleName: title, ruleType: knowledgeForm.value.category || 'CUSTOM', content: knowledgeForm.value.content, enabled: knowledgeForm.value.enabled, createdAt }, ...ruleData.value]
     saveKnowledgeList('rules', ruleData.value)
   }
+  recordKnowledgeOperation('新增知识库内容', String(id), `新增${tabTitle.value}：${title}`)
   knowledgeForm.value = emptyForm()
   dialogVisible.value = false
   ElMessage({ type: 'success', message: '知识已新增' })
@@ -323,16 +512,27 @@ function updateKnowledge() {
       : item)
     saveKnowledgeList('rules', ruleData.value)
   }
+  recordKnowledgeOperation('编辑知识库内容', String(id), `编辑${tabTitle.value}：${knowledgeForm.value.title}`)
   knowledgeForm.value = emptyForm()
   dialogVisible.value = false
   ElMessage({ type: 'success', message: '知识已更新' })
 }
 
-function deleteKnowledge(row: Record<string, unknown>) {
-  if (!window.confirm('删除后该知识内容将不再显示，确认删除吗？')) {
+async function deleteKnowledge(row: Record<string, unknown>) {
+  if (!requireStaffIdentity()) {
+    return
+  }
+  try {
+    await ElMessageBox.confirm('删除后该知识内容将不再显示，确认删除吗？', '删除知识内容', {
+      confirmButtonText: '确认删除',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+  } catch {
     return
   }
   const id = Number(row.id)
+  const title = rowTitle(row)
   if (active.value === 'faq') {
     faqData.value = faqData.value.filter((item) => item.id !== id)
     saveKnowledgeList('faq', faqData.value)
@@ -340,7 +540,25 @@ function deleteKnowledge(row: Record<string, unknown>) {
     ruleData.value = ruleData.value.filter((item) => item.id !== id)
     saveKnowledgeList('rules', ruleData.value)
   }
+  recordKnowledgeOperation('删除知识库内容', String(id), `删除${tabTitle.value}：${title}`)
   ElMessage({ type: 'success', message: '知识已删除' })
+}
+
+function recordKnowledgeOperation(actionName: string, targetId: string, detail: string) {
+  const staff = getConfirmedStaff()
+  if (!staff) {
+    return
+  }
+  createOperationLog({
+    primaryAccount: user.value?.username || user.value?.phone || '',
+    staffCode: staff.code,
+    staffName: staff.name,
+    actionType: 'KNOWLEDGE_LOCAL',
+    actionName,
+    targetType: '知识库',
+    targetId,
+    detail
+  }).catch(() => undefined)
 }
 
 async function loadKnowledgeList<T>(key: keyof typeof KNOWLEDGE_STORAGE_KEYS, fallbackLoader: () => Promise<T[]>) {
@@ -404,6 +622,15 @@ function categoryText(value: string) {
 
 function ruleTypeText(value: string) {
   const map: Record<string, string> = {
+    RETURN_REFUND: '退货退款',
+    REFUND_ONLY: '仅退款',
+    QUALITY_RETURN: '质量退换货',
+    REPAIR: '维修服务',
+    PRICE_PROTECTION: '价格保护',
+    FREIGHT_INSURANCE: '运费险',
+    LOGISTICS: '物流说明',
+    PLATFORM_INTERVENTION: '平台介入',
+    SPECIAL_GOODS: '特殊商品',
     PRIORITY: '优先级规则',
     RETURN_POLICY: '退货政策',
     QUALITY_POLICY: '质量售后',
@@ -534,6 +761,73 @@ function ruleTypeText(value: string) {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+}
+
+.knowledge-editor-dialog :deep(.el-dialog__body) {
+  padding-top: 10px;
+}
+
+.ai-knowledge-source {
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.ai-source-head,
+.ai-source-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.ai-source-head {
+  margin-bottom: 12px;
+}
+
+.ai-source-head strong,
+.ai-source-head span {
+  display: block;
+}
+
+.ai-source-head strong {
+  color: #0f172a;
+  font-size: 15px;
+}
+
+.ai-source-head span,
+.ai-source-actions span {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.ai-source-actions {
+  margin-top: 12px;
+}
+
+.file-picker {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid #409eff;
+  border-radius: 6px;
+  color: #1677ff;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.file-picker input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
 }
 
 .policy-meta {

@@ -31,9 +31,9 @@ Page({
     const addresses = getConsumerAddresses()
     const bindings = getTwentyMallBindings()
     const nextProfile = localProfile ? { ...defaultProfile, ...localProfile } : { ...defaultProfile }
-    nextProfile.phone = phone === "guest" ? "" : phone
+    nextProfile.phone = this.displayPhone(nextProfile.phone) || this.displayPhone(phone)
     nextProfile.bindPlatform = bindings.length ? `已绑定 ${bindings.length} 个电商账号` : "未绑定电商平台"
-    nextProfile.lastConsult = wx.getStorageSync(`consumerLastConsultAt:${phone}`) || wx.getStorageSync("consumerLastConsultAt") || "暂无"
+    nextProfile.lastConsult = wx.getStorageSync(`consumerLastConsultAt:${phone}`) || "暂无"
     const defaultAddress = addresses.find((item) => item.isDefault) || addresses[0]
     if (defaultAddress && defaultAddress.fullAddress) {
       nextProfile.address = defaultAddress.fullAddress
@@ -54,7 +54,7 @@ Page({
       profile: {
         ...this.data.profile,
         nickname: profile.nickname || "",
-        phone: profile.phone || (phone === "guest" ? "" : phone),
+        phone: this.displayPhone(profile.phone) || this.displayPhone(phone),
         avatar: profile.avatar || "",
         bindPlatform: profile.bindingCount ? `已绑定 ${profile.bindingCount} 个电商账号` : this.data.profile.bindPlatform
       }
@@ -121,5 +121,11 @@ Page({
       clearInterval(this.cancelTimer)
       this.cancelTimer = null
     }
+  },
+  displayPhone(phone) {
+    if (!phone || phone === "guest" || phone.startsWith("wx_")) {
+      return ""
+    }
+    return phone
   }
 })
