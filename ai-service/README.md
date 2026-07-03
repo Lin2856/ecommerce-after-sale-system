@@ -1,14 +1,16 @@
 # AI 服务
 
-AI 服务使用 Python + FastAPI 开发，端口默认为 `9000`。它为三端系统提供真实 AI 客服回复、AI 配置管理、轻量意图识别、情感分析、主题归类、工单分类和评价分析能力。
+AI 服务使用 Python + FastAPI 开发，默认端口 `9000`。它为三端系统提供真实 AI 客服回复、知识库解析、评价分析、店铺评价总体分析、AI 配置管理和基础 NLP 能力。
 
 ## 当前能力
 
-- 真实客服回复：消费者端在线客服发送消息后，后端会携带订单、商品、商家、售后状态等上下文调用 `/api/ai/reply`。
-- 订单上下文问答：AI 能根据商品规格、价格、数量、订单状态等数据库字段回答问题，例如“水杯容量是多少”可读取 `480mL` 规格。
-- 评价分析：商家端点击“AI 分析”后调用 `/api/ai/review-analysis`，生成情感、分析摘要和处理建议。
-- API Key 管理：管理员端可通过 `/api/ai/config` 查看、打码展示和更新 API Key。
-- 兜底逻辑：未配置 API Key 或大模型调用失败时，部分接口会返回可用的本地规则结果，客服回复会提示转人工。
+- 真实客服回复：消费者发送消息后，后端携带订单、商品、商家、售后状态、聊天历史和知识库上下文调用 `/api/ai/reply`。
+- 订单上下文问答：AI 可读取后端传入的商品规格、价格、数量、订单状态等字段，回答“容量是多少”“是否支持退货”等问题。
+- AI 不确定处理：当模型判断信息不足或超出可回答范围时，会返回转人工建议，由消费者端展示转人工按钮。
+- 评价分析：对单条评价生成情感、分析摘要和处理建议。
+- 店铺总体分析：对店铺未删除评价进行整体情感倾向、问题归纳和改进建议总结。
+- 知识库解析：根据用户上传的文本内容识别问题、分类、答案和政策类型，供用户确认后写入知识库。
+- API Key 管理：管理员端可查看打码 Key、更新 Key，保存后直接作用于真实 AI 对话。
 
 ## 接口列表
 
@@ -20,7 +22,9 @@ AI 服务使用 Python + FastAPI 开发，端口默认为 `9000`。它为三端�
 - `POST /api/ai/topic`：主题归类。
 - `POST /api/ai/ticket/classify`：工单分类。
 - `POST /api/ai/reply`：结合订单上下文生成客服回复。
-- `POST /api/ai/review-analysis`：生成评价情感、分析摘要和处理建议。
+- `POST /api/ai/review-analysis`：生成单条评价分析。
+- `POST /api/ai/store-review-analysis`：生成店铺评价总体分析。
+- `POST /api/ai/knowledge/extract`：从文本内容中抽取知识库条目。
 
 ## 启动方式
 
@@ -28,6 +32,12 @@ AI 服务使用 Python + FastAPI 开发，端口默认为 `9000`。它为三端�
 cd "D:\Software Engineering Training\ecommerce-after-sale-system\ai-service"
 pip install -r requirements.txt
 python -m uvicorn app.main:app --host 0.0.0.0 --port 9000
+```
+
+或在项目根目录使用：
+
+```powershell
+.\scripts\dev-start.ps1 -SkipBackend -SkipFrontend
 ```
 
 ## 大模型配置
@@ -45,8 +55,8 @@ LLM_TIMEOUT=30
 
 也可以切换 `MODEL_PROVIDER=qwen`、`glm` 或 `openai`，并配置对应的 API Key、Base URL 和模型名。
 
-## 重要说明
+## 安全说明
 
 - `ai-service/.env` 已被 `.gitignore` 忽略，真实 API Key 不会上传到 GitHub。
 - 管理员端保存 API Key 依赖 AI 服务正在运行。
-- 如果消费者端 AI 不回复，优先检查 `9000/health`、API Key 是否已配置、后端是否能访问 AI 服务。
+- 如果消费者端 AI 不回复，优先检查 `http://localhost:9000/health`、API Key、后端 `APP_AI_BASE_URL` 和后端日志。

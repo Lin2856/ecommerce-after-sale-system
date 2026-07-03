@@ -1,25 +1,23 @@
 # 融合电商平台售后系统
 
-本项目面向电商售后服务、在线客服、订单售后闭环和用户评价分析场景，建设一个包含消费者端、商家端、平台管理员端、后端服务、MySQL 数据库和 AI 服务的三端联动系统。
+本项目面向多电商平台售后服务、在线客服、订单售后闭环、评价治理和平台管理场景，提供消费者端、商家端、平台管理员端、后端服务、MySQL 数据库和 AI 服务的一体化演示系统。
 
-当前自建模拟电商平台命名为“万象商城”。系统通过本地数据库模拟真实电商平台的消费者账号、商家账号、商品、订单、售后、评价、聊天和平台治理数据，用于完整演示多平台绑定、数据同步、售后处理、客服沟通和评价治理流程。
+系统当前接入两个自建模拟电商平台：`万象商城` 和 `悦购集市`。平台账号、一级账号、绑定关系、商品、订单、售后、争议、评价、聊天、知识库、规则和操作日志均以 MySQL 为统一数据源，三端通过后端 API 读写同一套数据。
 
-## 当前进度
+## 当前能力
 
-系统已经具备本地联调和演示运行能力：
-
-- 消费者端：支持一级账号登录、万象商城账号绑定、订单查看、商品详情、售后申请、修改/取消售后、二次售后争议、在线客服、AI 客服、转人工、评价提交、头像昵称、地址管理和账号注销。
-- 商家端：支持一级账号登录、万象商城商家账号绑定/解绑、售后审核、退货退款流程、仅退款处理、争议举证、实时客服、结束人工服务、服务动态、评价分析、评价异议、知识库、规则查看和统计分析。
-- 管理员端：支持系统概览、用户绑定关系、商家绑定关系、同步监控、评价分析、评价异议审核、争议订单处理、退款金额裁定、规则配置、知识库管理和 AI 配置。
-- 后端服务：使用 MySQL 统一存储三端账号、绑定关系、订单、售后、争议、评价、聊天、知识库、规则和 AI 配置相关数据。
-- AI 服务：提供真实大模型客服回复、订单上下文问答、API Key 管理接口和评价分析接口；API Key 存放在本地 `.env`，不会提交到 GitHub。
+- 消费者端：支持手机号验证码登录、微信登录授权、一级账号资料、二级平台账号绑定/解绑、订单查看、商品详情、售后申请、退货物流、二次售后争议、AI 客服、转人工、评价提交和个人中心。
+- 商家端：支持商家一级账号登录、微信扫码登录入口、二级店铺绑定/解绑、客服身份确认、售后审核、仅退款/退货退款处理、争议举证、实时客服、服务动态、评价分析、评价异议、知识库、规则查看、统计分析和操作日志。
+- 管理员端：支持管理员秘钥登录、系统概览、消费者管理、商家管理、账号封禁/解封、同步监控、评价治理、评价异议审核、争议订单处理、退款金额裁定、规则配置、知识库、AI 配置和管理员操作日志。
+- 后端服务：统一承载三端 API、MySQL 数据读写、账号绑定校验、聊天会话、微信登录、短信验证码模拟、AI 服务转发和平台治理逻辑。
+- AI 服务：提供真实大模型客服回复、订单上下文问答、知识库文本解析、评价单条分析、店铺评价总体分析和 API Key 管理。
 
 ## 技术栈
 
 - 消费者端：微信小程序原生框架
 - 商家端：Vue 3、TypeScript、Element Plus
 - 管理员端：Vue 3、TypeScript、Element Plus
-- 后端：Java、Spring Boot、MyBatis-Plus、Spring WebSocket、MySQL
+- 后端：Java 17、Spring Boot、MyBatis-Plus、Spring WebSocket、MySQL、Redis
 - AI 服务：Python、FastAPI、OpenAI 兼容接口、DeepSeek 默认配置
 - 部署：Docker、Docker Compose、Nginx
 
@@ -35,11 +33,39 @@ ecommerce-after-sale-system/
 │  ├─ admin-web/               # 管理员端
 │  ├─ consumer-miniapp/        # 消费者微信小程序
 │  └─ merchant-web/            # 商家端
+├─ scripts/                    # 本地启动、检查、停止脚本
 ├─ docker-compose.yml
 └─ README.md
 ```
 
-## 本地启动
+## 推荐本地启动
+
+项目提供本地启动脚本，可同时启动 AI 服务、后端、商家端和管理员端：
+
+```powershell
+cd "D:\Software Engineering Training\ecommerce-after-sale-system"
+.\scripts\dev-start.ps1 -DbPassword "你的 MySQL 密码"
+.\scripts\dev-check.ps1
+```
+
+如需启用微信小程序真实登录和手机号授权，请通过参数或环境变量传入配置：
+
+```powershell
+.\scripts\dev-start.ps1 `
+  -DbPassword "你的 MySQL 密码" `
+  -WechatMiniAppId "你的小程序 AppID" `
+  -WechatMiniAppSecret "你的小程序 AppSecret"
+```
+
+访问地址：
+
+- 后端接口：`http://localhost:8080`
+- AI 服务：`http://localhost:9000`
+- 商家端：`http://localhost:5173`
+- 管理员端：`http://localhost:5175`
+- 消费者端：使用微信开发者工具打开 `frontend/consumer-miniapp`
+
+## 手动启动
 
 后端：
 
@@ -70,39 +96,27 @@ cd "D:\Software Engineering Training\ecommerce-after-sale-system\frontend\admin-
 npm run dev
 ```
 
-访问地址：
-
-- 后端接口：`http://localhost:8080`
-- AI 服务：`http://localhost:9000`
-- 商家端：`http://localhost:5173`
-- 管理员端：`http://localhost:5175`
-
 ## 数据库
 
-数据库使用 MySQL，建议库名为 `ecommerce_after_sale`。完整初始化通常执行：
+数据库使用 MySQL，建议库名为 `ecommerce_after_sale`。首次初始化通常执行：
 
 ```sql
 SOURCE database/init.sql;
 SOURCE database/seed.sql;
 ```
 
-后续增量功能脚本位于 `database/patch_*.sql`，用于补充万象商城账号、订单、售后状态、争议订单、规则配置、知识库、评价等演示数据。
+增量数据脚本位于 `database/patch_*.sql`，用于补充万象商城、悦购集市、多二级账号、商品多订单、售后争议、操作日志、知识库、规则和演示账号数据。
 
-## AI 配置安全
+## 密钥安全
 
-真实 API Key 配置在 `ai-service/.env`，该文件被 `.gitignore` 忽略，不会上传到代码仓库。管理员端的 API Key 编辑功能会直接写入本地 AI 服务配置，用于真实消费者端 AI 回复。
-
-示例：
-
-```env
-MODEL_PROVIDER=deepseek
-DEEPSEEK_API_KEY=你的 API Key
-DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
-DEEPSEEK_MODEL=deepseek-chat
-```
+- AI API Key 存放在 `ai-service/.env`，该文件被 `.gitignore` 忽略。
+- 微信 AppID/AppSecret 建议通过环境变量或 `scripts/dev-start.ps1` 参数传入，不要写入仓库。
+- `.env.example` 只保留变量名示例，不包含真实密钥。
+- `outputs/` 为本地导出目录，已忽略，不上传账号表格等临时文件。
 
 ## 当前边界
 
-- 万象商城为本地数据库模拟平台，不是真实外部开放平台。
-- 抖音、淘宝、拼多多、京东等平台入口目前保留为绑定展示或扩展预留。
-- 当前部署配置面向本地开发和演示；生产环境还需要完善 HTTPS、密钥托管、权限审计、备份恢复、监控告警和公网回调地址。
+- 万象商城、悦购集市均为本地数据库模拟平台，不是真实外部开放平台。
+- 微信登录在本地小程序环境中依赖微信开发者工具、合法 AppID/AppSecret 和微信接口返回。
+- 短信验证码当前为开发演示能力，可在后续接入真实短信服务商。
+- 生产部署还需要补充 HTTPS、正式域名、密钥托管、权限审计、备份恢复、监控告警和公网回调地址。
