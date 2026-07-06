@@ -27,6 +27,11 @@
 - `patch_wanxiang_food_store_orders.sql`：万象商城食品店铺与订单演示数据。
 - `patch_yuegou_market_platform_accounts.sql`：悦购集市平台账号入口与绑定基础数据。
 - `patch_yuegou_market_seed_accounts_products_orders.sql`：悦购集市 50 个消费者账号、10 个商家账号、商品和多订单数据。
+- `patch_bind_yuegou_merchants_to_13338907682.sql`：将悦购集市商家二级账号绑定到指定商家一级账号。
+- `patch_wanxiang_102_picture_orders.sql`：基于 `D:\others\picture 0` 六组商品图片生成万象商城 50 个消费者二级账号、6 个商家二级账号、商品和多订单数据。
+- `patch_wanxiang_102_200_after_sales.sql`：从万象商城 WX102 批次随机挑选 200 个订单生成售后和评价。
+- `patch_cleanup_twenty_mall_review_product_content.sql`：清洗评价内容，避免“产品质量评价”中混入商家服务评价文案。
+- `patch_merchant_staff_secret.sql`：将商家端客服秘钥改为数据库数据。
 - `patch_twenty_mall_multi_account_utf8.sql`：万象商城多二级账号绑定和订单售后评价数据。
 - `patch_twenty_mall_after_sale_status_mix.sql`：万象商城售后状态分布。
 - `patch_return_shipping.sql`：退货快递单号和寄回时间字段。
@@ -57,4 +62,4 @@ SOURCE database/seed.sql;
 - 补丁脚本多数使用条件建表、条件插入或 `ON DUPLICATE KEY UPDATE`，便于重复执行，但执行前仍建议备份数据库。
 - 账号、订单、评价、售后、聊天等运行数据以 MySQL 为准，不再依赖前端本地演示数据。
 - 真实 AI API Key 不存储在 SQL 中，位于本地 `ai-service/.env`。
-- 微信 AppID/AppSecret 不应写入 SQL 或 README，通过环境变量或启动参数传入。
+- 微信 AppID/AppSecret、AI API Key 等敏感信息不应写入 SQL 或 README。

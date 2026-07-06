@@ -4,8 +4,8 @@
 
 ## 当前功能
 
-- 登录：支持手机号验证码登录、微信一键登录和微信手机号授权。
-- 头像资料：微信登录后可选择导入微信头像，也可在个人资料中维护头像和昵称。
+- 登录：支持手机号+密码登录。
+- 头像资料：可在个人资料中维护头像和昵称。
 - 平台绑定：支持绑定/解绑万象商城、悦购集市消费者二级账号，同一个二级账号只能被一个一级账号绑定。
 - 订单查看：按平台、账号、店铺分组展示订单；支持一个商品对应多个订单。
 - 商品详情：展示商品图片、描述、价格、规格和售后政策。
@@ -30,23 +30,6 @@ frontend/consumer-miniapp
 - AI 服务已启动：`http://localhost:9000`
 - MySQL 中已执行 `database/init.sql`、`database/seed.sql` 及需要的补丁脚本
 
-## 微信登录配置
-
-微信真实登录和手机号授权需要后端配置：
-
-```powershell
-$env:WECHAT_MINIAPP_APPID="你的小程序 AppID"
-$env:WECHAT_MINIAPP_SECRET="你的小程序 AppSecret"
-```
-
-推荐通过项目根目录启动脚本传入：
-
-```powershell
-.\scripts\dev-start.ps1 `
-  -WechatMiniAppId "你的小程序 AppID" `
-  -WechatMiniAppSecret "你的小程序 AppSecret"
-```
-
 ## 数据说明
 
 消费者端核心数据均通过后端接口读取和写入 MySQL，包括账号、绑定关系、商品、订单、售后、争议、评价、聊天记录、头像和昵称。
@@ -54,6 +37,5 @@ $env:WECHAT_MINIAPP_SECRET="你的小程序 AppSecret"
 ## 常见问题
 
 - 登录后没有订单：检查一级账号是否绑定了对应平台二级账号。
-- 微信手机号授权失败：检查后端是否配置 `WECHAT_MINIAPP_APPID` 和 `WECHAT_MINIAPP_SECRET`，并确认后端已重启。
 - AI 不回复：检查 `http://localhost:9000/health`、AI API Key 和后端是否能访问 AI 服务。
 - 售后或评价状态不同步：刷新页面，并确认后端服务仍在运行。

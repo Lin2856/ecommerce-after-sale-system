@@ -346,18 +346,29 @@ Page({
           return
         }
         const data = payload.data
+        const afterSaleTypeText = this.afterSaleTypeText(data.afterSaleType)
+        const disputeResult = this.buildDisputeResultText({
+          type: afterSaleTypeText,
+          disputeStatus: data.disputeStatus || "",
+          disputeAdminResult: data.disputeAdminResult || "",
+          disputeAdminNote: data.disputeAdminNote || ""
+        })
         this.setData({
           afterSaleDetail: {
             orderNo: data.orderNo,
             productName: data.productName,
             merchantName: data.shopName,
             status: this.afterSaleStatusText(data.status),
-            type: this.afterSaleTypeText(data.afterSaleType),
+            type: afterSaleTypeText,
             reason: data.description,
             evidenceImages: this.normalizeEvidenceImages(data.evidenceImages || []),
             returnTrackingNo: data.returnTrackingNo || "",
             returnShippedAt: data.returnShippedAt || "",
             disputeStatus: data.disputeStatus || "",
+            disputeAdminResult: data.disputeAdminResult || "",
+            disputeAdminNote: data.disputeAdminNote || "",
+            disputeResultText: disputeResult.text,
+            disputeResultTip: disputeResult.tip,
             appliedAt: data.createdAt
           }
         })
@@ -544,6 +555,39 @@ Page({
       CLOSED: "已关闭"
     }
     return map[value] || value || ""
+  },
+  buildDisputeResultText(detail) {
+    const status = detail.disputeStatus || ""
+    const result = detail.disputeAdminResult || ""
+    const note = detail.disputeAdminNote || ""
+    const type = detail.type || "售后申请"
+    if (!status || status === "待审核") {
+      return { text: "", tip: "" }
+    }
+    if (result === "超时自动退款" || note.includes("超时未处理")) {
+      return {
+        text: "超时未处理，平台自动退款",
+        tip: "平台在规定时效内未收到处理结果，系统已自动退款给消费者。"
+      }
+    }
+    if (result === "支持消费者" || result === "部分退款") {
+      return {
+        text: `平台支持消费者，同意${type}`,
+        tip: result === "部分退款"
+          ? "平台已裁定支持消费者，并按管理员确认的金额完成部分退款。"
+          : `平台已裁定支持消费者，本次${type}处理已完成。`
+      }
+    }
+    if (result === "支持商家") {
+      return {
+        text: `平台支持商家，不同意${type}`,
+        tip: `平台已裁定支持商家，本次${type}申请不再继续退款处理。`
+      }
+    }
+    return {
+      text: note || result || status,
+      tip: note || "平台已完成本次争议订单处理。"
+    }
   },
   formatNow() {
     const date = new Date()

@@ -50,10 +50,62 @@
       </div>
     </el-aside>
     <el-container>
-      <el-main class="main">
+      <el-main v-if="staffReady" class="main">
         <router-view />
       </el-main>
+      <el-main v-else class="main staff-gate-main">
+        <div class="staff-gate-placeholder">
+          <strong>正在确认客服身份</strong>
+          <span>完成身份确认后即可进入商家端工作台</span>
+        </div>
+      </el-main>
     </el-container>
+    <el-dialog
+      v-model="staffDialogVisible"
+      title="确认客服身份"
+      width="560px"
+      class="staff-identity-dialog"
+      :close-on-click-modal="false"
+      :close-on-press-escape="false"
+      :show-close="false"
+      append-to-body
+    >
+      <div class="staff-dialog-head">
+        <el-avatar :size="58" :src="staffAvatar(staffForm.code)" />
+        <div>
+          <strong>请选择当前操作客服</strong>
+          <span>登录一级账号后必须确认客服身份，后续售后处理、评价异议、知识库维护等操作会写入对应客服日志。</span>
+        </div>
+      </div>
+      <div class="staff-option-grid">
+        <button
+          v-for="item in staffOptions"
+          :key="item.code"
+          class="staff-option"
+          :class="{ active: staffForm.code === item.code }"
+          type="button"
+          @click="staffForm.code = item.code"
+        >
+          <el-avatar :size="42" :src="staffAvatar(item.code)" />
+          <span>{{ item.name }}</span>
+        </button>
+      </div>
+      <el-form class="staff-confirm-form" label-position="top">
+        <el-form-item label="客服秘钥">
+          <el-input
+            v-model="staffForm.secret"
+            show-password
+            placeholder="请输入当前客服秘钥"
+            size="large"
+            @keyup.enter="confirmStaff"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="logout">退出登录</el-button>
+        <el-button type="primary" :loading="staffConfirming" @click="confirmStaff">确认并进入商家端</el-button>
+      </template>
+    </el-dialog>
     <el-dialog v-model="profileDialogVisible" title="编辑商家账号信息" width="520px">
       <el-form label-width="84px">
         <el-form-item label="头像">
@@ -85,8 +137,13 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { BarChart3, BookOpen, Bot, ChartNoAxesCombined, ClipboardList, Headphones, RefreshCcw, Store } from 'lucide-vue-next'
 import { clearAuth, getMerchantBindings, getStoredUser, getToken, USER_KEY } from '../utils/auth'
-import { clearStaffIdentity } from '../utils/staffAuth'
+import { clearStaffIdentity, getConfirmedStaff, MERCHANT_STAFFS, saveConfirmedStaff, type MerchantStaffIdentity } from '../utils/staffAuth'
+import { confirmMerchantStaffIdentity } from '../api'
 import sidebarBrandIcon from '../assets/brand/fusion-after-sale-icon.png'
+import staffAAvatar from '../assets/avatars/staff-a.png'
+import staffBAvatar from '../assets/avatars/staff-b.png'
+import staffCAvatar from '../assets/avatars/staff-c.png'
+import staffDAvatar from '../assets/avatars/staff-d.png'
 
 const route = useRoute()
 const router = useRouter()
@@ -97,6 +154,14 @@ const profile = ref({
 })
 const profileDialogVisible = ref(false)
 const profileSaving = ref(false)
+const staffDialogVisible = ref(false)
+const staffConfirming = ref(false)
+const confirmedStaff = ref<MerchantStaffIdentity | null>(getConfirmedStaff())
+const staffOptions = MERCHANT_STAFFS
+const staffForm = ref({
+  code: confirmedStaff.value?.code || 'A',
+  secret: ''
+})
 const avatarInputRef = ref<HTMLInputElement | null>(null)
 const profileForm = ref({
   displayName: '',
@@ -112,6 +177,12 @@ const navItems = [
   { path: '/knowledge', label: '知识库', icon: BookOpen },
   { path: '/operation-logs', label: '操作日志', icon: ClipboardList }
 ]
+const staffAvatars: Record<string, string> = {
+  A: staffAAvatar,
+  B: staffBAvatar,
+  C: staffCAvatar,
+  D: staffDAvatar
+}
 
 const isDemoMode = computed(() => getToken() === 'demo-token')
 const bindingCount = ref(getMerchantBindings().length)
@@ -122,6 +193,7 @@ const userAvatar = computed(() => profile.value.avatar || user.value?.avatar || 
 const avatarText = computed(() => {
   return (displayName.value || accountNo.value || '商').slice(0, 1)
 })
+const staffReady = computed(() => Boolean(confirmedStaff.value))
 
 watch(
   () => route.fullPath,
@@ -135,6 +207,7 @@ watch(
 onMounted(() => {
   loadPrimaryProfile()
   window.addEventListener('merchant-staff-required', openStaffDialog)
+  ensureStaffDialog()
 })
 
 onUnmounted(() => {
@@ -148,8 +221,42 @@ function logout() {
 }
 
 function openStaffDialog() {
-  ElMessage({ type: 'warning', message: '请先在操作日志页面输入客服秘钥确认当前客服' })
-  router.push('/operation-logs')
+  staffDialogVisible.value = true
+}
+
+function ensureStaffDialog() {
+  confirmedStaff.value = getConfirmedStaff()
+  staffDialogVisible.value = !confirmedStaff.value
+}
+
+function staffAvatar(code: string) {
+  return staffAvatars[code] || staffAAvatar
+}
+
+async function confirmStaff() {
+  const secret = staffForm.value.secret.trim()
+  if (!secret) {
+    ElMessage({ type: 'warning', message: '请输入客服秘钥' })
+    return
+  }
+  const currentAccountNo = accountNo.value
+  if (!currentAccountNo || currentAccountNo === '未读取账号') {
+    ElMessage({ type: 'warning', message: '未读取到商家一级账号，请重新登录' })
+    return
+  }
+  staffConfirming.value = true
+  try {
+    const staff = await confirmMerchantStaffIdentity(currentAccountNo, staffForm.value.code, secret) as MerchantStaffIdentity
+    const confirmed = saveConfirmedStaff(staff)
+    confirmedStaff.value = confirmed
+    staffForm.value.secret = ''
+    staffDialogVisible.value = false
+    ElMessage({ type: 'success', message: `已确认为${confirmed.name}` })
+  } catch (error) {
+    ElMessage({ type: 'error', message: error instanceof Error ? error.message : '客服秘钥错误，请重新输入' })
+  } finally {
+    staffConfirming.value = false
+  }
 }
 
 async function loadPrimaryProfile() {
@@ -254,3 +361,90 @@ function goNav(path: string) {
   router.push(path)
 }
 </script>
+
+<style scoped>
+.staff-gate-main {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  background: #f6f8fb;
+}
+
+.staff-gate-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.staff-gate-placeholder strong {
+  color: #0f172a;
+  font-size: 18px;
+}
+
+:global(.staff-identity-dialog .el-dialog) {
+  border-radius: 8px;
+}
+
+.staff-dialog-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 4px 2px 18px;
+  border-bottom: 1px solid #edf2f7;
+}
+
+.staff-dialog-head strong,
+.staff-dialog-head span {
+  display: block;
+}
+
+.staff-dialog-head strong {
+  color: #0f172a;
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.staff-dialog-head span {
+  margin-top: 6px;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.staff-option-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 18px 0;
+}
+
+.staff-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 10px;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.staff-option.active {
+  border-color: #2563eb;
+  background: #eff6ff;
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.12);
+  color: #1d4ed8;
+}
+
+.staff-confirm-form {
+  margin-top: 2px;
+}
+</style>

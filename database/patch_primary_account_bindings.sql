@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS primary_account (
   account_no VARCHAR(64) NOT NULL,
   account_type VARCHAR(32) NOT NULL,
   display_name VARCHAR(128) NOT NULL,
+  password_plain VARCHAR(128) NULL,
   login_mode VARCHAR(32) NOT NULL DEFAULT 'DEMO',
   status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -31,6 +32,22 @@ SET @add_primary_phone_sql := IF(
 PREPARE add_primary_phone_stmt FROM @add_primary_phone_sql;
 EXECUTE add_primary_phone_stmt;
 DEALLOCATE PREPARE add_primary_phone_stmt;
+
+SET @has_primary_password := (
+  SELECT COUNT(*)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'primary_account'
+    AND COLUMN_NAME = 'password_plain'
+);
+SET @add_primary_password_sql := IF(
+  @has_primary_password = 0,
+  'ALTER TABLE primary_account ADD COLUMN password_plain VARCHAR(128) NULL AFTER phone',
+  'SELECT 1'
+);
+PREPARE add_primary_password_stmt FROM @add_primary_password_sql;
+EXECUTE add_primary_password_stmt;
+DEALLOCATE PREPARE add_primary_password_stmt;
 
 SET @has_primary_avatar := (
   SELECT COUNT(*)
@@ -71,14 +88,15 @@ CREATE TABLE IF NOT EXISTS platform_account_binding (
     FOREIGN KEY (primary_account_id) REFERENCES primary_account(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT INTO primary_account (account_no, account_type, display_name, login_mode, status)
+INSERT INTO primary_account (account_no, account_type, display_name, password_plain, login_mode, status)
 VALUES
-  ('13338907583', 'CONSUMER', '愤怒的耄耋', 'PHONE_CODE', 'ACTIVE'),
-  ('13338907582', 'CONSUMER', '消费者空白一级账号', 'PHONE_CODE', 'ACTIVE'),
-  ('13338907681', 'MERCHANT', '商家演示一级账号', 'DEMO_CODE', 'ACTIVE'),
-  ('13338907682', 'MERCHANT', '商家空白一级账号', 'DEMO_CODE', 'ACTIVE')
+  ('13338907583', 'CONSUMER', '愤怒的耄耋', 'n4Tg8Pq2', 'PASSWORD', 'ACTIVE'),
+  ('13338907582', 'CONSUMER', '消费者空白一级账号', 'Q7mZ2aK9', 'PASSWORD', 'ACTIVE'),
+  ('13338907681', 'MERCHANT', '商家演示一级账号', 'R6xB9vL3', 'PASSWORD', 'ACTIVE'),
+  ('13338907682', 'MERCHANT', '商家空白一级账号', 'h8Kp5Yw1', 'PASSWORD', 'ACTIVE')
 ON DUPLICATE KEY UPDATE
   display_name = VALUES(display_name),
+  password_plain = VALUES(password_plain),
   login_mode = VALUES(login_mode),
   status = VALUES(status),
   deleted = 0,
@@ -87,6 +105,18 @@ ON DUPLICATE KEY UPDATE
 UPDATE primary_account
 SET phone = account_no
 WHERE phone IS NULL OR phone = '';
+
+UPDATE primary_account
+SET password_plain = '123456'
+WHERE deleted = 0
+  AND (password_plain IS NULL OR password_plain = '');
+
+UPDATE primary_account
+SET deleted = 1,
+    status = 'DELETED',
+    updated_at = NOW()
+WHERE (account_no = '13338907581' AND account_type = 'CONSUMER')
+   OR (account_no = '13338907582' AND account_type = 'MERCHANT');
 
 INSERT INTO platform_account_binding (
   primary_account_id, platform_code, platform_name, secondary_account_no, secondary_account_role, bind_status, bound_at, deleted

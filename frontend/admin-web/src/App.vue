@@ -522,6 +522,7 @@
                     <strong>{{ binding.boundAt || '暂无时间' }}</strong>
                   </div>
                 </div>
+                <div v-if="group.bindings.length === 0" class="binding-empty-row">暂无绑定店铺</div>
               </div>
             </div>
             <el-empty v-if="filteredMerchantBindingGroups.length === 0" description="暂无符合条件的商家绑定数据" />
@@ -546,7 +547,7 @@
                   </el-button>
                 </div>
               </div>
-              <el-table :data="selectedMerchantBindingGroup.bindings" border>
+              <el-table v-if="selectedMerchantBindingGroup.bindings.length" :data="selectedMerchantBindingGroup.bindings" border>
                 <el-table-column label="绑定平台" width="140">
                   <template #default="{ row }">
                     <div class="platform-cell">
@@ -559,6 +560,7 @@
                 <el-table-column prop="secondaryDisplayName" label="店铺名称" min-width="200" />
                 <el-table-column prop="boundAt" label="绑定时间" min-width="170" />
               </el-table>
+              <el-empty v-else description="该一级商家账号暂无绑定店铺" />
             </template>
           </el-dialog>
         </section>
@@ -713,11 +715,22 @@
             <div>
               <span class="section-eyebrow">评价风控中心</span>
               <h2>评价分析</h2>
-              <p>集中查看消费者评价、AI 分析结果与商家异议状态，优先处理高风险和待审核内容。</p>
+              <p>按商家一级账号汇总其名下全部未删除评价，集中查看情感趋势、风险等级和异议状态。</p>
+              <div class="admin-review-merchant-switch">
+                <span>分析商家</span>
+                <el-select v-model="selectedReviewMerchantKey" placeholder="选择商家一级账号" style="width: 260px">
+                  <el-option
+                    v-for="item in reviewMerchantOptions"
+                    :key="item.value"
+                    :label="item.label"
+                    :value="item.value"
+                  />
+                </el-select>
+              </div>
             </div>
             <div class="admin-review-hero-side">
               <strong>{{ reviewHeroRiskText }}</strong>
-              <span>当前待关注评价</span>
+              <span>{{ selectedReviewMerchantLabel }}</span>
             </div>
           </div>
           <div class="review-stats admin-review-stats">
@@ -762,10 +775,10 @@
           <div class="card admin-review-list">
             <div class="panel-title admin-review-list-head">
               <div>
-                <h2>评价明细</h2>
-                <p>保留关键字段，详细分析与处置操作进入详情页完成。</p>
+                <h2>评价异议处理</h2>
+                <p>仅展示商家已提出异议的评价，审核与处置操作进入详情页完成。</p>
               </div>
-              <el-button :loading="loadingAdminReviews" @click="loadAdminReviews">刷新数据</el-button>
+              <el-button :loading="loadingAdminReviews" @click="refreshReviewData">刷新数据</el-button>
             </div>
             <div class="admin-review-cards">
               <div v-for="row in adminReviews" :key="row.id" class="admin-review-card">
@@ -775,7 +788,7 @@
                     <div class="admin-review-tags">
                       <el-tag :type="sentimentTagType(row.sentiment)" effect="light">{{ row.sentiment }}</el-tag>
                       <el-tag :type="riskTagType(row.riskLevel)" effect="light">{{ row.riskLevel }}</el-tag>
-                      <el-tag :type="disputeTagType(row.disputeStatus)" effect="plain">{{ row.disputeStatus || '未提出异议' }}</el-tag>
+                      <el-tag :type="disputeTagType(row.disputeStatus)" effect="plain">{{ row.disputeStatus }}</el-tag>
                     </div>
                   </div>
                   <p class="admin-review-content">{{ row.content }}</p>
@@ -791,7 +804,7 @@
                   <el-button type="primary" plain @click="selectedReview = row">查看详情</el-button>
                 </div>
               </div>
-              <el-empty v-if="adminReviews.length === 0" description="暂无评价数据" />
+              <el-empty v-if="adminReviews.length === 0" description="暂无评价异议" />
             </div>
           </div>
         </section>
@@ -844,6 +857,12 @@
                   <div>
                     <span>申请时间</span>
                     <strong>{{ row.createdAt }}</strong>
+                  </div>
+                  <div>
+                    <span>剩余处理时间</span>
+                    <strong :class="{ 'danger-text': disputeRemainingTime(row).expired }">
+                      {{ disputeRemainingTime(row).text }}
+                    </strong>
                   </div>
                 </div>
                 <div class="dispute-reason-grid">
@@ -1013,7 +1032,7 @@
         <el-button type="danger" :loading="banSubmitting" @click="submitPrimaryBan">确认封禁</el-button>
       </template>
     </el-dialog>
-        <el-dialog v-model="reviewDetailVisible" title="评价分析详细" width="720px">
+        <el-dialog v-model="reviewDetailVisible" title="评价异议详情" width="720px">
       <el-descriptions v-if="selectedReview" border :column="2">
         <el-descriptions-item label="平台">{{ selectedReview.platform }}</el-descriptions-item>
         <el-descriptions-item label="订单号">{{ selectedReview.orderNo }}</el-descriptions-item>
@@ -1097,8 +1116,34 @@
           </div>
           <el-tag :type="afterSaleDisputeTagType(selectedAfterSaleDispute.status)">{{ selectedAfterSaleDispute.status }}</el-tag>
         </div>
+        <div class="dispute-account-grid">
+          <div class="dispute-account-card">
+            <el-avatar v-if="selectedAfterSaleDispute.consumerPrimaryAvatar" :size="48" :src="selectedAfterSaleDispute.consumerPrimaryAvatar" />
+            <el-avatar v-else :size="48">{{ avatarText(selectedAfterSaleDispute.consumerPrimaryDisplayName, selectedAfterSaleDispute.consumerPrimaryAccountNo) }}</el-avatar>
+            <div>
+              <span>消费者一级账号</span>
+              <strong>{{ selectedAfterSaleDispute.consumerPrimaryDisplayName || '未绑定一级账号' }}</strong>
+              <em>{{ selectedAfterSaleDispute.consumerPrimaryAccountNo || '暂无账号信息' }}</em>
+            </div>
+          </div>
+          <div class="dispute-account-card">
+            <el-avatar v-if="selectedAfterSaleDispute.merchantPrimaryAvatar" :size="48" :src="selectedAfterSaleDispute.merchantPrimaryAvatar" />
+            <el-avatar v-else :size="48">{{ avatarText(selectedAfterSaleDispute.merchantPrimaryDisplayName, selectedAfterSaleDispute.merchantPrimaryAccountNo) }}</el-avatar>
+            <div>
+              <span>商家一级账号</span>
+              <strong>{{ selectedAfterSaleDispute.merchantPrimaryDisplayName || '未绑定一级账号' }}</strong>
+              <em>{{ selectedAfterSaleDispute.merchantPrimaryAccountNo || '暂无账号信息' }}</em>
+            </div>
+          </div>
+        </div>
         <div class="dispute-detail-grid">
           <div><span>申请时间</span><strong>{{ selectedAfterSaleDispute.createdAt }}</strong></div>
+          <div>
+            <span>剩余处理时间</span>
+            <strong :class="{ 'danger-text': disputeRemainingTime(selectedAfterSaleDispute).expired }">
+              {{ disputeRemainingTime(selectedAfterSaleDispute).text }}
+            </strong>
+          </div>
           <div class="dispute-product-cell">
             <span>商品</span>
             <strong>{{ selectedAfterSaleDispute.productName }}</strong>
@@ -1544,6 +1589,9 @@ type ReviewRow = {
   platform: string
   orderNo: string
   merchantName: string
+  merchantAccountNo?: string
+  merchantPrimaryAccountNo?: string
+  merchantPrimaryDisplayName?: string
   productName: string
   productScore: number
   serviceScore: number
@@ -1571,6 +1619,12 @@ type AfterSaleDisputeRow = {
   productName: string
   platformName: string
   shopName: string
+  consumerPrimaryAccountNo?: string
+  consumerPrimaryDisplayName?: string
+  consumerPrimaryAvatar?: string
+  merchantPrimaryAccountNo?: string
+  merchantPrimaryDisplayName?: string
+  merchantPrimaryAvatar?: string
   consumerReason: string
   consumerEvidenceImages: string[]
   merchantEvidenceText: string
@@ -1651,6 +1705,8 @@ const selectedPlatform = ref<PlatformRow | null>(null)
 const syncLogs = ref<SyncLogRow[]>([])
 const selectedSyncLog = ref<SyncLogRow | null>(null)
 const adminReviews = ref<ReviewRow[]>([])
+const adminReviewAnalysisRows = ref<ReviewRow[]>([])
+const selectedReviewMerchantKey = ref('')
 const afterSaleDisputes = ref<AfterSaleDisputeRow[]>([])
 const afterSaleDisputeKeyword = ref('')
 const afterSaleDisputeStatusFilter = ref('ALL')
@@ -1841,17 +1897,20 @@ const syncMetrics = computed(() => {
 const bindingSummary = computed(() => [
   { label: '消费者一级账号', value: formatNumber(countUniquePrimary(consumerBindings.value)) },
   { label: '商家一级账号', value: formatNumber(countUniquePrimary(merchantBindings.value)) },
-  { label: '绑定消费者账号', value: formatNumber(consumerBindings.value.length) },
-  { label: '绑定商家店铺', value: formatNumber(merchantBindings.value.length) }
+  { label: '绑定消费者账号', value: formatNumber(countBoundSecondary(consumerBindings.value)) },
+  { label: '绑定商家店铺', value: formatNumber(countBoundSecondary(merchantBindings.value)) }
 ])
 const consumerBindingGroups = computed(() => groupBindingsByPrimary(consumerBindings.value))
 const filteredConsumerBindingGroups = computed(() => {
   const keyword = consumerBindingKeyword.value.trim().toLowerCase()
   const platform = consumerBindingPlatformFilter.value
   return consumerBindingGroups.value
-    .map((group) => ({
-      ...group,
-      bindings: group.bindings.filter((item) => {
+    .map((group) => {
+      const groupText = [group.primaryAccountNo, group.primaryDisplayName].join(' ').toLowerCase()
+      const matchedByPrimary = Boolean(keyword && groupText.includes(keyword))
+      return {
+        ...group,
+        bindings: group.bindings.filter((item) => {
         const matchesPlatform = platform === 'ALL' || item.platformName === platform
         const haystack = [
           item.primaryAccountNo,
@@ -1861,14 +1920,16 @@ const filteredConsumerBindingGroups = computed(() => {
           item.secondaryDisplayName
         ].join(' ').toLowerCase()
         return matchesPlatform && (!keyword || haystack.includes(keyword))
-      })
-    }))
-    .filter((group) => group.bindings.length > 0)
+        }),
+        matchedByPrimary
+      }
+    })
+    .filter((group) => group.bindings.length > 0 || (platform === 'ALL' && (group.matchedByPrimary || !keyword)))
 })
 const consumerBindingPlatformOptions = computed(() => Array.from(new Set(consumerBindings.value.map((item) => item.platformName).filter(Boolean))))
 const consumerBindingMetrics = computed(() => {
   const primaryTotal = consumerBindingGroups.value.length
-  const secondaryTotal = consumerBindings.value.length
+  const secondaryTotal = countBoundSecondary(consumerBindings.value)
   const platformTotal = consumerBindingPlatformOptions.value.length
   const multiBindTotal = consumerBindingGroups.value.filter((item) => item.bindings.length > 1).length
   return [
@@ -1883,9 +1944,12 @@ const filteredMerchantBindingGroups = computed(() => {
   const keyword = merchantBindingKeyword.value.trim().toLowerCase()
   const platform = merchantBindingPlatformFilter.value
   return merchantBindingGroups.value
-    .map((group) => ({
-      ...group,
-      bindings: group.bindings.filter((item) => {
+    .map((group) => {
+      const groupText = [group.primaryAccountNo, group.primaryDisplayName].join(' ').toLowerCase()
+      const matchedByPrimary = Boolean(keyword && groupText.includes(keyword))
+      return {
+        ...group,
+        bindings: group.bindings.filter((item) => {
         const matchesPlatform = platform === 'ALL' || item.platformName === platform
         const haystack = [
           item.primaryAccountNo,
@@ -1895,14 +1959,16 @@ const filteredMerchantBindingGroups = computed(() => {
           item.secondaryDisplayName
         ].join(' ').toLowerCase()
         return matchesPlatform && (!keyword || haystack.includes(keyword))
-      })
-    }))
-    .filter((group) => group.bindings.length > 0)
+        }),
+        matchedByPrimary
+      }
+    })
+    .filter((group) => group.bindings.length > 0 || (platform === 'ALL' && (group.matchedByPrimary || !keyword)))
 })
 const merchantBindingPlatformOptions = computed(() => Array.from(new Set(merchantBindings.value.map((item) => item.platformName).filter(Boolean))))
 const merchantBindingMetrics = computed(() => {
   const primaryTotal = merchantBindingGroups.value.length
-  const shopTotal = merchantBindings.value.length
+  const shopTotal = countBoundSecondary(merchantBindings.value)
   const platformTotal = merchantBindingPlatformOptions.value.length
   const multiShopTotal = merchantBindingGroups.value.filter((item) => item.bindings.length > 1).length
   return [
@@ -1938,23 +2004,51 @@ const recentActivities = computed(() => {
     { id: 1, module: '系统', title: '暂无最新业务动态', content: '当前数据库中暂未读取到近期评价、规则或知识库更新记录。', time: '', type: 'info' }
   ]
 })
+const reviewMerchantOptions = computed(() => {
+  const map = new Map<string, { value: string; label: string; count: number }>()
+  adminReviewAnalysisRows.value.forEach((item) => {
+    const value = item.merchantPrimaryAccountNo || ''
+    if (!value || value === item.merchantAccountNo) {
+      return
+    }
+    const label = `${item.merchantPrimaryDisplayName || '未命名商家'}（${value}）`
+    const current = map.get(value) || { value, label, count: 0 }
+    current.count += 1
+    map.set(value, current)
+  })
+  return Array.from(map.values()).map((item) => ({
+    ...item,
+    label: `${item.label} · ${item.count} 条评价`
+  }))
+})
+const selectedReviewAnalysisRows = computed(() => {
+  if (!selectedReviewMerchantKey.value) {
+    return []
+  }
+  return adminReviewAnalysisRows.value.filter((item) => item.merchantPrimaryAccountNo === selectedReviewMerchantKey.value)
+})
+const selectedReviewMerchantLabel = computed(() => {
+  return reviewMerchantOptions.value.find((item) => item.value === selectedReviewMerchantKey.value)?.label || '暂无可分析商家'
+})
 const reviewMetrics = computed(() => {
-  const total = adminReviews.value.length
-  const highRisk = adminReviews.value.filter((item) => item.riskLevel === '高风险').length
-  const negative = adminReviews.value.filter((item) => item.sentiment === '负向').length
+  const rows = selectedReviewAnalysisRows.value
+  const total = rows.length
+  const highRisk = rows.filter((item) => item.riskLevel === '高风险').length
+  const negative = rows.filter((item) => item.sentiment === '负向').length
   const averageScore = total === 0
     ? '0.0'
-    : (adminReviews.value.reduce((sum, item) => sum + item.score, 0) / total).toFixed(1)
+    : (rows.reduce((sum, item) => sum + item.score, 0) / total).toFixed(1)
   return [
-    { label: '评价总数', value: formatNumber(total), description: '当前可见评价记录' },
-    { label: '平均星级', value: averageScore, description: '综合商品与服务评分' },
+    { label: '评价总数', value: formatNumber(total), description: '该一级商家全部未删除评价' },
+    { label: '平均星级', value: averageScore, description: '该商家的商品与服务综合评分' },
     { label: '负向评价', value: formatNumber(negative), description: '需要重点跟进的反馈' },
     { label: '高风险评价', value: formatNumber(highRisk), description: '可能影响商家信誉' }
   ]
 })
 const reviewHeroRiskText = computed(() => {
-  const pendingDisputes = adminReviews.value.filter((item) => item.disputeStatus === '待审核').length
-  const highRisk = adminReviews.value.filter((item) => item.riskLevel === '高风险').length
+  const rows = selectedReviewAnalysisRows.value
+  const pendingDisputes = rows.filter((item) => item.disputeStatus === '待审核').length
+  const highRisk = rows.filter((item) => item.riskLevel === '高风险').length
   if (pendingDisputes > 0) {
     return `${pendingDisputes} 条异议待审`
   }
@@ -1965,9 +2059,10 @@ const reviewHeroRiskText = computed(() => {
 })
 const reviewSentimentSummary = computed(() => {
   const labels = ['正向', '中性', '负向']
-  const total = Math.max(1, adminReviews.value.length)
+  const rows = selectedReviewAnalysisRows.value
+  const total = Math.max(1, rows.length)
   return labels.map((label) => {
-    const count = adminReviews.value.filter((item) => item.sentiment === label).length
+    const count = rows.filter((item) => item.sentiment === label).length
     return {
       label,
       count: formatNumber(count),
@@ -1977,9 +2072,10 @@ const reviewSentimentSummary = computed(() => {
 })
 const reviewRiskSummary = computed(() => {
   const labels = ['低风险', '中风险', '高风险', '已删除']
-  const total = Math.max(1, adminReviews.value.length)
+  const rows = selectedReviewAnalysisRows.value
+  const total = Math.max(1, rows.length)
   return labels.map((label) => {
-    const count = adminReviews.value.filter((item) => item.riskLevel === label).length
+    const count = rows.filter((item) => item.riskLevel === label).length
     return {
       label,
       count: formatNumber(count),
@@ -2186,6 +2282,7 @@ function loadAdminData() {
   loadOverview()
   loadAccountBindings()
   loadSyncLogs()
+  loadAdminReviewAnalysis()
   loadAdminReviews()
   loadAfterSaleDisputes()
   loadAdminRules()
@@ -2540,28 +2637,7 @@ async function loadAdminReviews() {
     const response = await fetch('http://localhost:8080/api/twenty-mall/admin/reviews')
     const payload = await response.json()
     if (payload.code === '200' && Array.isArray(payload.data)) {
-      adminReviews.value = payload.data.map((item: ReviewRow) => ({
-        id: Number(item.id),
-        platform: item.platform,
-        orderNo: item.orderNo,
-        merchantName: item.merchantName,
-        productName: item.productName,
-        productScore: Number(item.productScore || 0),
-        serviceScore: Number(item.serviceScore || 0),
-        score: Number(item.score || 0),
-        content: item.content || '',
-        sentiment: item.sentiment || '中性',
-        riskLevel: item.riskLevel || '低风险',
-        keywords: item.keywords || '',
-        analysisSummary: item.analysisSummary || '',
-        suggestion: item.suggestion || '',
-        reviewedAt: item.reviewedAt || '',
-        disputeId: item.disputeId ? Number(item.disputeId) : null,
-        disputeStatus: item.disputeStatus || '',
-        disputeReason: item.disputeReason || '',
-        disputeAdminNote: item.disputeAdminNote || '',
-        disputeCreatedAt: item.disputeCreatedAt || ''
-      }))
+      adminReviews.value = payload.data.map(mapReviewRow)
       return
     }
   } catch {
@@ -2570,6 +2646,70 @@ async function loadAdminReviews() {
     loadingAdminReviews.value = false
   }
   adminReviews.value = []
+}
+
+async function loadAdminReviewAnalysis() {
+  try {
+    const response = await fetch('http://localhost:8080/api/twenty-mall/admin/reviews/analysis')
+    const payload = await response.json()
+    if (payload.code === '200' && Array.isArray(payload.data)) {
+      adminReviewAnalysisRows.value = payload.data.map(mapReviewRow)
+      ensureSelectedReviewMerchant()
+      return
+    }
+  } catch {
+    // 页面保持空状态，避免展示不真实的模拟数据。
+  }
+  adminReviewAnalysisRows.value = []
+  selectedReviewMerchantKey.value = ''
+}
+
+async function refreshReviewData() {
+  loadingAdminReviews.value = true
+  try {
+    await Promise.all([loadAdminReviewAnalysis(), loadAdminReviews()])
+  } finally {
+    loadingAdminReviews.value = false
+  }
+}
+
+function mapReviewRow(item: ReviewRow): ReviewRow {
+  return {
+    id: Number(item.id),
+    platform: item.platform,
+    orderNo: item.orderNo,
+    merchantName: item.merchantName,
+    merchantAccountNo: item.merchantAccountNo || '',
+    merchantPrimaryAccountNo: item.merchantPrimaryAccountNo || '',
+    merchantPrimaryDisplayName: item.merchantPrimaryDisplayName || '',
+    productName: item.productName,
+    productScore: Number(item.productScore || 0),
+    serviceScore: Number(item.serviceScore || 0),
+    score: Number(item.score || 0),
+    content: item.content || '',
+    sentiment: item.sentiment || '中性',
+    riskLevel: item.riskLevel || '低风险',
+    keywords: item.keywords || '',
+    analysisSummary: item.analysisSummary || '',
+    suggestion: item.suggestion || '',
+    reviewedAt: item.reviewedAt || '',
+    disputeId: item.disputeId ? Number(item.disputeId) : null,
+    disputeStatus: item.disputeStatus || '',
+    disputeReason: item.disputeReason || '',
+    disputeAdminNote: item.disputeAdminNote || '',
+    disputeCreatedAt: item.disputeCreatedAt || ''
+  }
+}
+
+function ensureSelectedReviewMerchant() {
+  const options = reviewMerchantOptions.value
+  if (!options.length) {
+    selectedReviewMerchantKey.value = ''
+    return
+  }
+  if (!options.some((item) => item.value === selectedReviewMerchantKey.value)) {
+    selectedReviewMerchantKey.value = options[0].value
+  }
 }
 
 async function loadAfterSaleDisputes() {
@@ -2588,6 +2728,12 @@ async function loadAfterSaleDisputes() {
         productName: item.productName || '',
         platformName: item.platformName || '',
         shopName: item.shopName || '',
+        consumerPrimaryAccountNo: item.consumerPrimaryAccountNo || '',
+        consumerPrimaryDisplayName: item.consumerPrimaryDisplayName || '',
+        consumerPrimaryAvatar: item.consumerPrimaryAvatar || '',
+        merchantPrimaryAccountNo: item.merchantPrimaryAccountNo || '',
+        merchantPrimaryDisplayName: item.merchantPrimaryDisplayName || '',
+        merchantPrimaryAvatar: item.merchantPrimaryAvatar || '',
         consumerReason: item.consumerReason || '',
         consumerEvidenceImages: Array.isArray(item.consumerEvidenceImages) ? item.consumerEvidenceImages : [],
         merchantEvidenceText: item.merchantEvidenceText || '',
@@ -3186,7 +3332,7 @@ async function deleteSelectedReview() {
     )
     ElMessage.success('评价已删除')
     selectedReview.value = null
-    await loadAdminReviews()
+    await refreshReviewData()
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '删除评价失败')
   } finally {
@@ -3238,7 +3384,7 @@ async function reviewSelectedDispute(result: 'APPROVE' | 'REJECT') {
     )
     ElMessage.success(isApprove ? '异议已通过，评价已删除' : '异议已拒绝，评价保留')
     selectedReview.value = null
-    await loadAdminReviews()
+    await refreshReviewData()
     await loadOverview()
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '评价异议审核失败')
@@ -3300,6 +3446,42 @@ function disputeRefundAmountText(dispute: AfterSaleDisputeRow | null) {
   }
   const matched = dispute.adminNote?.match(/￥\s*(\d+(?:\.\d{1,2})?)/)
   return matched ? `￥${Number(matched[1]).toFixed(2)}` : ''
+}
+
+function disputeRemainingTime(dispute: AfterSaleDisputeRow | null) {
+  if (!dispute) {
+    return { text: '-', expired: false }
+  }
+  if (dispute.status !== '待审核') {
+    return {
+      text: dispute.adminNote?.includes('超时未处理') ? '已超时自动退款' : '已处理',
+      expired: dispute.adminNote?.includes('超时未处理') || dispute.adminResult === '支持消费者'
+    }
+  }
+  const createdTime = parseLocalTime(dispute.createdAt)
+  if (!createdTime) {
+    return { text: '24小时内处理', expired: false }
+  }
+  const deadline = createdTime.getTime() + 24 * 60 * 60 * 1000
+  const remaining = deadline - Date.now()
+  if (remaining <= 0) {
+    return { text: '已超时，系统将自动退款', expired: true }
+  }
+  const hours = Math.floor(remaining / (60 * 60 * 1000))
+  const minutes = Math.ceil((remaining % (60 * 60 * 1000)) / (60 * 1000))
+  if (hours <= 0) {
+    return { text: `剩余 ${minutes} 分钟`, expired: false }
+  }
+  return { text: `剩余 ${hours} 小时 ${minutes} 分钟`, expired: false }
+}
+
+function parseLocalTime(value: string) {
+  if (!value) {
+    return null
+  }
+  const normalized = value.replace(/\./g, '-').replace(/\//g, '-')
+  const date = new Date(normalized)
+  return Number.isNaN(date.getTime()) ? null : date
 }
 
 async function promptDisputeRefundAmount(dispute: AfterSaleDisputeRow) {
@@ -3462,6 +3644,10 @@ function countUniquePrimary(rows: BindingRow[]) {
   return new Set(rows.map((item) => item.primaryAccountNo).filter(Boolean)).size
 }
 
+function countBoundSecondary(rows: BindingRow[]) {
+  return rows.filter((item) => Boolean(item.secondaryAccountNo)).length
+}
+
 function groupBindingsByPrimary(rows: BindingRow[]) {
   const map = new Map<string, BindingGroup>()
   rows.forEach((item) => {
@@ -3490,7 +3676,9 @@ function groupBindingsByPrimary(rows: BindingRow[]) {
         group.primaryBanDuration = item.primaryBanDuration || ''
         group.primaryBanUntil = item.primaryBanUntil || ''
       }
-      group.bindings.push(item)
+      if (item.secondaryAccountNo) {
+        group.bindings.push(item)
+      }
     }
   })
   return Array.from(map.values())
@@ -5099,7 +5287,7 @@ function shouldShowPrimaryCell(rows: BindingRow[], row: BindingRow, index: numbe
 
 .dispute-product-line {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) 120px 150px 160px;
+  grid-template-columns: minmax(180px, 1fr) 120px 150px 160px 160px;
   gap: 12px;
   margin: 14px 0;
 }
@@ -5135,6 +5323,10 @@ function shouldShowPrimaryCell(rows: BindingRow[], row: BindingRow, index: numbe
   margin-top: 6px;
   color: #0f172a;
   font-size: 14px;
+}
+
+.danger-text {
+  color: #dc2626 !important;
 }
 
 .dispute-reason-grid,
@@ -5205,6 +5397,49 @@ function shouldShowPrimaryCell(rows: BindingRow[], row: BindingRow, index: numbe
   margin-top: 5px;
   color: #64748b;
   font-size: 13px;
+}
+
+.dispute-account-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.dispute-account-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.dispute-account-card span,
+.dispute-account-card strong,
+.dispute-account-card em {
+  display: block;
+}
+
+.dispute-account-card span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.dispute-account-card strong {
+  margin-top: 4px;
+  color: #0f172a;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.dispute-account-card em {
+  margin-top: 3px;
+  color: #64748b;
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 700;
 }
 
 .dispute-detail-grid {
@@ -5441,6 +5676,15 @@ function shouldShowPrimaryCell(rows: BindingRow[], row: BindingRow, index: numbe
 
 .binding-row-card:last-child {
   border-bottom: 0;
+}
+
+.binding-empty-row {
+  padding: 18px;
+  border-top: 1px solid #eef2f7;
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
 }
 
 .merchant-binding-card {
@@ -5773,8 +6017,27 @@ function shouldShowPrimaryCell(rows: BindingRow[], row: BindingRow, index: numbe
   line-height: 1.7;
 }
 
+.admin-review-merchant-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 8px 10px 8px 14px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.admin-review-merchant-switch span {
+  color: #475569;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
 .admin-review-hero-side {
   min-width: 180px;
+  max-width: 320px;
   padding: 18px 20px;
   border: 1px solid #bfdbfe;
   border-radius: 8px;
@@ -5797,6 +6060,7 @@ function shouldShowPrimaryCell(rows: BindingRow[], row: BindingRow, index: numbe
   margin-top: 6px;
   color: #64748b;
   font-size: 13px;
+  line-height: 1.5;
 }
 
 .admin-review-stat {

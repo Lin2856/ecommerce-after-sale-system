@@ -32,6 +32,10 @@ function selfBuiltApiPrefix(platformCode = 'TWENTY_MALL') {
   return platformCode === 'YUEGOU_MARKET' ? '/yuegou-market' : '/twenty-mall'
 }
 
+export async function loadSelfBuiltMerchantOrders(accountNo: string, platformCode = 'TWENTY_MALL') {
+  return unwrap(await api.get(`${selfBuiltApiPrefix(platformCode)}/merchant/orders`, { params: { accountNo } }))
+}
+
 export async function loadSelfBuiltMerchantAfterSales(accountNo: string, platformCode = 'TWENTY_MALL') {
   return unwrap(await api.get(`${selfBuiltApiPrefix(platformCode)}/merchant/after-sales`, { params: { accountNo } }))
 }
@@ -144,34 +148,22 @@ export async function createOperationLog(payload: Record<string, unknown>) {
   return unwrap(await api.post('/merchant/operation-logs', payload))
 }
 
-export async function merchantWechatLogin(accountNo: string) {
-  return unwrap(await api.post('/twenty-mall/merchant/wechat-login', { accountNo }))
+export async function confirmMerchantStaffIdentity(primaryAccount: string, staffCode: string, secret: string) {
+  const response = await api.post('/twenty-mall/merchant/staff-identities/confirm', {
+    primaryAccount,
+    staffCode,
+    secret
+  })
+  if (response.data?.code !== '200' || !response.data?.data) {
+    throw new Error(response.data?.message || '客服秘钥错误，请重新输入')
+  }
+  return response.data.data
 }
 
-export async function sendMerchantVerificationCode(phone: string) {
-  return unwrap(await api.post('/twenty-mall/merchant/verification-code/send', { phone }))
-}
-
-export async function merchantPhoneCodeLogin(phone: string, code: string) {
-  return unwrap(await api.post('/twenty-mall/merchant/phone-login', { phone, code }))
+export async function merchantPasswordLogin(phone: string, password: string) {
+  return unwrap(await api.post('/twenty-mall/merchant/password-login', { phone, password }))
 }
 
 export async function loadPrimaryBanStatus(accountNo: string, accountType: 'CONSUMER' | 'MERCHANT') {
   return unwrap(await api.get('/twenty-mall/primary/ban-status', { params: { accountNo, accountType } }))
-}
-
-export async function loadMerchantWechatQrUrl(redirectUri: string) {
-  const response = await api.get('/twenty-mall/merchant/wechat/qr-url', { params: { redirectUri } })
-  if (response.data?.code !== '200' || !response.data?.data) {
-    throw new Error(response.data?.message || '微信扫码登录暂不可用')
-  }
-  return response.data.data
-}
-
-export async function merchantWechatCallbackLogin(code: string, state: string) {
-  const response = await api.post('/twenty-mall/merchant/wechat-login', { code, state })
-  if (response.data?.code !== '200' || !response.data?.data) {
-    throw new Error(response.data?.message || '微信扫码登录失败')
-  }
-  return response.data.data
 }

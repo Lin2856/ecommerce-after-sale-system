@@ -11,7 +11,7 @@
     <view class="card-head">
       <view>
         <view class="title">手机号登录</view>
-        <view class="muted">输入手机号和验证码进入系统</view>
+        <view class="muted">输入手机号和密码进入系统</view>
       </view>
       <view class="secure-badge">安全登录</view>
     </view>
@@ -31,52 +31,12 @@
         <text class="input-label">手机号</text>
         <input class="input" placeholder="请输入手机号" type="number" bindinput="onPhoneInput" />
       </view>
-      <view class="input-wrap code-wrap">
-        <view class="code-input-main">
-          <text class="input-label">验证码</text>
-          <input class="input" placeholder="请输入验证码" type="number" maxlength="6" bindinput="onCodeInput" />
-        </view>
-        <button class="code-btn {{smsCooldown > 0 || sendingCode ? 'code-btn-disabled' : ''}}" bindtap="sendVerificationCode">
-          {{smsCooldown > 0 ? smsCooldown + 's后重发' : '发送验证码'}}
-        </button>
+      <view class="input-wrap">
+        <text class="input-label">密码</text>
+        <input class="input" placeholder="请输入密码" password bindinput="onPasswordInput" />
       </view>
     </view>
 
     <button class="primary-btn" bindtap="onLogin">登录进入</button>
-
-    <view class="divider">
-      <view></view>
-      <text>或</text>
-      <view></view>
-    </view>
-
-    <button class="wechat-btn" open-type="getPhoneNumber" bindgetphonenumber="onWechatLogin">
-      <image class="wechat-icon" src="/assets/platforms/wechat.png" mode="aspectFill" />
-      <text>微信一键登录</text>
-    </button>
-  </view>
-
-  <view wx:if="{{showWechatAvatarPicker}}" class="avatar-auth-mask" catchtap="closeWechatAvatarDialog">
-    <view class="avatar-auth-sheet" catchtap="noop">
-      <view class="avatar-auth-app">
-        <image class="avatar-auth-brand" src="/assets/brand/fusion-after-sale-icon.png" mode="aspectFill" />
-        <view class="avatar-auth-name">融合电商平台售后系统</view>
-        <view class="avatar-auth-action">申请</view>
-      </view>
-      <view class="avatar-auth-title">获取并导入你的微信头像</view>
-      <view class="avatar-auth-line">
-        <image wx:if="{{wechatAvatar}}" class="avatar-auth-preview" src="{{wechatAvatar}}" mode="aspectFill" />
-        <view wx:else class="avatar-auth-preview avatar-auth-empty"></view>
-        <view class="avatar-auth-text">
-          <view class="avatar-auth-label">微信头像</view>
-          <view class="avatar-auth-desc">{{wechatAvatar ? '已选择头像，点击允许后继续登录' : '请选择头像用于完善账号资料'}}</view>
-        </view>
-        <button class="avatar-auth-choose" open-type="chooseAvatar" bindchooseavatar="onChooseWechatAvatar">选择</button>
-      </view>
-      <view class="avatar-auth-actions">
-        <button class="avatar-auth-cancel" bindtap="skipWechatAvatar">跳过</button>
-        <button class="avatar-auth-confirm {{wechatAvatar ? '' : 'avatar-auth-disabled'}}" bindtap="confirmWechatAvatar">允许</button>
-      </view>
-    </view>
   </view>
 </view>

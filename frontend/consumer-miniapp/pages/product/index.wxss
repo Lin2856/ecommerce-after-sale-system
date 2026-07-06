@@ -339,6 +339,15 @@
   line-height: 1.6;
 }
 
+.dispute-result-tip {
+  padding: 20rpx 22rpx;
+  border: 1rpx solid #bfdbfe;
+  border-radius: 16rpx;
+  background: #eff6ff;
+  color: #1e3a8a;
+  font-weight: 700;
+}
+
 .after-sale-images {
   padding: 18rpx 0;
   border-bottom: 1rpx solid #eef2f7;

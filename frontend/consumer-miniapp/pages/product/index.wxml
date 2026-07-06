@@ -115,7 +115,11 @@
       </view>
       <view class="after-sale-row">
         <text class="muted">售后状态</text>
-        <text>{{afterSaleDetail.status === '商家已同意退款，请寄回商品' ? '商家已同意退款，请寄回商品' : product.afterSale}}</text>
+        <text>{{afterSaleDetail.status || product.afterSale}}</text>
+      </view>
+      <view class="after-sale-row" wx:if="{{afterSaleDetail.disputeResultText}}">
+        <text class="muted">平台处理结果</text>
+        <text>{{afterSaleDetail.disputeResultText}}</text>
       </view>
       <view class="after-sale-row" wx:if="{{afterSaleDetail.returnTrackingNo}}">
         <text class="muted">退货单号</text>
@@ -141,7 +145,12 @@
         <text class="muted">申请时间</text>
         <text>{{afterSaleDetail.appliedAt || '2026.6.29 10:35:23'}}</text>
       </view>
-      <view wx:if="{{afterSaleDetail.status !== '商家已同意退款，请寄回商品'}}" class="after-sale-tip">售后申请已提交，商家将在后台审核并处理。你可以返回本页修改售后类型。</view>
+      <view wx:if="{{afterSaleDetail.disputeResultText}}" class="after-sale-tip dispute-result-tip">{{afterSaleDetail.disputeResultTip}}</view>
+      <view wx:elif="{{afterSaleDetail.status === '待审核'}}" class="after-sale-tip">售后申请已提交，商家将在后台审核并处理。你可以返回本页修改售后类型。</view>
+      <view wx:elif="{{afterSaleDetail.status === '处理中'}}" class="after-sale-tip">商家正在处理本次售后申请，请留意后续处理结果。</view>
+      <view wx:elif="{{afterSaleDetail.status === '用户已寄回商品'}}" class="after-sale-tip">退货快递单号已提交，商家收到商品并验收后会继续处理退款。</view>
+      <view wx:elif="{{afterSaleDetail.status === '已完成'}}" class="after-sale-tip">本次售后已完成，处理结果已同步到订单中。</view>
+      <view wx:elif="{{afterSaleDetail.status === '已关闭'}}" class="after-sale-tip">本次售后已关闭，如仍有问题可以重新联系商家确认。</view>
       <view wx:if="{{afterSaleDetail.status === '已拒绝' && afterSaleDetail.type !== '价保'}}" class="dispute-entry">
         <view class="dispute-entry-title">对商家处理结果有异议？</view>
         <view class="return-tip">你可以填写二次售后表单并联系平台处理，平台管理员将结合双方材料进行裁决。</view>

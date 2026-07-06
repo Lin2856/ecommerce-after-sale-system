@@ -8,25 +8,6 @@
       <el-button type="primary" :loading="loading" @click="loadLogs">刷新日志</el-button>
     </section>
 
-    <section class="panel operation-staff-switch">
-      <div class="operation-staff-current">
-        <el-avatar v-if="confirmedStaff" :size="44" :src="staffAvatar(confirmedStaff.code)" />
-        <el-avatar v-else :size="44">未</el-avatar>
-        <div>
-          <strong>{{ confirmedStaff ? confirmedStaff.name : '未确认客服身份' }}</strong>
-          <span>{{ confirmedStaff ? '后续关键操作将以该客服身份写入操作日志' : '请先输入客服秘钥确认当前操作客服' }}</span>
-        </div>
-      </div>
-      <div class="operation-staff-form">
-        <el-select v-model="staffForm.code" placeholder="选择客服">
-          <el-option v-for="item in staffOptions" :key="item.code" :label="item.name" :value="item.code" />
-        </el-select>
-        <el-input v-model="staffForm.secret" show-password placeholder="输入客服秘钥" @keyup.enter="switchStaff" />
-        <el-button type="primary" @click="switchStaff">{{ confirmedStaff ? '切换客服' : '确认客服' }}</el-button>
-        <el-button :disabled="!confirmedStaff" @click="logoutStaff">退出当前客服身份</el-button>
-      </div>
-    </section>
-
     <section class="panel operation-log-filter">
       <el-input v-model="keyword" clearable placeholder="搜索操作内容、目标对象或账号" />
       <el-select v-model="staffFilter" placeholder="客服">
@@ -64,7 +45,7 @@ import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { loadOperationLogs } from '../api'
 import { getStoredUser } from '../utils/auth'
-import { clearStaffIdentity, confirmStaffIdentity, getConfirmedStaff, MERCHANT_STAFFS, type MerchantStaffIdentity } from '../utils/staffAuth'
+import { MERCHANT_STAFFS } from '../utils/staffAuth'
 import staffAAvatar from '../assets/avatars/staff-a.png'
 import staffBAvatar from '../assets/avatars/staff-b.png'
 import staffCAvatar from '../assets/avatars/staff-c.png'
@@ -89,11 +70,6 @@ const keyword = ref('')
 const staffFilter = ref('ALL')
 const staffOptions = MERCHANT_STAFFS
 const user = computed(() => getStoredUser<{ username?: string; phone?: string }>())
-const confirmedStaff = ref<MerchantStaffIdentity | null>(getConfirmedStaff())
-const staffForm = ref({
-  code: confirmedStaff.value?.code || 'A',
-  secret: ''
-})
 const staffAvatars: Record<string, string> = {
   A: staffAAvatar,
   B: staffBAvatar,
@@ -122,24 +98,6 @@ onMounted(loadLogs)
 function resetFilters() {
   keyword.value = ''
   staffFilter.value = 'ALL'
-}
-
-function switchStaff() {
-  const staff = confirmStaffIdentity(staffForm.value.code, staffForm.value.secret)
-  if (!staff) {
-    ElMessage({ type: 'error', message: '客服秘钥错误，请重新输入' })
-    return
-  }
-  confirmedStaff.value = staff
-  staffForm.value.secret = ''
-  ElMessage({ type: 'success', message: `已切换为${staff.name}` })
-}
-
-function logoutStaff() {
-  clearStaffIdentity()
-  confirmedStaff.value = null
-  staffForm.value.secret = ''
-  ElMessage({ type: 'success', message: '已退出当前客服身份' })
 }
 
 function staffAvatar(code: string) {

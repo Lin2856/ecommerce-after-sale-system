@@ -12,13 +12,6 @@ export const MERCHANT_STAFFS: MerchantStaffIdentity[] = [
   { code: 'D', name: '客服D' }
 ]
 
-const STAFF_KEYS: Record<string, string> = {
-  A: 'AAAA',
-  B: 'BBBB',
-  C: 'CCCC',
-  D: 'DDDD'
-}
-
 function currentAccountKey() {
   const user = getStoredUser<{ username?: string; phone?: string; userId?: number }>()
   return user?.username || user?.phone || user?.userId || 'anonymous'
@@ -40,11 +33,7 @@ export function getConfirmedStaff() {
   }
 }
 
-export function confirmStaffIdentity(code: string, secret: string) {
-  const staff = MERCHANT_STAFFS.find((item) => item.code === code)
-  if (!staff || STAFF_KEYS[code] !== secret.trim()) {
-    return null
-  }
+export function saveConfirmedStaff(staff: MerchantStaffIdentity) {
   sessionStorage.setItem(staffSessionKey(), JSON.stringify(staff))
   return staff
 }

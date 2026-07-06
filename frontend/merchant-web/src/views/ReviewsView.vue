@@ -39,7 +39,7 @@
                 <el-tag size="small" :type="riskTagType(row.riskLevel)">{{ row.deleted ? '已删除' : riskText(row.riskLevel) }}</el-tag>
               </div>
               <div class="review-meta">
-                <span>{{ row.platformCode }}</span>
+                <span>{{ platformNameByCode(row.platformCode) }}</span>
                 <span>{{ row.orderNo }}</span>
                 <span>{{ row.merchantName }}</span>
               </div>
@@ -80,7 +80,7 @@
 
     <el-dialog v-model="detailVisible" title="评价详情" width="780px" class="review-detail-dialog">
       <el-descriptions v-if="selectedReview" :column="2" border>
-        <el-descriptions-item label="平台">{{ selectedReview.platformCode }}</el-descriptions-item>
+        <el-descriptions-item label="平台">{{ platformNameByCode(selectedReview.platformCode) }}</el-descriptions-item>
         <el-descriptions-item label="订单号">{{ selectedReview.orderNo }}</el-descriptions-item>
         <el-descriptions-item label="商家">{{ selectedReview.merchantName }}</el-descriptions-item>
         <el-descriptions-item label="商品">{{ cleanProductName(selectedReview.productName || '') }}</el-descriptions-item>
@@ -128,7 +128,35 @@
         <el-button type="primary" :loading="submittingDispute" @click="submitDispute">提交异议</el-button>
       </template>
     </el-dialog>
-    <el-dialog v-model="storeAnalysisVisible" title="店铺评价 AI 分析" width="720px" class="store-analysis-dialog">
+    <el-dialog v-model="storeAnalysisVisible" width="960px" class="store-analysis-dialog" align-center>
+      <template #header>
+        <div class="store-analysis-header">
+          <span>店铺评价 AI 分析</span>
+          <em>{{ storeAnalysisSubtitle }}</em>
+        </div>
+      </template>
+      <div class="store-analysis-controls">
+        <el-segmented
+          v-model="storeAnalysisScope"
+          :options="storeAnalysisScopeOptions"
+          @change="handleStoreAnalysisScopeChange"
+        />
+        <el-select
+          v-if="storeAnalysisScope === 'MERCHANT'"
+          v-model="selectedStoreAnalysisMerchantKey"
+          class="store-analysis-select"
+          placeholder="选择二级商家"
+          filterable
+          @change="handleStoreAnalysisMerchantChange"
+        >
+          <el-option
+            v-for="item in storeAnalysisMerchantOptions"
+            :key="item.key"
+            :label="item.label"
+            :value="item.key"
+          />
+        </el-select>
+      </div>
       <div v-if="storeAnalysisResult" class="store-analysis-panel">
         <div class="store-analysis-summary">
           <div>
@@ -136,8 +164,10 @@
             <strong>{{ storeAnalysisResult.sentiment }}</strong>
           </div>
           <div>
-            <span>涉及店铺</span>
-            <strong>{{ storeAnalysisMerchantText }}</strong>
+            <span>{{ storeAnalysisScope === 'PRIMARY' ? '涉及店铺' : '当前商家' }}</span>
+            <div class="merchant-chip-list">
+              <em v-for="name in currentStoreAnalysisMerchantNames" :key="name">{{ name }}</em>
+            </div>
           </div>
         </div>
         <section>
@@ -152,7 +182,7 @@
       <el-empty v-else description="暂无店铺评价分析结果" />
       <template #footer>
         <el-button @click="storeAnalysisVisible = false">关闭</el-button>
-        <el-button type="primary" :loading="storeAiAnalyzing" @click="openStoreReviewAnalysis">重新分析</el-button>
+        <el-button type="primary" :loading="storeAiAnalyzing" @click="runStoreReviewAnalysis">重新分析</el-button>
       </template>
     </el-dialog>
   </div>
@@ -211,6 +241,12 @@ const submittingDispute = ref(false)
 const aiAnalyzing = ref(false)
 const storeAiAnalyzing = ref(false)
 const storeAnalysisVisible = ref(false)
+const storeAnalysisScope = ref<'PRIMARY' | 'MERCHANT'>('PRIMARY')
+const selectedStoreAnalysisMerchantKey = ref('')
+const storeAnalysisScopeOptions = [
+  { label: '一级账号整体', value: 'PRIMARY' },
+  { label: '单个二级商家', value: 'MERCHANT' }
+]
 const storeAnalysisResult = ref<{
   sentiment: string
   analysisSummary: string
@@ -249,15 +285,72 @@ const metricCards = computed(() => {
 })
 
 const activeReviews = computed(() => reviewData.value.filter((item) => !item.deleted))
-const storeAnalysisMerchantText = computed(() => {
-  const names = Array.from(new Set(activeReviews.value.map((item) => item.merchantName).filter(Boolean)))
-  return names.length ? names.join('、') : '当前店铺'
+const storeAnalysisMerchantOptions = computed(() => {
+  const map = new Map<string, { key: string; label: string; accountNo: string; platformCode: string; merchantName: string }>()
+  activeReviews.value.forEach((item) => {
+    const accountNo = item.accountNo || ''
+    const platformCode = item.platformCode || 'TWENTY_MALL'
+    const merchantName = item.merchantName || `${platformNameByCode(platformCode)}商家`
+    const key = `${platformCode}:${accountNo || merchantName}`
+    if (!map.has(key)) {
+      map.set(key, {
+        key,
+        label: accountNo ? `${merchantName}（${accountNo}）` : merchantName,
+        accountNo,
+        platformCode,
+        merchantName
+      })
+    }
+  })
+  return Array.from(map.values())
 })
+const storeAnalysisMerchantNames = computed(() => {
+  const names = Array.from(new Set(activeReviews.value.map((item) => item.merchantName).filter(Boolean))) as string[]
+  return names.length ? names : ['当前一级账号']
+})
+const selectedStoreAnalysisMerchant = computed(() => (
+  storeAnalysisMerchantOptions.value.find((item) => item.key === selectedStoreAnalysisMerchantKey.value)
+  || storeAnalysisMerchantOptions.value[0]
+  || null
+))
+const currentStoreAnalysisReviews = computed(() => {
+  if (storeAnalysisScope.value === 'PRIMARY') {
+    return activeReviews.value
+  }
+  const selected = selectedStoreAnalysisMerchant.value
+  if (!selected) {
+    return []
+  }
+  return activeReviews.value.filter((item) => {
+    const itemKey = `${item.platformCode || 'TWENTY_MALL'}:${item.accountNo || item.merchantName || ''}`
+    return itemKey === selected.key
+  })
+})
+const currentStoreAnalysisMerchantNames = computed(() => {
+  if (storeAnalysisScope.value === 'PRIMARY') {
+    return storeAnalysisMerchantNames.value
+  }
+  return selectedStoreAnalysisMerchant.value ? [selectedStoreAnalysisMerchant.value.label] : ['请选择二级商家']
+})
+const storeAnalysisMerchantText = computed(() => currentStoreAnalysisMerchantNames.value.join('、'))
+const storeAnalysisSubtitle = computed(() => (
+  storeAnalysisScope.value === 'PRIMARY'
+    ? '基于当前一级账号下全部二级商家的未删除评价生成'
+    : '基于选中二级商家的未删除评价生成'
+))
 
 async function openStoreReviewAnalysis() {
-  const targets = activeReviews.value
+  if (storeAnalysisScope.value === 'MERCHANT' && !selectedStoreAnalysisMerchantKey.value && storeAnalysisMerchantOptions.value.length) {
+    selectedStoreAnalysisMerchantKey.value = storeAnalysisMerchantOptions.value[0].key
+  }
+  storeAnalysisVisible.value = true
+  await runStoreReviewAnalysis()
+}
+
+async function runStoreReviewAnalysis() {
+  const targets = currentStoreAnalysisReviews.value
   if (!targets.length) {
-    ElMessage({ type: 'warning', message: '当前店铺暂无未删除评价可分析' })
+    ElMessage({ type: 'warning', message: storeAnalysisScope.value === 'PRIMARY' ? '当前一级账号暂无未删除评价可分析' : '当前二级商家暂无未删除评价可分析' })
     return
   }
   storeAiAnalyzing.value = true
@@ -269,6 +362,19 @@ async function openStoreReviewAnalysis() {
   } finally {
     storeAiAnalyzing.value = false
   }
+}
+
+async function handleStoreAnalysisScopeChange() {
+  storeAnalysisResult.value = null
+  if (storeAnalysisScope.value === 'MERCHANT' && !selectedStoreAnalysisMerchantKey.value && storeAnalysisMerchantOptions.value.length) {
+    selectedStoreAnalysisMerchantKey.value = storeAnalysisMerchantOptions.value[0].key
+  }
+  await runStoreReviewAnalysis()
+}
+
+async function handleStoreAnalysisMerchantChange() {
+  storeAnalysisResult.value = null
+  await runStoreReviewAnalysis()
 }
 
 async function analyzeReview(reviewId: number, showMessage = true) {
@@ -853,18 +959,81 @@ function normalizeRiskRoute(riskValue: unknown, tabValue: unknown) {
 }
 
 :deep(.store-analysis-dialog .el-dialog) {
+  max-width: calc(100vw - 72px);
   border-radius: 8px;
+  overflow: hidden;
+}
+
+.store-analysis-dialog :deep(.el-dialog__header) {
+  margin: 0;
+  padding: 0;
+}
+
+.store-analysis-dialog :deep(.el-dialog__body) {
+  max-height: min(68vh, 720px);
+  overflow: auto;
+  padding: 24px 28px;
+  background: #f8fafc;
+}
+
+.store-analysis-dialog :deep(.el-dialog__footer) {
+  padding: 16px 28px 20px;
+  border-top: 1px solid #e2e8f0;
+  background: #fff;
+}
+
+.store-analysis-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.store-analysis-select {
+  width: min(380px, 100%);
+}
+
+.store-analysis-header {
+  padding: 24px 28px 20px;
+  border-bottom: 1px solid #e2e8f0;
+  background:
+    linear-gradient(135deg, rgba(37, 99, 235, 0.1), rgba(255, 255, 255, 0) 48%),
+    #ffffff;
+}
+
+.store-analysis-header span,
+.store-analysis-header em {
+  display: block;
+}
+
+.store-analysis-header span {
+  color: #0f172a;
+  font-size: 24px;
+  font-weight: 900;
+}
+
+.store-analysis-header em {
+  margin-top: 6px;
+  color: #64748b;
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 700;
 }
 
 .store-analysis-panel {
   display: grid;
-  gap: 16px;
+  gap: 18px;
 }
 
 .store-analysis-summary {
   display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-  gap: 12px;
+  grid-template-columns: minmax(280px, 0.7fr) minmax(0, 1.3fr);
+  gap: 16px;
 }
 
 .store-analysis-summary div,
@@ -875,8 +1044,8 @@ function normalizeRiskRoute(riskValue: unknown, tabValue: unknown) {
 }
 
 .store-analysis-summary div {
-  min-height: 86px;
-  padding: 14px;
+  min-height: 112px;
+  padding: 18px;
 }
 
 .store-analysis-summary span,
@@ -892,21 +1061,39 @@ function normalizeRiskRoute(riskValue: unknown, tabValue: unknown) {
   display: block;
   margin-top: 10px;
   color: #0f172a;
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 900;
   line-height: 1.35;
 }
 
+.merchant-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.merchant-chip-list em {
+  max-width: 100%;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 800;
+}
+
 .store-analysis-panel section {
-  padding: 16px 18px;
+  padding: 20px 22px;
   background: #ffffff;
 }
 
 .store-analysis-panel p {
-  margin: 10px 0 0;
+  margin: 12px 0 0;
   color: #334155;
-  font-size: 14px;
-  line-height: 1.8;
+  font-size: 15px;
+  line-height: 1.9;
 }
 
 :deep(.el-segmented) {
@@ -944,6 +1131,19 @@ function normalizeRiskRoute(riskValue: unknown, tabValue: unknown) {
   .review-content-grid,
   .store-analysis-summary {
     grid-template-columns: 1fr;
+  }
+
+  .store-analysis-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .store-analysis-select {
+    width: 100%;
+  }
+
+  .store-analysis-dialog :deep(.el-dialog) {
+    width: calc(100vw - 24px) !important;
   }
 
   .review-score-block {

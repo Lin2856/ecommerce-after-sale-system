@@ -21,15 +21,6 @@
 .\scripts\dev-check.ps1
 ```
 
-需要微信小程序真实登录时：
-
-```powershell
-.\scripts\dev-start.ps1 `
-  -DbPassword "你的 MySQL 密码" `
-  -WechatMiniAppId "你的小程序 AppID" `
-  -WechatMiniAppSecret "你的小程序 AppSecret"
-```
-
 访问地址：
 
 - 后端接口：`http://localhost:8080`
@@ -82,7 +73,7 @@ docker compose down
 ## 密钥说明
 
 - AI API Key 存放在 `ai-service/.env`，该文件不会提交到 GitHub。
-- 微信小程序 AppID/AppSecret 通过环境变量或启动脚本参数传入。
+- 微信小程序 AppID/AppSecret、AI API Key、短信服务密钥等敏感信息应通过环境变量或密钥管理传入，不写入仓库。
 - 生产环境应使用云厂商密钥管理、环境变量或容器 Secret 管理敏感配置。
 
 ## 生产环境补充事项
@@ -93,5 +84,4 @@ docker compose down
 - AI、微信、短信等第三方密钥托管。
 - 数据库备份与恢复策略。
 - 日志采集、监控和告警。
-- 开放平台扫码登录回调公网地址。
 - 更严格的跨域、鉴权、访问控制和操作审计。

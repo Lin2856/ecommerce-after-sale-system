@@ -61,5 +61,6 @@ deploy/redis-data/
 # IDE
 .idea/
 .vscode/
+.codex/
 *.swp
 *.swo
