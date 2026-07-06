@@ -19,6 +19,7 @@ def build_reply(request: ContextReplyRequest) -> ReplyResponse:
         product_description=request.product_description,
         product_price=request.product_price,
         product_quantity=request.product_quantity,
+        policy_tags=request.policy_tags,
         user_tone=request.user_tone,
     )
     suggestions = ["转人工客服", "补充订单信息", "补充问题凭证"]

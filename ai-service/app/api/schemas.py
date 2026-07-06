@@ -28,6 +28,7 @@ class ContextReplyRequest(TextRequest):
     product_description: str | None = None
     product_price: str | None = None
     product_quantity: str | None = None
+    policy_tags: str | None = None
     user_tone: str | None = None
 
 

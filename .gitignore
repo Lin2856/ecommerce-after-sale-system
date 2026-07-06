@@ -51,6 +51,7 @@ database/*.dump
 database/*.sql.gz
 output/
 outputs/
+tmp/
 
 # Deployment
 deploy/.data/

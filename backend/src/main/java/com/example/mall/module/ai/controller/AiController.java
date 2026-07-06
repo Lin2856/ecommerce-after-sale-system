@@ -8,6 +8,7 @@ import com.example.mall.module.ai.dto.ReplyResponse;
 import com.example.mall.module.ai.dto.SentimentResponse;
 import com.example.mall.module.ai.dto.TicketClassifyResponse;
 import com.example.mall.module.ai.dto.TopicResponse;
+import com.example.mall.module.ai.service.AiCallLogService;
 import com.example.mall.module.ai.service.AiService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -20,9 +21,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class AiController {
 
     private final AiService aiService;
+    private final AiCallLogService aiCallLogService;
 
-    public AiController(AiService aiService) {
+    public AiController(AiService aiService, AiCallLogService aiCallLogService) {
         this.aiService = aiService;
+        this.aiCallLogService = aiCallLogService;
     }
 
     @PostMapping("/intent")
@@ -50,7 +53,36 @@ public class AiController {
         return ApiResponse.success(aiService.generateReply(request), traceId());
     }
 
+    @PostMapping("/call-log")
+    public ApiResponse<Boolean> callLog(@RequestBody AiCallLogRequest request) {
+        aiCallLogService.recordManual(
+            request.merchantId(),
+            request.businessType(),
+            request.businessId(),
+            request.taskType(),
+            request.requestText(),
+            request.responseText(),
+            request.success() == null || request.success(),
+            request.errorMessage(),
+            request.latencyMs()
+        );
+        return ApiResponse.success(true, traceId());
+    }
+
     private String traceId() {
         return String.valueOf(System.currentTimeMillis());
+    }
+
+    public record AiCallLogRequest(
+        Long merchantId,
+        String businessType,
+        Long businessId,
+        String taskType,
+        String requestText,
+        String responseText,
+        Boolean success,
+        String errorMessage,
+        Integer latencyMs
+    ) {
     }
 }

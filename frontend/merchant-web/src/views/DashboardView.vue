@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="dashboard-page">
     <div class="metric-grid">
       <div v-for="item in metrics" :key="item.label" class="metric-card">
         <span>{{ item.label }}</span>
@@ -8,9 +8,9 @@
       </div>
     </div>
     <div class="split-grid">
-      <div class="panel">
+      <div class="panel dashboard-work-panel">
         <h2 class="section-title">待处理售后</h2>
-        <el-table v-loading="loading" :data="afterSaleData" height="310">
+        <el-table v-loading="loading" :data="afterSaleData" height="100%">
           <el-table-column label="订单编号" min-width="150">
             <template #default="{ row }">{{ displayOrderNo(row) }}</template>
           </el-table-column>
@@ -26,7 +26,7 @@
           </el-table-column>
         </el-table>
       </div>
-      <div class="panel">
+      <div class="panel dashboard-work-panel service-panel">
         <h2 class="section-title">服务动态</h2>
         <el-empty v-if="visibleMailData.length === 0" description="暂无新邮件" />
         <div v-else class="mail-list">
@@ -43,7 +43,7 @@
                 <strong>{{ item.title }}</strong>
                 <span>{{ item.occurredAt }}</span>
               </div>
-              <p>{{ item.summary }}</p>
+              <p>{{ normalizeBusinessText(item.summary) }}</p>
               <div class="mail-meta">
                 <el-tag :type="mailTypeTag(item.type)" effect="light">{{ item.typeText }}</el-tag>
                 <el-tag :type="item.tone || 'info'" effect="plain">{{ item.statusText }}</el-tag>
@@ -65,8 +65,8 @@
         <el-descriptions-item label="关联单号">{{ selectedMail.relatedNo }}</el-descriptions-item>
         <el-descriptions-item label="当前状态">{{ selectedMail.statusText }}</el-descriptions-item>
         <el-descriptions-item label="接收时间">{{ selectedMail.occurredAt }}</el-descriptions-item>
-        <el-descriptions-item label="内容摘要">{{ selectedMail.summary }}</el-descriptions-item>
-        <el-descriptions-item label="详细说明">{{ selectedMail.detail }}</el-descriptions-item>
+        <el-descriptions-item label="内容摘要">{{ normalizeBusinessText(selectedMail.summary) }}</el-descriptions-item>
+        <el-descriptions-item label="详细说明">{{ normalizeBusinessText(selectedMail.detail) }}</el-descriptions-item>
       </el-descriptions>
       <template #footer>
         <el-button @click="mailDetailVisible = false">关闭</el-button>
@@ -156,6 +156,8 @@ function reasonText(value: string) {
     WRONG_GOODS: '商品错发',
     SIZE_MISMATCH: '尺码不符',
     NOT_AS_DESCRIBED: '描述不符',
+    PRICE_PROTECTION: '价格保护',
+    NO_REASON: '七天无理由',
     OTHER: '其他原因'
   }
   return map[value] || value
@@ -167,10 +169,32 @@ function afterSaleStatusText(value: string) {
     PENDING_REVIEW: '待审核',
     APPROVED: '已通过',
     REJECTED: '已拒绝',
+    WAITING_RETURN: '商家已同意退款，请寄回商品',
+    RETURN_SHIPPED: '用户已寄回商品',
     COMPLETED: '已完成',
     CLOSED: '已关闭'
   }
   return map[value] || value
+}
+
+function normalizeBusinessText(value: string) {
+  if (!value) return ''
+  return value
+    .replace(/PRODUCT_QUALITY/g, '商品质量问题')
+    .replace(/LOGISTICS_DELAY/g, '物流延迟')
+    .replace(/WRONG_GOODS/g, '商品错发')
+    .replace(/SIZE_MISMATCH/g, '尺码不符')
+    .replace(/NOT_AS_DESCRIBED/g, '描述不符')
+    .replace(/PRICE_PROTECTION/g, '价格保护')
+    .replace(/NO_REASON/g, '七天无理由')
+    .replace(/PENDING_REVIEW/g, '待审核')
+    .replace(/PROCESSING/g, '处理中')
+    .replace(/WAITING_RETURN/g, '商家已同意退款，请寄回商品')
+    .replace(/RETURN_SHIPPED/g, '用户已寄回商品')
+    .replace(/APPROVED/g, '已通过')
+    .replace(/REJECTED/g, '已拒绝')
+    .replace(/COMPLETED/g, '已完成')
+    .replace(/CLOSED/g, '已关闭')
 }
 
 function priorityText(value: string) {
@@ -302,11 +326,42 @@ function currentPrimaryAccountNo() {
 </script>
 
 <style scoped>
+.dashboard-page {
+  display: flex;
+  min-height: calc(100vh - 56px);
+  flex-direction: column;
+}
+
+.dashboard-page :deep(.metric-grid) {
+  flex: 0 0 auto;
+}
+
+.dashboard-page :deep(.split-grid) {
+  flex: 1 1 auto;
+  min-height: 560px;
+  max-height: calc(100vh - 260px);
+}
+
+.dashboard-work-panel {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.dashboard-work-panel :deep(.el-table) {
+  flex: 1 1 auto;
+}
+
+.service-panel {
+  overflow: hidden;
+}
+
 .mail-list {
   display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
   flex-direction: column;
   gap: 12px;
-  max-height: 384px;
   overflow: auto;
   padding-right: 4px;
 }

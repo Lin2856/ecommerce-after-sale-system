@@ -4,7 +4,7 @@
       <div>
         <span class="page-kicker">评价分析</span>
         <h1>用户评价洞察</h1>
-        <p>聚合万象商城订单评价，识别风险反馈、服务体验和可复盘的优质评价。</p>
+        <p>聚合自建商城订单评价，识别风险反馈、服务体验和可复盘的优质评价。</p>
       </div>
       <el-button class="hero-action" type="primary" :loading="storeAiAnalyzing" @click="openStoreReviewAnalysis">查看店铺评价 AI 分析</el-button>
     </section>
@@ -161,9 +161,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { loadTwentyMallMerchantReviews, submitTwentyMallReviewDispute } from '../api'
+import { loadSelfBuiltMerchantReviews, recordAiCallLog, submitSelfBuiltReviewDispute } from '../api'
 import { ElMessage } from 'element-plus'
-import { getMerchantBindings } from '../utils/auth'
+import { getMerchantBindings, getStoredUser, type MerchantPlatformBinding } from '../utils/auth'
 
 type ReviewRow = {
   id: number
@@ -318,7 +318,12 @@ async function submitDispute() {
   }
   submittingDispute.value = true
   try {
-    await submitTwentyMallReviewDispute(disputeReview.value.id, disputeReview.value.accountNo, reason)
+    await submitSelfBuiltReviewDispute(
+      disputeReview.value.id,
+      disputeReview.value.accountNo,
+      reason,
+      disputeReview.value.platformCode || 'TWENTY_MALL'
+    )
     ElMessage({ type: 'success', message: '评价异议已提交，等待管理员审核' })
     disputeVisible.value = false
     reviewData.value = await loadBoundTwentyMallReviews()
@@ -343,24 +348,44 @@ async function analyzeSelectedReview() {
 }
 
 async function requestAiReviewAnalysis(item: ReviewRow) {
+  const startedAt = Date.now()
+  const requestBody = {
+    platformName: item.platformCode,
+    orderNo: item.orderNo,
+    merchantName: item.merchantName,
+    productName: cleanProductName(item.productName || ''),
+    productScore: item.productScore,
+    serviceScore: item.serviceScore,
+    productReview: productReviewContent(item),
+    merchantReview: merchantReviewContent(item)
+  }
   const response = await fetch('http://localhost:9000/api/ai/review-analysis', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      platformName: item.platformCode,
-      orderNo: item.orderNo,
-      merchantName: item.merchantName,
-      productName: cleanProductName(item.productName || ''),
-      productScore: item.productScore,
-      serviceScore: item.serviceScore,
-      productReview: productReviewContent(item),
-      merchantReview: merchantReviewContent(item)
-    })
+    body: JSON.stringify(requestBody)
   })
   if (!response.ok) {
+    recordAiCallLog({
+      businessType: 'REVIEW',
+      businessId: item.id,
+      taskType: 'REVIEW_ANALYSIS',
+      requestText: JSON.stringify(requestBody),
+      success: false,
+      errorMessage: 'AI review analysis failed',
+      latencyMs: Date.now() - startedAt
+    })
     throw new Error('AI review analysis failed')
   }
   const payload = await response.json()
+  recordAiCallLog({
+    businessType: 'REVIEW',
+    businessId: item.id,
+    taskType: 'REVIEW_ANALYSIS',
+    requestText: JSON.stringify(requestBody),
+    responseText: JSON.stringify(payload),
+    success: true,
+    latencyMs: Date.now() - startedAt
+  })
   return {
     sentiment: payload.sentiment || '中性',
     analysisSummary: payload.analysisSummary || '暂无分析摘要',
@@ -369,28 +394,47 @@ async function requestAiReviewAnalysis(item: ReviewRow) {
 }
 
 async function requestStoreReviewAnalysis(items: ReviewRow[]) {
+  const platformNames = Array.from(new Set(items.map((item) => platformNameByCode(item.platformCode)).filter(Boolean)))
+  const startedAt = Date.now()
+  const requestBody = {
+    platformName: platformNames.join('、') || '自建商城',
+    merchantName: storeAnalysisMerchantText.value,
+    reviews: items.map((item) => ({
+      orderNo: item.orderNo,
+      merchantName: item.merchantName,
+      productName: cleanProductName(item.productName || ''),
+      productScore: item.productScore,
+      serviceScore: item.serviceScore,
+      productReview: productReviewContent(item),
+      merchantReview: merchantReviewContent(item),
+      riskLevel: riskText(item.riskLevel)
+    }))
+  }
   const response = await fetch('http://localhost:9000/api/ai/store-review-analysis', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      platformName: '万象商城',
-      merchantName: storeAnalysisMerchantText.value,
-      reviews: items.map((item) => ({
-        orderNo: item.orderNo,
-        merchantName: item.merchantName,
-        productName: cleanProductName(item.productName || ''),
-        productScore: item.productScore,
-        serviceScore: item.serviceScore,
-        productReview: productReviewContent(item),
-        merchantReview: merchantReviewContent(item),
-        riskLevel: riskText(item.riskLevel)
-      }))
-    })
+    body: JSON.stringify(requestBody)
   })
   if (!response.ok) {
+    recordAiCallLog({
+      businessType: 'STORE_REVIEW',
+      taskType: 'STORE_REVIEW_ANALYSIS',
+      requestText: JSON.stringify(requestBody),
+      success: false,
+      errorMessage: '店铺评价 AI 分析失败',
+      latencyMs: Date.now() - startedAt
+    })
     throw new Error('店铺评价 AI 分析失败')
   }
   const payload = await response.json()
+  recordAiCallLog({
+    businessType: 'STORE_REVIEW',
+    taskType: 'STORE_REVIEW_ANALYSIS',
+    requestText: JSON.stringify(requestBody),
+    responseText: JSON.stringify(payload),
+    success: true,
+    latencyMs: Date.now() - startedAt
+  })
   return {
     sentiment: payload.sentiment || '中性',
     analysisSummary: payload.analysisSummary || payload.analysis_summary || '暂无评价摘要',
@@ -399,19 +443,69 @@ async function requestStoreReviewAnalysis(items: ReviewRow[]) {
 }
 
 async function loadBoundTwentyMallReviews() {
-  const twentyMallBindings = getMerchantBindings().filter((item) => item.platformCode === 'TWENTY_MALL' && item.accountNo)
-  if (!twentyMallBindings.length) {
+  const bindings = await loadCurrentSelfBuiltBindings()
+  if (!bindings.length) {
     return []
   }
-  const result = await Promise.all(twentyMallBindings.map(async (binding) => {
+  const result = await Promise.all(bindings.map(async (binding) => {
     try {
-      const list = await loadTwentyMallMerchantReviews(binding.accountNo as string) as ReviewRow[]
-      return list.map((item) => ({ ...item, accountNo: binding.accountNo as string }))
+      const list = await loadSelfBuiltMerchantReviews(binding.accountNo as string, binding.platformCode) as ReviewRow[]
+      return list.map((item) => ({
+        ...item,
+        platformCode: item.platformCode || binding.platformCode,
+        accountNo: binding.accountNo as string
+      }))
     } catch {
       return []
     }
   }))
   return result.flat()
+}
+
+async function loadCurrentSelfBuiltBindings() {
+  const databaseBindings = await loadDatabaseSelfBuiltBindings()
+  const source = databaseBindings.length ? databaseBindings : getMerchantBindings()
+  return source.filter((item) => (
+    (item.platformCode === 'TWENTY_MALL' || item.platformCode === 'YUEGOU_MARKET') && item.accountNo
+  ))
+}
+
+async function loadDatabaseSelfBuiltBindings() {
+  try {
+    const response = await fetch(`http://localhost:8080/api/twenty-mall/primary/bindings?primaryAccountNo=${encodeURIComponent(currentPrimaryAccountNo())}&primaryAccountType=MERCHANT&secondaryAccountRole=MERCHANT`)
+    const payload = await response.json()
+    if (payload.code !== '200') {
+      return []
+    }
+    return (payload.data || []).filter((item: { bindStatus?: string }) => item.bindStatus === '已绑定').map((item: {
+      platformCode?: string
+      platformName?: string
+      secondaryAccountNo: string
+      secondaryDisplayName?: string
+      boundAt?: string
+    }) => {
+      const platformCode = item.platformCode || platformCodeByName(item.platformName)
+      const platformName = item.platformName || platformNameByCode(platformCode)
+      return {
+        id: Number(item.secondaryAccountNo) || Date.now(),
+        platformCode,
+        platformName,
+        authStatus: 'ACTIVE',
+        externalShopId: `${platformCode}_SHOP_${item.secondaryAccountNo}`,
+        shopName: item.secondaryDisplayName || `${platformName}店铺（${item.secondaryAccountNo}）`,
+        sellerNick: item.secondaryDisplayName || `${platformName}店铺（${item.secondaryAccountNo}）`,
+        accountNo: item.secondaryAccountNo,
+        lastSyncedAt: item.boundAt
+      }
+    }) as MerchantPlatformBinding[]
+  } catch {
+    return []
+  }
+}
+
+function currentPrimaryAccountNo() {
+  const user = getStoredUser<{ username?: string; userId?: number }>()
+  return user?.username || String(user?.userId || '13338907681')
 }
 
 function sentimentText(value: string) {
@@ -449,7 +543,15 @@ function disputeTagType(status: string) {
 }
 
 function cleanProductName(productName: string) {
-  return productName.replace(/^万象商城\s*/, '').trim()
+  return productName.replace(/^(万象商城|悦购集市)\s*/, '').trim()
+}
+
+function platformNameByCode(platformCode = 'TWENTY_MALL') {
+  return platformCode === 'YUEGOU_MARKET' ? '悦购集市' : '万象商城'
+}
+
+function platformCodeByName(platformName = '') {
+  return platformName === '悦购集市' ? 'YUEGOU_MARKET' : 'TWENTY_MALL'
 }
 
 function starText(row: ReviewRow) {

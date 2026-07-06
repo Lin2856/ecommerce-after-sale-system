@@ -13,7 +13,7 @@
     <view class="form-item">
       <view class="label">电话号码</view>
       <view class="readonly">{{phone}}</view>
-      <view class="tip">手机号用于演示账号登录，当前不可修改。</view>
+      <view class="tip">手机号用于账号身份识别，当前不可修改。</view>
     </view>
   </view>
 

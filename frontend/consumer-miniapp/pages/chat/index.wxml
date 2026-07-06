@@ -30,9 +30,10 @@
     class="chat-list"
     scroll-y
     scroll-with-animation
+    scroll-top="{{scrollTop}}"
     scroll-into-view="{{scrollTarget}}"
   >
-    <view wx:for="{{messages}}" wx:key="index" class="msg-row {{item.role === 'user' ? 'msg-right' : 'msg-left'}}">
+    <view wx:for="{{displayMessages}}" wx:key="index" class="msg-row {{item.role === 'user' ? 'msg-right' : 'msg-left'}}">
       <view wx:if="{{item.role !== 'user'}}" class="avatar avatar-service {{item.role === 'ai' ? 'avatar-ai' : ''}}">
         <image wx:if="{{item.avatar}}" src="{{item.avatar}}" mode="aspectFill" />
         <text wx:else>{{item.avatarText}}</text>

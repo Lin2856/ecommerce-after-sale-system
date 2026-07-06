@@ -133,7 +133,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { faqs, rules } from '../data/mock'
-import { createOperationLog, loadFaqs, loadRules } from '../api'
+import { createOperationLog, loadFaqs, loadRules, recordAiCallLog } from '../api'
 import { loadListWithFallback } from '../api/normalize'
 import { ElMessage } from 'element-plus'
 import { ElMessageBox } from 'element-plus/es/components/message-box/index'
@@ -412,6 +412,8 @@ async function extractKnowledgeByAi() {
     return
   }
   extractingKnowledge.value = true
+  const startedAt = Date.now()
+  let logged = false
   try {
     const response = await fetch('http://localhost:9000/api/ai/knowledge/extract', {
       method: 'POST',
@@ -424,6 +426,16 @@ async function extractKnowledgeByAi() {
     const payload = await response.json()
     const data = payload?.title ? payload : payload?.data
     if (!response.ok || !data) {
+      recordAiCallLog({
+        businessType: active.value === 'rules' ? 'KNOWLEDGE_RULE' : 'KNOWLEDGE_FAQ',
+        taskType: 'KNOWLEDGE_EXTRACTION',
+        requestText: source,
+        responseText: JSON.stringify(payload || {}),
+        success: false,
+        errorMessage: payload?.message || 'AI 识别失败',
+        latencyMs: Date.now() - startedAt
+      })
+      logged = true
       throw new Error(payload?.message || 'AI 识别失败')
     }
     knowledgeForm.value = {
@@ -433,8 +445,27 @@ async function extractKnowledgeByAi() {
       content: String(data.content || '').trim()
     }
     knowledgeExtracted.value = true
+    recordAiCallLog({
+      businessType: active.value === 'rules' ? 'KNOWLEDGE_RULE' : 'KNOWLEDGE_FAQ',
+      taskType: 'KNOWLEDGE_EXTRACTION',
+      requestText: source,
+      responseText: JSON.stringify(data),
+      success: true,
+      latencyMs: Date.now() - startedAt
+    })
+    logged = true
     ElMessage({ type: 'success', message: 'AI 已识别，请确认内容后保存' })
   } catch (error) {
+    if (!logged) {
+      recordAiCallLog({
+        businessType: active.value === 'rules' ? 'KNOWLEDGE_RULE' : 'KNOWLEDGE_FAQ',
+        taskType: 'KNOWLEDGE_EXTRACTION',
+        requestText: source,
+        success: false,
+        errorMessage: error instanceof Error ? error.message : 'AI 识别失败',
+        latencyMs: Date.now() - startedAt
+      })
+    }
     ElMessage({ type: 'error', message: error instanceof Error ? error.message : 'AI 识别失败，请确认 AI 服务已启动' })
   } finally {
     extractingKnowledge.value = false

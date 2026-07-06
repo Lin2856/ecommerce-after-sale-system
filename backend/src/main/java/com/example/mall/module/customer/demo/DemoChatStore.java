@@ -5,6 +5,7 @@ import com.example.mall.module.customer.demo.DemoChatController.DemoChatMessageR
 import com.example.mall.module.customer.demo.DemoChatController.DemoConversationResponse;
 import com.example.mall.module.ai.dto.AiReplyRequest;
 import com.example.mall.module.ai.dto.ReplyResponse;
+import com.example.mall.module.ai.service.AiCallLogService;
 import com.example.mall.module.ai.service.AiService;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
@@ -22,10 +23,12 @@ public class DemoChatStore {
 
     private final JdbcTemplate jdbcTemplate;
     private final AiService aiService;
+    private final AiCallLogService aiCallLogService;
 
-    public DemoChatStore(JdbcTemplate jdbcTemplate, AiService aiService) {
+    public DemoChatStore(JdbcTemplate jdbcTemplate, AiService aiService, AiCallLogService aiCallLogService) {
         this.jdbcTemplate = jdbcTemplate;
         this.aiService = aiService;
+        this.aiCallLogService = aiCallLogService;
         ensureTwentyMallChatTables();
     }
 
@@ -39,6 +42,8 @@ public class DemoChatStore {
         String sql = """
             SELECT c.id, c.conversation_no, o.order_no, o.order_status,
                    i.product_name, i.sku_name, i.unit_price, i.quantity, p.description AS product_description,
+                   o.policy_tags,
+                   ma.platform_code,
                    ca.account_no AS consumer_account_no,
                    cpa.account_no AS consumer_primary_account_no,
                    ma.account_no AS merchant_account_no,
@@ -85,11 +90,13 @@ public class DemoChatStore {
             rs.getString("conversation_no"),
             rs.getString("order_no"),
             orderStatusText(rs.getString("order_status")),
+            platformName(rs.getString("platform_code")),
             rs.getString("product_name"),
             rs.getString("sku_name"),
             rs.getString("product_description"),
             rs.getBigDecimal("unit_price") == null ? null : rs.getBigDecimal("unit_price").toPlainString(),
             String.valueOf(rs.getInt("quantity")),
+            parsePolicyTags(rs.getString("policy_tags")),
             rs.getString("consumer_account_no"),
             rs.getString("consumer_primary_account_no"),
             rs.getString("merchant_account_no"),
@@ -138,7 +145,11 @@ public class DemoChatStore {
                     resumeAiService(latestConversation);
                     latestConversation = loadConversationByOrderNo(conversation.orderNo());
                 }
-                insertMessage(latestConversation, "AI", buildAiReply(latestConversation, request.content()), true);
+                DemoAiReply aiReply = buildAiReply(latestConversation, request.content());
+                insertMessage(latestConversation, "AI", aiReply.content(), true);
+                if (!aiReply.loggedByAiService()) {
+                    recordDemoChatAiCall(latestConversation, request.content(), aiReply.content(), aiReply.success(), aiReply.errorMessage());
+                }
             }
         }
         return toMessageResponse(conversation.orderNo(), message);
@@ -204,6 +215,8 @@ public class DemoChatStore {
         String sql = """
             SELECT c.id, c.conversation_no, o.order_no, o.order_status,
                    i.product_name, i.sku_name, i.unit_price, i.quantity, p.description AS product_description,
+                   o.policy_tags,
+                   ma.platform_code,
                    ca.account_no AS consumer_account_no,
                    cpa.account_no AS consumer_primary_account_no,
                    ma.account_no AS merchant_account_no,
@@ -249,11 +262,13 @@ public class DemoChatStore {
             rs.getString("conversation_no"),
             rs.getString("order_no"),
             orderStatusText(rs.getString("order_status")),
+            platformName(rs.getString("platform_code")),
             rs.getString("product_name"),
             rs.getString("sku_name"),
             rs.getString("product_description"),
             rs.getBigDecimal("unit_price") == null ? null : rs.getBigDecimal("unit_price").toPlainString(),
             String.valueOf(rs.getInt("quantity")),
+            parsePolicyTags(rs.getString("policy_tags")),
             rs.getString("consumer_account_no"),
             rs.getString("consumer_primary_account_no"),
             rs.getString("merchant_account_no"),
@@ -269,7 +284,10 @@ public class DemoChatStore {
 
     private List<DemoConversation> queryConversationById(Long conversationId) {
         String sql = """
-            SELECT c.id, c.conversation_no, o.order_no, i.product_name,
+            SELECT c.id, c.conversation_no, o.order_no, o.order_status,
+                   i.product_name, i.sku_name, i.unit_price, i.quantity, p.description AS product_description,
+                   o.policy_tags,
+                   ma.platform_code,
                    ca.account_no AS consumer_account_no,
                    cpa.account_no AS consumer_primary_account_no,
                    ma.account_no AS merchant_account_no,
@@ -280,6 +298,7 @@ public class DemoChatStore {
             FROM twenty_mall_conversation c
             JOIN twenty_mall_order o ON o.id = c.order_id
             JOIN twenty_mall_order_item i ON i.order_id = o.id AND i.deleted = 0
+            LEFT JOIN twenty_mall_product p ON p.id = i.product_id AND p.deleted = 0
             JOIN twenty_mall_account ca ON ca.id = o.consumer_account_id
             JOIN twenty_mall_account ma ON ma.id = o.merchant_account_id
             LEFT JOIN platform_account_binding cb ON cb.secondary_account_no = ca.account_no
@@ -314,11 +333,13 @@ public class DemoChatStore {
             rs.getString("conversation_no"),
             rs.getString("order_no"),
             orderStatusText(rs.getString("order_status")),
+            platformName(rs.getString("platform_code")),
             rs.getString("product_name"),
             rs.getString("sku_name"),
             rs.getString("product_description"),
             rs.getBigDecimal("unit_price") == null ? null : rs.getBigDecimal("unit_price").toPlainString(),
             String.valueOf(rs.getInt("quantity")),
+            parsePolicyTags(rs.getString("policy_tags")),
             rs.getString("consumer_account_no"),
             rs.getString("consumer_primary_account_no"),
             rs.getString("merchant_account_no"),
@@ -420,7 +441,15 @@ public class DemoChatStore {
         );
     }
 
-    private String buildAiReply(DemoConversation conversation, String content) {
+    private DemoAiReply buildAiReply(DemoConversation conversation, String content) {
+        String greetingReply = buildGreetingReply(conversation, content);
+        if (greetingReply != null) {
+            return new DemoAiReply(greetingReply, false, true, null);
+        }
+        String policyReply = buildPolicyReply(conversation, content);
+        if (policyReply != null) {
+            return new DemoAiReply(policyReply, false, true, null);
+        }
         try {
             ReplyResponse response = aiService.generateReply(new AiReplyRequest(
                 content,
@@ -429,7 +458,7 @@ public class DemoChatStore {
                 conversation.id(),
                 conversation.orderStatus(),
                 conversation.afterSaleStatus(),
-                "万象商城",
+                conversation.platformName(),
                 conversation.orderNo(),
                 conversation.merchantName(),
                 conversation.productName(),
@@ -437,15 +466,31 @@ public class DemoChatStore {
                 conversation.productDescription(),
                 conversation.productPrice(),
                 conversation.productQuantity(),
+                String.join("、", conversation.policyTags()),
                 null
             ));
             if (response != null && response.reply() != null && !response.reply().isBlank()) {
-                return response.reply();
+                return new DemoAiReply(response.reply(), true, true, null);
             }
-        } catch (Exception ignored) {
+        } catch (Exception ex) {
             // Keep the conversation usable and give the consumer a business-facing handoff message.
+            return new DemoAiReply(fallbackAiReply(conversation, content), false, false, ex.getMessage());
         }
-        return fallbackAiReply(conversation, content);
+        return new DemoAiReply(fallbackAiReply(conversation, content), false, false, "AI服务未返回有效回复");
+    }
+
+    private void recordDemoChatAiCall(DemoConversation conversation, String requestText, String responseText, boolean success, String errorMessage) {
+        aiCallLogService.recordManual(
+            null,
+            "DEMO_CHAT",
+            conversation.id(),
+            "CHAT_REPLY",
+            requestText,
+            responseText,
+            success,
+            errorMessage,
+            null
+        );
     }
 
     private String fallbackAiReply(DemoConversation conversation, String content) {
@@ -459,6 +504,32 @@ public class DemoChatStore {
         return "这个问题目前需要人工进一步核实订单和售后记录，我不能直接给出确定结论。您可以点击下方转人工客服按钮，由人工客服继续协助处理。";
     }
 
+    private String buildGreetingReply(DemoConversation conversation, String content) {
+        String question = content == null ? "" : content.trim();
+        if (question.matches("^(你好|您好|哈喽|hello|hi|在吗|在不在)[？?！!。,.，\\s]*$")) {
+            return "您好，我是" + conversation.platformName() + "AI客服，请问有什么可以帮您？";
+        }
+        return null;
+    }
+
+    private String buildPolicyReply(DemoConversation conversation, String content) {
+        if (!isNoReasonReturnQuestion(content)) {
+            return null;
+        }
+        boolean supported = conversation.policyTags().stream().anyMatch(tag -> containsAny(tag, "7天无理由", "七天无理由"));
+        if (supported) {
+            return "您这笔订单支持七天无理由退货。订单售后政策中包含“7天无理由退货”，在商品未使用、配件齐全且不影响二次销售的情况下，可以在规则期限内发起售后申请。您可以在订单详情页点击“申请售后”提交申请。";
+        }
+        if (!conversation.policyTags().isEmpty()) {
+            return "当前订单的售后政策标签为“" + String.join("、", conversation.policyTags()) + "”，其中没有标注“7天无理由退货”。如果您仍需要退货退款，可以根据商品质量、物流或商家承诺等情况发起售后，必要时转人工客服进一步核实。";
+        }
+        return null;
+    }
+
+    private boolean isNoReasonReturnQuestion(String content) {
+        return containsAny(content, "七天无理由", "7天无理由", "七天退货", "无理由退", "无理由退款", "无理由退货");
+    }
+
     private boolean containsAny(String content, String... keywords) {
         if (content == null || content.isBlank()) {
             return false;
@@ -469,6 +540,27 @@ public class DemoChatStore {
             }
         }
         return false;
+    }
+
+    private List<String> parsePolicyTags(String policyTagsJson) {
+        if (policyTagsJson == null || policyTagsJson.isBlank()) {
+            return List.of();
+        }
+        String content = policyTagsJson.trim();
+        if (content.startsWith("[") && content.endsWith("]")) {
+            content = content.substring(1, content.length() - 1);
+        }
+        if (content.isBlank()) {
+            return List.of();
+        }
+        List<String> tags = new ArrayList<>();
+        for (String rawTag : content.split(",")) {
+            String tag = rawTag.trim().replace("\"", "").replace("'", "");
+            if (!tag.isBlank()) {
+                tags.add(tag);
+            }
+        }
+        return tags;
     }
 
     private void ensureTwentyMallChatTables() {
@@ -571,6 +663,14 @@ public class DemoChatStore {
         return productName.replaceFirst("^万象商城\\s*", "").trim();
     }
 
+    private String platformName(String platformCode) {
+        return switch (platformCode == null ? "" : platformCode) {
+            case "YUEGOU_MARKET" -> "悦购集市";
+            case "TWENTY_MALL" -> "万象商城";
+            default -> "商城平台";
+        };
+    }
+
     private String normalizeSender(String senderType) {
         String normalized = senderType.toUpperCase(Locale.ROOT);
         if ("USER".equals(normalized)) {
@@ -596,11 +696,13 @@ public class DemoChatStore {
         String conversationNo,
         String orderNo,
         String orderStatus,
+        String platformName,
         String productName,
         String productSku,
         String productDescription,
         String productPrice,
         String productQuantity,
+        List<String> policyTags,
         String consumerAccountNo,
         String consumerPrimaryAccountNo,
         String merchantAccountNo,
@@ -615,5 +717,8 @@ public class DemoChatStore {
     }
 
     private record DemoMessage(String id, String senderType, String speaker, String content, LocalDateTime createdAt) {
+    }
+
+    private record DemoAiReply(String content, boolean loggedByAiService, boolean success, String errorMessage) {
     }
 }

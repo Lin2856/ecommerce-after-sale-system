@@ -233,6 +233,7 @@ public class ConversationServiceImpl implements ConversationService {
                 null,
                 null,
                 null,
+                null,
                 null
             ));
             if (response != null && response.reply() != null && !response.reply().isBlank()) {

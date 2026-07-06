@@ -16,14 +16,13 @@
       <view class="secure-badge">安全登录</view>
     </view>
 
-    <view class="demo-box">
-      <view class="demo-row">
-        <text class="demo-label">演示账号</text>
-        <text class="demo-value">13338907583 / 123456</text>
-      </view>
-      <view class="demo-row">
-        <text class="demo-label">空白账号</text>
-        <text class="demo-value">13338907582 / 123456</text>
+    <view class="service-scope">
+      <view class="scope-title">进入后可处理</view>
+      <view class="scope-grid">
+        <text>查看订单售后进度</text>
+        <text>提交退货物流单号</text>
+        <text>查看/补充商品评价</text>
+        <text>申请平台介入争议</text>
       </view>
     </view>
 

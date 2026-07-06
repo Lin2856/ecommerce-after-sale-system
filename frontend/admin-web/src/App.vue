@@ -56,14 +56,13 @@
           登录管理员端
         </el-button>
       </el-form>
-      <div class="admin-key-list">
-        <header>
-          <span>当前选择：{{ selectedAdmin?.name || '未选择管理员' }}</span>
-          <em>演示秘钥</em>
-        </header>
-        <div v-for="admin in adminAccounts" :key="admin.id" :class="{ active: selectedAdminId === admin.id }" @click="selectLoginAdmin(admin.id)">
-          <span>{{ admin.name }}</span>
-          <strong>{{ admin.key }}</strong>
+      <div class="admin-login-modules">
+        <strong>管理员端核心处理</strong>
+        <div>
+          <span>争议订单裁决</span>
+          <span>评价异议审核</span>
+          <span>账号封禁解封</span>
+          <span>规则与知识库配置</span>
         </div>
       </div>
     </section>
@@ -1485,6 +1484,7 @@ const overview = ref({
   highRiskReviewCount: 0,
   activeRuleCount: 0,
   knowledgeCount: 0,
+  aiCallCount: 0,
   trendRows: [] as TrendRow[],
   activityRows: [] as ActivityRow[]
 })
@@ -1791,9 +1791,8 @@ const metrics = computed(() => [
   { label: '商家数', value: formatNumber(overview.value.merchantCount), description: '万象商城中已启用的商家账号' },
   { label: '绑定店铺', value: formatNumber(overview.value.boundShopCount), description: '商家一级账号已绑定的店铺数量' },
   { label: '今日同步', value: formatNumber(overview.value.todaySyncCount), description: '今日更新的订单、售后和评价数据' },
-  { label: 'AI 调用', value: formatNumber(aiCallCount.value), description: '基于会话和评价分析估算的调用量' }
+  { label: 'AI 调用', value: formatNumber(overview.value.aiCallCount), description: '来自数据库 AI 调用日志的真实统计' }
 ])
-const aiCallCount = computed(() => adminReviews.value.length + overview.value.processingAfterSaleCount + overview.value.pendingAfterSaleCount)
 const pendingItems = computed(() => [
   {
     label: '待审核售后',
@@ -2361,6 +2360,7 @@ async function loadOverview() {
         highRiskReviewCount: Number(payload.data.highRiskReviewCount || 0),
         activeRuleCount: Number(payload.data.activeRuleCount || 0),
         knowledgeCount: Number(payload.data.knowledgeCount || 0),
+        aiCallCount: Number(payload.data.aiCallCount || 0),
         trendRows: (payload.data.trendRows || []).map((item: TrendRow) => ({
           date: item.date,
           orderCount: Number(item.orderCount || 0),
@@ -2386,6 +2386,7 @@ async function loadOverview() {
       highRiskReviewCount: 0,
       activeRuleCount: 0,
       knowledgeCount: 0,
+      aiCallCount: 0,
       trendRows: [],
       activityRows: []
     }
@@ -2772,6 +2773,8 @@ async function extractAdminKnowledge(target: 'article' | 'faq') {
     return
   }
   extractingAdminKnowledge.value = true
+  const startedAt = Date.now()
+  let logged = false
   try {
     const response = await fetch('http://localhost:9000/api/ai/knowledge/extract', {
       method: 'POST',
@@ -2783,6 +2786,16 @@ async function extractAdminKnowledge(target: 'article' | 'faq') {
     })
     const data = await response.json()
     if (!response.ok || !data) {
+      recordAdminAiCallLog({
+        businessType: target === 'article' ? 'KNOWLEDGE_ARTICLE' : 'KNOWLEDGE_FAQ',
+        taskType: 'KNOWLEDGE_EXTRACTION',
+        requestText: source,
+        responseText: JSON.stringify(data || {}),
+        success: false,
+        errorMessage: data?.message || 'AI 识别失败',
+        latencyMs: Date.now() - startedAt
+      })
+      logged = true
       throw new Error(data?.message || 'AI 识别失败')
     }
     if (target === 'article') {
@@ -2806,12 +2819,48 @@ async function extractAdminKnowledge(target: 'article' | 'faq') {
       }
       faqKnowledgeExtracted.value = true
     }
+    recordAdminAiCallLog({
+      businessType: target === 'article' ? 'KNOWLEDGE_ARTICLE' : 'KNOWLEDGE_FAQ',
+      taskType: 'KNOWLEDGE_EXTRACTION',
+      requestText: source,
+      responseText: JSON.stringify(data),
+      success: true,
+      latencyMs: Date.now() - startedAt
+    })
+    logged = true
     ElMessage.success('AI 已识别，请确认内容后保存')
   } catch (error) {
+    if (!logged) {
+      recordAdminAiCallLog({
+        businessType: target === 'article' ? 'KNOWLEDGE_ARTICLE' : 'KNOWLEDGE_FAQ',
+        taskType: 'KNOWLEDGE_EXTRACTION',
+        requestText: source,
+        success: false,
+        errorMessage: error instanceof Error ? error.message : 'AI 识别失败',
+        latencyMs: Date.now() - startedAt
+      })
+    }
     ElMessage.error(error instanceof Error ? error.message : 'AI 识别失败，请确认 AI 服务已启动')
   } finally {
     extractingAdminKnowledge.value = false
   }
+}
+
+function recordAdminAiCallLog(payload: {
+  businessType: string
+  businessId?: number | null
+  taskType: string
+  requestText?: string
+  responseText?: string
+  success?: boolean
+  errorMessage?: string
+  latencyMs?: number
+}) {
+  fetch('http://localhost:8080/api/merchant/ai/call-log', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }).catch(() => undefined)
 }
 
 function mapAdminArticleCategory(category: string) {
@@ -3989,56 +4038,36 @@ function shouldShowPrimaryCell(rows: BindingRow[], row: BindingRow, index: numbe
   box-shadow: 0 14px 26px rgba(37, 99, 235, 0.22);
 }
 
-.admin-key-list {
-  display: grid;
-  gap: 8px;
+.admin-login-modules {
   margin-top: 24px;
-  padding: 14px 16px;
-  border: 1px solid #e7eef8;
+  padding: 18px;
+  border: 1px solid #dbeafe;
   border-radius: 16px;
-  background: #f8fbff;
+  background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.08);
 }
 
-.admin-key-list header,
-.admin-key-list div {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-}
-
-.admin-key-list div {
-  padding: 4px 8px;
-  border-radius: 9px;
-  cursor: pointer;
-}
-
-.admin-key-list div.active {
-  background: #eff6ff;
-}
-
-.admin-key-list header {
-  padding-bottom: 8px;
-  border-bottom: 1px solid #e7eef8;
-}
-
-.admin-key-list span {
-  color: #64748b;
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.admin-key-list em {
-  color: #94a3b8;
-  font-size: 12px;
-  font-style: normal;
-  font-weight: 800;
-}
-
-.admin-key-list strong {
+.admin-login-modules strong {
+  display: block;
   color: #0f172a;
   font-size: 14px;
-  letter-spacing: 0.04em;
+  font-weight: 900;
+}
+
+.admin-login-modules div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.admin-login-modules span {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fff;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .header-actions,

@@ -1,8 +1,9 @@
-import { fetchPrimaryProfileFromDatabase, fetchTwentyMallBindingsFromDatabase, getConsumerProfile, getPrimaryPhone } from "../../utils/auth"
+import { fetchLocalPlatformBindingsFromDatabase, fetchPrimaryProfileFromDatabase, getConsumerProfile, getLocalPlatformConfig, getPrimaryPhone } from "../../utils/auth"
 import { enrichOrderDisplay } from "../../utils/order-display"
 
 const API_BASE = "http://localhost:8080/api/demo-chat"
 const AI_AVATAR = "/assets/avatars/ai-bot.png"
+const LOCAL_PLATFORM_CODES = ["TWENTY_MALL", "YUEGOU_MARKET"]
 
 function formatMessageTime(value) {
   if (!value) return ""
@@ -47,7 +48,10 @@ Page({
     activeOrderNo: "",
     consultingOrder: null,
     messages: [],
+    displayMessages: [],
+    messageOrderNo: "",
     scrollTarget: "",
+    scrollTop: 0,
     lastMessageKey: "",
     consumerAvatar: "",
     merchantAvatar: "",
@@ -74,9 +78,25 @@ Page({
     this.setData({ inputValue: e.detail.value })
   },
   applyPlatformBinding() {
-    fetchTwentyMallBindingsFromDatabase({
-      success: (bindings) => this.applyBindings(bindings),
-      fail: (bindings) => this.applyBindings(bindings)
+    const tasks = LOCAL_PLATFORM_CODES.map((platformCode) => new Promise((resolve) => {
+      const config = getLocalPlatformConfig(platformCode)
+      fetchLocalPlatformBindingsFromDatabase(platformCode, {
+        success: (bindings) => resolve((bindings || []).map((binding) => ({
+          ...binding,
+          platformCode,
+          platformName: config.name,
+          apiPrefix: config.apiPrefix
+        }))),
+        fail: (bindings) => resolve((bindings || []).map((binding) => ({
+          ...binding,
+          platformCode,
+          platformName: config.name,
+          apiPrefix: config.apiPrefix
+        })))
+      })
+    }))
+    Promise.all(tasks).then((groups) => {
+      this.applyBindings(groups.reduce((all, group) => all.concat(group), []))
     })
   },
   applyBindings(bindings) {
@@ -87,14 +107,18 @@ Page({
         activeOrderNo: "",
         consultingOrder: null,
         messages: [],
+        displayMessages: [],
+        messageOrderNo: "",
         inputValue: "",
         mode: "AI"
       })
       return
     }
     const requests = bindings.map((binding) => new Promise((resolve) => {
+      const platformName = binding.platformName || binding.platform || "电商平台"
+      const apiPrefix = binding.apiPrefix || getLocalPlatformConfig(binding.platformCode).apiPrefix
       wx.request({
-        url: `http://localhost:8080/api/twenty-mall/consumer/orders?accountNo=${binding.accountNo}`,
+        url: `http://localhost:8080${apiPrefix}/consumer/orders?accountNo=${encodeURIComponent(binding.accountNo)}`,
         success: (res) => {
           const list = (res.data && res.data.data) || []
           resolve(list.map((item) => enrichOrderDisplay({
@@ -102,8 +126,9 @@ Page({
             title: item.title,
             status: item.status,
             afterSale: item.afterSale,
-            platform: "万象商城",
+            platform: platformName,
             accountNo: binding.accountNo,
+            platformCode: binding.platformCode,
             merchantAccountNo: item.merchantAccountNo || "",
             merchantPrimaryAccountNo: item.merchantPrimaryAccountNo || "",
             merchant: item.merchant,
@@ -124,13 +149,19 @@ Page({
           orders: [],
           activeOrderNo: "",
           consultingOrder: null,
-          messages: []
+          messages: [],
+          displayMessages: [],
+          messageOrderNo: ""
         })
         return
       }
       const pendingOrderNo = wx.getStorageSync("pendingChatOrderNo")
       const currentOrderStillExists = nextOrders.some((item) => item.no === this.data.activeOrderNo)
-      const activeOrder = nextOrders.find((item) => item.no === pendingOrderNo)
+      const pendingOrder = nextOrders.find((item) => item.no === pendingOrderNo)
+      if (pendingOrderNo && !pendingOrder) {
+        wx.showToast({ title: "该订单暂未同步到聊天列表", icon: "none" })
+      }
+      const activeOrder = pendingOrder
         || (currentOrderStillExists ? nextOrders.find((item) => item.no === this.data.activeOrderNo) : null)
         || nextOrders[0]
       if (pendingOrderNo) {
@@ -139,11 +170,16 @@ Page({
       if (!currentOrderStillExists && this.data.activeOrderNo) {
         wx.removeStorageSync(`chatActiveOrderNo:${this.data.activeOrderNo}`)
       }
+      const orderChanged = activeOrder.no !== this.data.activeOrderNo || this.data.messageOrderNo !== activeOrder.no
       this.setData({
         platformBound: true,
         orders: nextOrders,
         activeOrderNo: activeOrder.no,
-        consultingOrder: activeOrder
+        consultingOrder: activeOrder,
+        messages: orderChanged ? [] : this.data.messages,
+        displayMessages: orderChanged ? [] : this.data.messages,
+        messageOrderNo: orderChanged ? activeOrder.no : this.data.messageOrderNo,
+        lastMessageKey: orderChanged ? "" : this.data.lastMessageKey
       })
       this.loadMerchantAvatar(activeOrder.merchantPrimaryAccountNo || "")
       this.loadConversation(activeOrder.no)
@@ -203,6 +239,8 @@ Page({
       mode: "AI",
       inputValue: "",
       messages: [],
+      displayMessages: [],
+      messageOrderNo: no,
       lastMessageKey: "",
       orderSwitcherVisible: false
     })
@@ -236,6 +274,8 @@ Page({
       inputValue: "",
       mode: wantsHuman ? "人工" : this.data.mode,
       messages: this.data.messages.concat(optimisticMessage),
+      displayMessages: this.data.messages.concat(optimisticMessage),
+      messageOrderNo: no,
       lastMessageKey: `local:${optimisticMessage.id}:${value}`
     }, () => {
       this.scrollToBottom()
@@ -255,6 +295,7 @@ Page({
           this.setData({
             inputValue: value,
             messages: this.data.messages.filter((item) => item.id !== optimisticMessage.id),
+            displayMessages: this.data.displayMessages.filter((item) => item.id !== optimisticMessage.id),
             lastMessageKey: ""
           })
           return
@@ -270,6 +311,7 @@ Page({
         this.setData({
           inputValue: value,
           messages: this.data.messages.filter((item) => item.id !== optimisticMessage.id),
+          displayMessages: this.data.displayMessages.filter((item) => item.id !== optimisticMessage.id),
           lastMessageKey: ""
         })
       }
@@ -315,9 +357,12 @@ Page({
   },
   loadMessages(orderNo = this.data.activeOrderNo) {
     if (!this.data.platformBound || !orderNo) return
+    const requestSeq = (this.messageRequestSeq || 0) + 1
+    this.messageRequestSeq = requestSeq
     wx.request({
       url: `${API_BASE}/conversations/${orderNo}/messages`,
       success: (res) => {
+        if (requestSeq !== this.messageRequestSeq) return
         if (this.data.activeOrderNo !== orderNo) return
         const list = (res.data && res.data.data) || []
         const messages = list.map(normalizeMessage)
@@ -337,6 +382,8 @@ Page({
         }
         this.setData({
           messages,
+          displayMessages: messages,
+          messageOrderNo: orderNo,
           lastMessageKey: nextMessageKey
         }, () => {
           if (shouldScroll) {
@@ -352,9 +399,13 @@ Page({
     return this.data.consumerAvatar
   },
   scrollToBottom() {
-    this.setData({ scrollTarget: "" }, () => {
+    const nextScrollTop = (this.data.scrollTop || 0) + 100000
+    this.setData({ scrollTarget: "", scrollTop: nextScrollTop }, () => {
       wx.nextTick(() => {
         this.setData({ scrollTarget: "chat-bottom" })
+        setTimeout(() => {
+          this.setData({ scrollTop: nextScrollTop + 100000, scrollTarget: "chat-bottom" })
+        }, 80)
       })
     })
   },

@@ -179,7 +179,7 @@ const selfBuiltDemoHint = computed(() => {
   if (selectedSelfBuiltPlatform.value?.code === 'YUEGOU_MARKET') {
     return '当前暂无已创建的悦购集市商家账号。请先在数据库中创建该平台的真实商家账号，再在这里绑定。'
   }
-  return '商家端演示账号：20230141 / 123456（极光外设旗舰店），20230142 / 123456（黑曜通勤箱包店），22222223 / 123456（晨光数码生活馆），22222224 / 123456（云途箱包旗舰店）'
+  return '请使用已创建的真实商家二级账号完成绑定，绑定成功后即可同步对应店铺的订单、售后和评价数据。'
 })
 
 onMounted(async () => {

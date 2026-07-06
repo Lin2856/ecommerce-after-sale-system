@@ -1,8 +1,13 @@
 import { orders } from "../../utils/mock"
-import { getTwentyMallBinding } from "../../utils/auth"
+import { getLocalPlatformConfig } from "../../utils/auth"
 import { enrichOrderDisplay } from "../../utils/order-display"
 
-const API_BASE = "http://localhost:8080/api/twenty-mall"
+function resolveOrderPlatform(orderNo) {
+  if (String(orderNo || "").startsWith("YG")) {
+    return { code: "YUEGOU_MARKET", fallbackMerchant: "悦购集市店铺" }
+  }
+  return { code: "TWENTY_MALL", fallbackMerchant: "万象商城店铺" }
+}
 
 Page({
   data: {
@@ -24,6 +29,8 @@ Page({
     merchantReviewText: "",
     reviewDetailVisible: false,
     reviewDetail: null,
+    apiBase: "http://localhost:8080/api/twenty-mall",
+    platformName: "万象商城",
     productReviewStars: [
       { value: 1, active: true },
       { value: 2, active: true },
@@ -40,10 +47,16 @@ Page({
     ]
   },
   onLoad(options) {
-    const binding = getTwentyMallBinding()
-    if (binding && binding.platform === "万象商城" && options.no && options.no.startsWith("TM")) {
+    const platform = resolveOrderPlatform(options.no)
+    const config = getLocalPlatformConfig(platform.code)
+    const apiBase = `http://localhost:8080${config.apiPrefix}`
+    this.setData({
+      apiBase,
+      platformName: config.name
+    })
+    if (options.no && (options.no.startsWith("TM") || options.no.startsWith("YG"))) {
       wx.request({
-        url: `http://localhost:8080/api/twenty-mall/consumer/orders/detail?orderNo=${options.no}`,
+        url: `${apiBase}/consumer/orders/detail?orderNo=${encodeURIComponent(options.no)}`,
         success: (res) => {
           const item = res.data && res.data.data
           if (item) {
@@ -52,8 +65,8 @@ Page({
               title: item.title,
               status: item.status,
               afterSale: this.afterSaleStatusText(item.afterSale),
-              platform: "万象商城",
-              merchant: item.merchant || "万象商城演示店铺",
+              platform: config.name,
+              merchant: item.merchant || platform.fallbackMerchant,
               price: item.price,
               image: item.image,
               spec: item.spec,
@@ -74,6 +87,9 @@ Page({
     }
     const product = enrichOrderDisplay(orders.find((item) => item.no === options.no) || orders[0])
     this.setData({ product, afterSaleDetail: null })
+  },
+  currentApiBase() {
+    return this.data.apiBase || "http://localhost:8080/api/twenty-mall"
   },
   handleAfterSalePrimary() {
     if (!this.data.product) return
@@ -130,7 +146,7 @@ Page({
         if (!modalRes.confirm) return
         wx.showLoading({ title: "取消中" })
         wx.request({
-          url: `${API_BASE}/consumer/after-sales/cancel`,
+          url: `${this.currentApiBase()}/consumer/after-sales/cancel`,
           method: "POST",
           header: { "Content-Type": "application/json" },
           data: { orderNo: this.data.product.no },
@@ -265,7 +281,7 @@ Page({
     if (!this.data.product) return
         wx.showLoading({ title: "提交中" })
         wx.request({
-          url: `${API_BASE}/consumer/after-sales`,
+          url: `${this.currentApiBase()}/consumer/after-sales`,
           method: "POST",
           header: { "Content-Type": "application/json" },
           data: {
@@ -322,7 +338,7 @@ Page({
   },
   loadAfterSaleDetail(orderNo) {
     wx.request({
-      url: `${API_BASE}/consumer/after-sales/detail?orderNo=${orderNo}`,
+      url: `${this.currentApiBase()}/consumer/after-sales/detail?orderNo=${encodeURIComponent(orderNo)}`,
       success: (res) => {
         const payload = res.data || {}
         if (payload.code !== "200" || !payload.data) {
@@ -360,7 +376,7 @@ Page({
     }
     wx.showLoading({ title: "提交中" })
     wx.request({
-      url: `${API_BASE}/consumer/after-sales/return-shipping`,
+      url: `${this.currentApiBase()}/consumer/after-sales/return-shipping`,
       method: "POST",
       header: { "Content-Type": "application/json" },
       data: {
@@ -468,7 +484,7 @@ Page({
     }
     wx.showLoading({ title: "提交中" })
     wx.request({
-      url: `${API_BASE}/consumer/after-sales/disputes`,
+      url: `${this.currentApiBase()}/consumer/after-sales/disputes`,
       method: "POST",
       header: { "Content-Type": "application/json" },
       data: {
@@ -558,7 +574,7 @@ Page({
     if (!this.data.product) return
     wx.showLoading({ title: "加载中" })
     wx.request({
-      url: `${API_BASE}/consumer/reviews/detail?orderNo=${encodeURIComponent(this.data.product.no)}`,
+      url: `${this.currentApiBase()}/consumer/reviews/detail?orderNo=${encodeURIComponent(this.data.product.no)}`,
       success: (response) => {
         const payload = response.data || {}
         if (payload.code !== "200" || !payload.data) {
@@ -625,7 +641,7 @@ Page({
     }
     wx.showLoading({ title: "提交中" })
     wx.request({
-      url: `${API_BASE}/consumer/reviews`,
+      url: `${this.currentApiBase()}/consumer/reviews`,
       method: "POST",
       header: { "Content-Type": "application/json" },
       data: {

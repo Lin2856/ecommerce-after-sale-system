@@ -45,7 +45,19 @@
             <el-input v-model="phone" size="large" placeholder="请输入手机号" />
           </el-form-item>
           <el-form-item label="验证码">
-            <el-input v-model="code" size="large" placeholder="请输入验证码" />
+            <div class="code-row">
+              <el-input v-model="code" size="large" placeholder="请输入验证码" />
+              <el-button
+                class="send-code-btn"
+                native-type="button"
+                size="large"
+                :disabled="countdown > 0"
+                :loading="sendingCode"
+                @click="sendCode"
+              >
+                {{ countdown > 0 ? `${countdown}s` : '发送验证码' }}
+              </el-button>
+            </div>
           </el-form-item>
           <el-button class="login-submit" type="primary" native-type="button" size="large" :loading="loading" @click="login">
             登录
@@ -61,14 +73,13 @@
           </el-button>
         </el-form>
 
-        <div class="demo-panel">
+        <div class="login-workbench">
+          <strong>商家工作台包含</strong>
           <div>
-            <span>演示手机号</span>
-            <strong>13338907681 / 123456</strong>
-          </div>
-          <div>
-            <span>空白账号</span>
-            <strong>13338907682 / 123456</strong>
+            <span>待处理售后</span>
+            <span>服务动态邮件</span>
+            <span>评价异议</span>
+            <span>客服操作日志</span>
           </div>
         </div>
       </section>
@@ -100,59 +111,50 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { clearMerchantBindings, setAuth } from '../utils/auth'
 import { clearStaffIdentity } from '../utils/staffAuth'
-import { loadMerchantWechatQrUrl, loadPrimaryBanStatus, merchantWechatCallbackLogin } from '../api'
+import { loadMerchantWechatQrUrl, merchantPhoneCodeLogin, merchantWechatCallbackLogin, sendMerchantVerificationCode } from '../api'
 import wechatIcon from '../assets/platforms/wechat.png'
 import brandIcon from '../assets/brand/fusion-after-sale-icon.png'
 
 const router = useRouter()
-const phone = ref('13338907681')
-const code = ref('123456')
+const phone = ref('')
+const code = ref('')
 const loading = ref(false)
+const sendingCode = ref(false)
+const countdown = ref(0)
+let countdownTimer: number | undefined
 const wechatDialogVisible = ref(false)
 const wechatLoading = ref(false)
 const wechatQrUrl = ref('')
 const wechatQrTip = ref('请使用微信扫描二维码登录商家端')
-const demoAccounts = [
-  {
-    phone: '13338907681',
-    code: '123456',
-    user: {
-      userId: 2,
-      username: '13338907681',
-      nickname: '店铺管理员',
-      merchantId: 1,
-      roles: ['MERCHANT_ADMIN']
-    }
-  },
-  {
-    phone: '13338907682',
-    code: '123456',
-    user: {
-      userId: 13338907682,
-      username: '13338907682',
-      nickname: '',
-      merchantId: null,
-      roles: ['MERCHANT_ADMIN']
-    }
-  }
-]
-
 async function login() {
+  const cleanPhone = phone.value.trim()
+  const cleanCode = code.value.trim()
+  if (!cleanPhone) {
+    ElMessage({ type: 'warning', message: '请输入手机号' })
+    return
+  }
+  if (!cleanCode) {
+    ElMessage({ type: 'warning', message: '请输入验证码' })
+    return
+  }
   loading.value = true
   try {
-    const account = demoAccounts.find((item) => item.phone === phone.value.trim() && item.code === code.value.trim())
-    if (!account) {
-      ElMessage({ type: 'error', message: '手机号或验证码错误' })
-      return
+    const result = await merchantPhoneCodeLogin(cleanPhone, cleanCode) as {
+      token: string
+      user: {
+        userId: number
+        username: string
+        nickname: string
+        phone?: string
+        avatar?: string
+        merchantId?: number | null
+        roles: string[]
+        loginMode?: string
+      }
     }
-    const banStatus = await loadPrimaryBanStatus(account.user.username, 'MERCHANT') as { allowed?: boolean; message?: string }
-    if (banStatus.allowed === false) {
-      ElMessage({ type: 'error', message: banStatus.message || '该账号已被封禁' })
-      return
-    }
-    setAuth('demo-token', account.user)
+    setAuth(result.token, result.user)
     clearStaffIdentity()
-    if (account.phone === '13338907682' && localStorage.getItem('merchant_blank_account_initialized:13338907682') !== '1') {
+    if (result.user.username === '13338907682' && localStorage.getItem('merchant_blank_account_initialized:13338907682') !== '1') {
       clearMerchantBindings()
       localStorage.setItem('merchant_blank_account_initialized:13338907682', '1')
     }
@@ -162,6 +164,38 @@ async function login() {
   } finally {
     loading.value = false
   }
+}
+
+async function sendCode() {
+  const cleanPhone = phone.value.trim()
+  if (!cleanPhone) {
+    ElMessage({ type: 'warning', message: '请输入手机号' })
+    return
+  }
+  sendingCode.value = true
+  try {
+    const result = await sendMerchantVerificationCode(cleanPhone) as { devCode?: string; message?: string; expiresIn?: number }
+    ElMessage({ type: 'success', message: result.devCode ? `验证码：${result.devCode}` : result.message || '验证码已发送' })
+    startCountdown(result.expiresIn || 60)
+  } catch (error) {
+    ElMessage({ type: 'error', message: error instanceof Error ? error.message : '验证码发送失败，请确认后端服务已启动' })
+  } finally {
+    sendingCode.value = false
+  }
+}
+
+function startCountdown(seconds: number) {
+  if (countdownTimer) {
+    window.clearInterval(countdownTimer)
+  }
+  countdown.value = Math.min(Math.max(Number(seconds) || 60, 1), 60)
+  countdownTimer = window.setInterval(() => {
+    countdown.value -= 1
+    if (countdown.value <= 0 && countdownTimer) {
+      window.clearInterval(countdownTimer)
+      countdownTimer = undefined
+    }
+  }, 1000)
 }
 
 function wechatLogin() {
@@ -411,6 +445,18 @@ onMounted(() => {
   box-shadow: 0 0 0 1px #dbe5f1 inset;
 }
 
+.code-row {
+  display: grid;
+  grid-template-columns: 1fr 118px;
+  gap: 10px;
+}
+
+.send-code-btn {
+  height: 40px;
+  border-radius: 12px;
+  font-weight: 800;
+}
+
 .login-submit {
   width: 100%;
   height: 44px;
@@ -527,34 +573,35 @@ onMounted(() => {
   line-height: 1.65;
 }
 
-.demo-panel {
-  display: grid;
-  gap: 10px;
-  margin-top: 22px;
-  padding: 16px;
+.login-workbench {
+  margin-top: 24px;
+  padding: 18px;
   border: 1px solid #e7eef8;
   border-radius: 16px;
-  background: #f8fbff;
+  background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
 }
 
-.demo-panel div {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-}
-
-.demo-panel span {
-  flex-shrink: 0;
-  color: #64748b;
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.demo-panel strong {
+.login-workbench strong {
+  display: block;
   color: #0f172a;
-  font-size: 14px;
-  text-align: right;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.login-workbench div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.login-workbench span {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fff;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 @media (max-width: 860px) {
@@ -567,6 +614,10 @@ onMounted(() => {
   }
 
   .feature-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .login-workbench div {
     grid-template-columns: 1fr;
   }
 

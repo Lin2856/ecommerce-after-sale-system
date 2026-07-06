@@ -18,6 +18,7 @@ public record AiReplyRequest(
     String productDescription,
     String productPrice,
     String productQuantity,
+    String policyTags,
     String userTone
 ) {
 }

@@ -28,20 +28,47 @@ export async function loadTwentyMallMerchantAfterSales(accountNo: string) {
   return unwrap(await api.get('/twenty-mall/merchant/after-sales', { params: { accountNo } }))
 }
 
+function selfBuiltApiPrefix(platformCode = 'TWENTY_MALL') {
+  return platformCode === 'YUEGOU_MARKET' ? '/yuegou-market' : '/twenty-mall'
+}
+
+export async function loadSelfBuiltMerchantAfterSales(accountNo: string, platformCode = 'TWENTY_MALL') {
+  return unwrap(await api.get(`${selfBuiltApiPrefix(platformCode)}/merchant/after-sales`, { params: { accountNo } }))
+}
+
 export async function reviewTwentyMallAfterSale(afterSaleId: number, result: 'APPROVE' | 'REJECT', reason = '') {
   return unwrap(await api.post('/twenty-mall/merchant/after-sales/review', { afterSaleId, result, reason }))
+}
+
+export async function reviewSelfBuiltAfterSale(afterSaleId: number, result: 'APPROVE' | 'REJECT', reason = '', platformCode = 'TWENTY_MALL') {
+  return unwrap(await api.post(`${selfBuiltApiPrefix(platformCode)}/merchant/after-sales/review`, { afterSaleId, result, reason }))
 }
 
 export async function refundTwentyMallAfterSale(afterSaleId: number) {
   return unwrap(await api.post('/twenty-mall/merchant/after-sales/refund', { afterSaleId }))
 }
 
+export async function refundSelfBuiltAfterSale(afterSaleId: number, platformCode = 'TWENTY_MALL') {
+  return unwrap(await api.post(`${selfBuiltApiPrefix(platformCode)}/merchant/after-sales/refund`, { afterSaleId }))
+}
+
 export async function loadTwentyMallMerchantAfterSaleDisputes(accountNo: string) {
   return unwrap(await api.get('/twenty-mall/merchant/after-sales/disputes', { params: { accountNo } }))
 }
 
+export async function loadSelfBuiltMerchantAfterSaleDisputes(accountNo: string, platformCode = 'TWENTY_MALL') {
+  return unwrap(await api.get(`${selfBuiltApiPrefix(platformCode)}/merchant/after-sales/disputes`, { params: { accountNo } }))
+}
+
 export async function submitTwentyMallMerchantDisputeEvidence(disputeId: number, evidenceText: string, evidenceImages: string[] = []) {
   return unwrap(await api.post(`/twenty-mall/merchant/after-sales/disputes/${disputeId}/evidence`, {
+    evidenceText,
+    evidenceImages
+  }))
+}
+
+export async function submitSelfBuiltMerchantDisputeEvidence(disputeId: number, evidenceText: string, evidenceImages: string[] = [], platformCode = 'TWENTY_MALL') {
+  return unwrap(await api.post(`${selfBuiltApiPrefix(platformCode)}/merchant/after-sales/disputes/${disputeId}/evidence`, {
     evidenceText,
     evidenceImages
   }))
@@ -63,8 +90,26 @@ export async function loadReviews(params: Record<string, unknown> = {}) {
   return unwrap(await api.get('/merchant/reviews', { params }))
 }
 
+export function recordAiCallLog(payload: {
+  merchantId?: number | null
+  businessType: string
+  businessId?: number | null
+  taskType: string
+  requestText?: string
+  responseText?: string
+  success?: boolean
+  errorMessage?: string
+  latencyMs?: number
+}) {
+  return api.post('/merchant/ai/call-log', payload).catch(() => undefined)
+}
+
 export async function loadTwentyMallMerchantReviews(accountNo: string) {
   return unwrap(await api.get('/twenty-mall/merchant/reviews', { params: { accountNo } }))
+}
+
+export async function loadSelfBuiltMerchantReviews(accountNo: string, platformCode = 'TWENTY_MALL') {
+  return unwrap(await api.get(`${selfBuiltApiPrefix(platformCode)}/merchant/reviews`, { params: { accountNo } }))
 }
 
 export async function loadTwentyMallMerchantNotifications(accountNo: string) {
@@ -73,6 +118,10 @@ export async function loadTwentyMallMerchantNotifications(accountNo: string) {
 
 export async function submitTwentyMallReviewDispute(reviewId: number, accountNo: string, reason: string) {
   return unwrap(await api.post(`/twenty-mall/merchant/reviews/${reviewId}/dispute`, { accountNo, reason }))
+}
+
+export async function submitSelfBuiltReviewDispute(reviewId: number, accountNo: string, reason: string, platformCode = 'TWENTY_MALL') {
+  return unwrap(await api.post(`${selfBuiltApiPrefix(platformCode)}/merchant/reviews/${reviewId}/dispute`, { accountNo, reason }))
 }
 
 export async function loadArticles(params: Record<string, unknown> = {}) {
@@ -97,6 +146,14 @@ export async function createOperationLog(payload: Record<string, unknown>) {
 
 export async function merchantWechatLogin(accountNo: string) {
   return unwrap(await api.post('/twenty-mall/merchant/wechat-login', { accountNo }))
+}
+
+export async function sendMerchantVerificationCode(phone: string) {
+  return unwrap(await api.post('/twenty-mall/merchant/verification-code/send', { phone }))
+}
+
+export async function merchantPhoneCodeLogin(phone: string, code: string) {
+  return unwrap(await api.post('/twenty-mall/merchant/phone-login', { phone, code }))
 }
 
 export async function loadPrimaryBanStatus(accountNo: string, accountType: 'CONSUMER' | 'MERCHANT') {

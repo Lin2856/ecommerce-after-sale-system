@@ -103,7 +103,7 @@
 }
 
 .chat-bottom-spacer {
-  height: 150rpx;
+  height: 28rpx;
 }
 
 .msg-row {

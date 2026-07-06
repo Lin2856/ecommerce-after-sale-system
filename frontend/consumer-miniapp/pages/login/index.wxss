@@ -80,42 +80,38 @@
   font-weight: 800;
 }
 
-.demo-box {
-  margin-top: 26rpx;
+.service-scope {
+  margin-top: 24rpx;
   padding: 20rpx;
-  border-radius: 20rpx;
+  border-radius: 22rpx;
   background: #f8fbff;
   border: 1rpx solid #e7eef8;
 }
 
-.demo-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18rpx;
-  min-height: 42rpx;
+.scope-title {
+  color: #0f172a;
+  font-size: 25rpx;
+  font-weight: 900;
 }
 
-.demo-row + .demo-row {
-  margin-top: 10rpx;
+.scope-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12rpx;
+  margin-top: 14rpx;
 }
 
-.demo-label {
-  flex-shrink: 0;
-  color: #64748b;
-  font-size: 24rpx;
+.scope-grid text {
+  padding: 12rpx 14rpx;
+  border-radius: 14rpx;
+  background: #ffffff;
+  color: #475569;
+  font-size: 22rpx;
   font-weight: 700;
 }
 
-.demo-value {
-  color: #0f172a;
-  font-size: 25rpx;
-  font-weight: 800;
-  text-align: right;
-}
-
 .form-area {
-  margin-top: 26rpx;
+  margin-top: 30rpx;
 }
 
 .input-wrap {

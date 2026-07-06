@@ -50,7 +50,14 @@
                 <el-tag :type="statusTagType(row.status, row)" effect="light">{{ displayStatus(row) }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="createdAt" label="创建时间" min-width="160" />
+            <el-table-column label="售后申请时间" min-width="220">
+              <template #default="{ row }">
+                <div class="after-sale-apply-time">
+                  <span>{{ row.createdAt }}</span>
+                  <em v-if="row.status === 'PENDING_REVIEW'">{{ remainingReviewTimeText(row) }}</em>
+                </div>
+              </template>
+            </el-table-column>
             <el-table-column label="操作" width="190">
               <template #default="{ row }">
                 <span class="row-actions">
@@ -76,7 +83,7 @@
         <el-descriptions-item label="申请金额">{{ selectedAfterSale.requestedAmount }}</el-descriptions-item>
         <el-descriptions-item label="优先级">{{ labelText.priority[selectedAfterSale.priority] || selectedAfterSale.priority }}</el-descriptions-item>
         <el-descriptions-item label="回写状态">{{ labelText.writeBack[selectedAfterSale.writeBackStatus] || selectedAfterSale.writeBackStatus }}</el-descriptions-item>
-        <el-descriptions-item label="创建时间">{{ selectedAfterSale.createdAt }}</el-descriptions-item>
+        <el-descriptions-item label="售后申请时间">{{ selectedAfterSale.createdAt }}</el-descriptions-item>
         <el-descriptions-item label="退货单号">{{ selectedAfterSale.returnTrackingNo || '暂无' }}</el-descriptions-item>
         <el-descriptions-item label="寄回时间">{{ selectedAfterSale.returnShippedAt || '暂无' }}</el-descriptions-item>
         <el-descriptions-item label="审核意见" :span="2">{{ selectedAfterSale.reviewOpinion || '暂无' }}</el-descriptions-item>
@@ -188,18 +195,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { afterSales } from '../data/mock'
 import {
-  loadTwentyMallMerchantAfterSaleDisputes,
-  loadTwentyMallMerchantAfterSales,
-  refundTwentyMallAfterSale,
-  reviewTwentyMallAfterSale,
-  submitTwentyMallMerchantDisputeEvidence
+  loadSelfBuiltMerchantAfterSaleDisputes,
+  loadSelfBuiltMerchantAfterSales,
+  refundSelfBuiltAfterSale,
+  reviewSelfBuiltAfterSale,
+  submitSelfBuiltMerchantDisputeEvidence
 } from '../api'
 import { ElMessage } from 'element-plus'
 import twentyMallIcon from '../assets/platforms/twenty-mall.png'
-import { getMerchantBindings } from '../utils/auth'
+import yuegouMarketIcon from '../assets/platforms/yuegou-market.svg?url'
+import { getMerchantBindings, getStoredUser, type MerchantPlatformBinding } from '../utils/auth'
 
 type AfterSaleRow = typeof afterSales[number] & {
   orderNo: string
@@ -241,6 +249,8 @@ const selectedAfterSale = ref<AfterSaleRow | null>(null)
 const reviewingId = ref<number | null>(null)
 const readAfterSaleIds = ref<Set<number>>(readStoredAfterSaleIds())
 const reviewForm = ref({ reason: '' })
+const now = ref(Date.now())
+let countdownTimer: number | undefined
 const filterOptions = [
   { label: '全部', value: '全部' },
   { label: '待审核', value: 'PENDING_REVIEW' },
@@ -257,20 +267,32 @@ const labelText = {
 }
 
 onMounted(async () => {
+  countdownTimer = window.setInterval(() => {
+    now.value = Date.now()
+  }, 60_000)
   loading.value = true
-  const [loaded, disputes] = await Promise.all([loadBoundAfterSales(), loadBoundDisputes()])
+  const bindings = await loadCurrentSelfBuiltBindings()
+  const [loaded, disputes] = await Promise.all([loadBoundAfterSales(bindings), loadBoundDisputes(bindings)])
   afterSalesData.value = loaded.map(normalizeAfterSaleRow)
   disputeData.value = disputes.map(normalizeDisputeRow)
   loading.value = false
 })
 
-async function loadBoundAfterSales() {
-  const bindings = getMerchantBindings().filter((item) => item.platformCode === 'TWENTY_MALL' && item.accountNo)
+onUnmounted(() => {
+  if (countdownTimer) {
+    window.clearInterval(countdownTimer)
+  }
+})
+
+async function loadBoundAfterSales(bindings: MerchantPlatformBinding[]) {
   if (!bindings.length) {
     return []
   }
   try {
-    const result = await Promise.all(bindings.map((binding) => loadTwentyMallMerchantAfterSales(binding.accountNo as string)))
+    const result = await Promise.all(bindings.map(async (binding) => {
+      const rows = await loadSelfBuiltMerchantAfterSales(binding.accountNo as string, binding.platformCode)
+      return (rows as typeof afterSales).map((row) => attachBindingPlatform(row, binding))
+    }))
     return result.flat() as typeof afterSales
   } catch {
     ElMessage({ type: 'error', message: '暂时无法读取后端售后申请，请确认后端服务和数据库已启动' })
@@ -278,16 +300,74 @@ async function loadBoundAfterSales() {
   }
 }
 
-async function loadBoundDisputes() {
-  const bindings = getMerchantBindings().filter((item) => item.platformCode === 'TWENTY_MALL' && item.accountNo)
+async function loadBoundDisputes(bindings: MerchantPlatformBinding[]) {
   if (!bindings.length) {
     return []
   }
   try {
-    const result = await Promise.all(bindings.map((binding) => loadTwentyMallMerchantAfterSaleDisputes(binding.accountNo as string)))
+    const result = await Promise.all(bindings.map(async (binding) => {
+      const rows = await loadSelfBuiltMerchantAfterSaleDisputes(binding.accountNo as string, binding.platformCode)
+      return (rows as AfterSaleDisputeRow[]).map((row) => attachBindingPlatform(row, binding))
+    }))
     return result.flat() as AfterSaleDisputeRow[]
   } catch {
     return []
+  }
+}
+
+async function loadCurrentSelfBuiltBindings() {
+  const databaseBindings = await loadDatabaseSelfBuiltBindings()
+  const source = databaseBindings.length ? databaseBindings : getMerchantBindings()
+  return source.filter((item) => (
+    (item.platformCode === 'TWENTY_MALL' || item.platformCode === 'YUEGOU_MARKET') && item.accountNo
+  ))
+}
+
+async function loadDatabaseSelfBuiltBindings() {
+  try {
+    const response = await fetch(`http://localhost:8080/api/twenty-mall/primary/bindings?primaryAccountNo=${encodeURIComponent(currentPrimaryAccountNo())}&primaryAccountType=MERCHANT&secondaryAccountRole=MERCHANT`)
+    const payload = await response.json()
+    if (payload.code !== '200') {
+      return []
+    }
+    return (payload.data || []).filter((item: { bindStatus?: string }) => item.bindStatus === '已绑定').map((item: {
+      platformCode?: string
+      platformName?: string
+      secondaryAccountNo: string
+      secondaryDisplayName?: string
+      boundAt?: string
+    }) => {
+      const platformCode = item.platformCode || platformCodeByName(item.platformName)
+      const platformName = item.platformName || platformNameByCode(platformCode)
+      return {
+        id: Number(item.secondaryAccountNo) || Date.now(),
+        platformCode,
+        platformName,
+        authStatus: 'ACTIVE',
+        externalShopId: `${platformCode}_SHOP_${item.secondaryAccountNo}`,
+        shopName: item.secondaryDisplayName || `${platformName}店铺（${item.secondaryAccountNo}）`,
+        sellerNick: item.secondaryDisplayName || `${platformName}店铺（${item.secondaryAccountNo}）`,
+        accountNo: item.secondaryAccountNo,
+        lastSyncedAt: item.boundAt
+      }
+    }) as MerchantPlatformBinding[]
+  } catch {
+    return []
+  }
+}
+
+function currentPrimaryAccountNo() {
+  const user = getStoredUser<{ username?: string; userId?: number }>()
+  return user?.username || String(user?.userId || '13338907681')
+}
+
+function attachBindingPlatform<T extends Record<string, unknown>>(row: T, binding: { platformCode: string; platformName: string; shopName?: string; sellerNick?: string }) {
+  return {
+    ...row,
+    platformCode: binding.platformCode,
+    platformName: binding.platformName,
+    platformIcon: platformIconByCode(binding.platformCode),
+    shopName: typeof row.shopName === 'string' && row.shopName ? row.shopName : binding.shopName || binding.sellerNick || platformNameByCode(binding.platformCode)
   }
 }
 
@@ -336,15 +416,15 @@ const filteredAfterSales = computed(() => {
     return afterSalesData.value
   }
   if (status.value === 'IN_PROGRESS') {
-    return afterSalesData.value.filter((item) => ['PROCESSING', 'WAITING_RETURN', 'RETURN_SHIPPED'].includes(item.status))
+    return afterSalesData.value.filter((item) => ['PROCESSING', 'WAITING_RETURN', 'RETURN_SHIPPED'].includes(effectiveAfterSaleStatus(item)))
   }
   if (status.value === 'FINISHED') {
-    return afterSalesData.value.filter((item) => ['COMPLETED', 'REJECTED', 'CLOSED'].includes(item.status) && !hasPendingDispute(item))
+    return afterSalesData.value.filter((item) => ['COMPLETED', 'REJECTED', 'CLOSED'].includes(effectiveAfterSaleStatus(item)) && !hasPendingDispute(item))
   }
   if (status.value === 'DISPUTE_REVIEW') {
     return afterSalesData.value.filter((item) => hasPendingDispute(item))
   }
-  return afterSalesData.value.filter((item) => item.status === status.value)
+  return afterSalesData.value.filter((item) => effectiveAfterSaleStatus(item) === status.value)
 })
 
 const groupedAfterSales = computed(() => {
@@ -378,13 +458,14 @@ const groupedAfterSales = computed(() => {
     }
     const platform = platformMap.get(item.platformCode)!
     platform.total += 1
+    const effectiveStatus = effectiveAfterSaleStatus(item)
     if (hasPendingDispute(item)) {
       platform.dispute += 1
-    } else if (item.status === 'PENDING_REVIEW') {
+    } else if (effectiveStatus === 'PENDING_REVIEW') {
       platform.pending += 1
-    } else if (['PROCESSING', 'WAITING_RETURN', 'RETURN_SHIPPED'].includes(item.status)) {
+    } else if (['PROCESSING', 'WAITING_RETURN', 'RETURN_SHIPPED'].includes(effectiveStatus)) {
       platform.processing += 1
-    } else if (['COMPLETED', 'REJECTED', 'CLOSED'].includes(item.status)) {
+    } else if (['COMPLETED', 'REJECTED', 'CLOSED'].includes(effectiveStatus)) {
       platform.finished += 1
     }
     platform.shopNames.add(item.shopName)
@@ -404,13 +485,13 @@ const groupedAfterSales = computed(() => {
 
 function countByFilter(items: AfterSaleRow[], filter: string) {
   if (filter === 'PENDING_REVIEW') {
-    return items.filter((item) => item.status === 'PENDING_REVIEW').length
+    return items.filter((item) => effectiveAfterSaleStatus(item) === 'PENDING_REVIEW').length
   }
   if (filter === 'IN_PROGRESS') {
-    return items.filter((item) => ['PROCESSING', 'WAITING_RETURN', 'RETURN_SHIPPED'].includes(item.status)).length
+    return items.filter((item) => ['PROCESSING', 'WAITING_RETURN', 'RETURN_SHIPPED'].includes(effectiveAfterSaleStatus(item))).length
   }
   if (filter === 'FINISHED') {
-    return items.filter((item) => ['COMPLETED', 'REJECTED', 'CLOSED'].includes(item.status) && !hasPendingDispute(item)).length
+    return items.filter((item) => ['COMPLETED', 'REJECTED', 'CLOSED'].includes(effectiveAfterSaleStatus(item)) && !hasPendingDispute(item)).length
   }
   if (filter === 'DISPUTE_REVIEW') {
     return items.filter((item) => hasPendingDispute(item)).length
@@ -429,12 +510,16 @@ function displayStatus(row: AfterSaleRow) {
   if (hasPendingDispute(row)) {
     return '争议审核中'
   }
-  return labelText.status[row.status] || row.status
+  const effectiveStatus = effectiveAfterSaleStatus(row)
+  return labelText.status[effectiveStatus] || effectiveStatus
 }
 
 function statusTagType(currentStatus: string, row?: AfterSaleRow) {
   if (row && hasPendingDispute(row)) {
     return 'warning'
+  }
+  if (row) {
+    currentStatus = effectiveAfterSaleStatus(row)
   }
   if (currentStatus === 'PENDING_REVIEW') {
     return 'warning'
@@ -493,7 +578,8 @@ function openRejectDialog() {
 
 async function approveAfterSale(afterSaleId: number, result = 'APPROVE', reason = '') {
   try {
-    const updated = await reviewTwentyMallAfterSale(afterSaleId, result as 'APPROVE' | 'REJECT', reason) as AfterSaleRow
+    const platformCode = selectedAfterSale.value?.platformCode || platformCodeByAfterSaleId(afterSaleId)
+    const updated = await reviewSelfBuiltAfterSale(afterSaleId, result as 'APPROVE' | 'REJECT', reason, platformCode) as AfterSaleRow
     afterSalesData.value = afterSalesData.value.map((item) => (
       item.id === afterSaleId ? normalizeAfterSaleRow({ ...item, ...updated }) : item
     ))
@@ -547,17 +633,60 @@ function writeBackAllAfterSales() {
 }
 
 function canReview(row: AfterSaleRow) {
-  return row.status === 'PENDING_REVIEW'
+  return effectiveAfterSaleStatus(row) === 'PENDING_REVIEW'
+}
+
+function remainingReviewTimeText(row: AfterSaleRow) {
+  const appliedAt = parseDisplayTime(row.createdAt)
+  if (!Number.isFinite(appliedAt)) {
+    return '剩余处理时间：无法计算'
+  }
+  const deadline = appliedAt + 24 * 60 * 60 * 1000
+  const remaining = deadline - now.value
+  if (remaining <= 0) {
+    return '超时未处理，系统已自动退款给消费者'
+  }
+  const totalMinutes = Math.ceil(remaining / (60 * 1000))
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  return `剩余处理时间：${hours}小时${minutes}分钟`
+}
+
+function effectiveAfterSaleStatus(row: AfterSaleRow) {
+  return row.status === 'PENDING_REVIEW' && isReviewExpired(row) ? 'COMPLETED' : row.status
+}
+
+function isReviewExpired(row: AfterSaleRow) {
+  const appliedAt = parseDisplayTime(row.createdAt)
+  return Number.isFinite(appliedAt) && now.value - appliedAt >= 24 * 60 * 60 * 1000
+}
+
+function parseDisplayTime(value?: string) {
+  const match = String(value || '').match(/^(\d{4})[./-](\d{1,2})[./-](\d{1,2})\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?/)
+  if (!match) {
+    return NaN
+  }
+  const [, year, month, day, hour, minute, second = '0'] = match
+  return new Date(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour),
+    Number(minute),
+    Number(second)
+  ).getTime()
 }
 
 function canAgreeRefund(row: AfterSaleRow) {
-  return row.status === 'RETURN_SHIPPED' || (
-    row.afterSaleType === 'REFUND_ONLY' && !['COMPLETED', 'REJECTED', 'CLOSED'].includes(row.status)
+  const effectiveStatus = effectiveAfterSaleStatus(row)
+  return effectiveStatus === 'RETURN_SHIPPED' || (
+    row.afterSaleType === 'REFUND_ONLY' && !['COMPLETED', 'REJECTED', 'CLOSED'].includes(effectiveStatus)
   )
 }
 
 function canRejectRefundOnly(row: AfterSaleRow) {
-  return row.afterSaleType === 'REFUND_ONLY' && !['PENDING_REVIEW', 'COMPLETED', 'REJECTED', 'CLOSED'].includes(row.status)
+  const effectiveStatus = effectiveAfterSaleStatus(row)
+  return row.afterSaleType === 'REFUND_ONLY' && !['PENDING_REVIEW', 'COMPLETED', 'REJECTED', 'CLOSED'].includes(effectiveStatus)
 }
 
 async function confirmAgreeRefund() {
@@ -573,7 +702,7 @@ async function submitAgreeRefund() {
   }
   try {
     const afterSaleId = selectedAfterSale.value.id
-    const updated = await refundTwentyMallAfterSale(afterSaleId) as AfterSaleRow
+    const updated = await refundSelfBuiltAfterSale(afterSaleId, selectedAfterSale.value.platformCode) as AfterSaleRow
     afterSalesData.value = afterSalesData.value.map((item) => (
       item.id === afterSaleId ? normalizeAfterSaleRow({ ...item, ...updated }) : item
     ))
@@ -602,10 +731,11 @@ async function submitDisputeEvidence() {
     return
   }
   try {
-    const updated = await submitTwentyMallMerchantDisputeEvidence(
+    const updated = await submitSelfBuiltMerchantDisputeEvidence(
       selectedDispute.value.id,
       disputeEvidenceText.value.trim(),
-      disputeEvidenceImages.value
+      disputeEvidenceImages.value,
+      selectedAfterSale.value?.platformCode || 'TWENTY_MALL'
     ) as AfterSaleDisputeRow
     disputeData.value = disputeData.value.map((item) => item.id === updated.id ? normalizeDisputeRow(updated) : item)
     disputeEvidenceVisible.value = false
@@ -649,7 +779,7 @@ function fileToDataUrl(file: File) {
 }
 
 function hasUnreadMark(row: AfterSaleRow) {
-  return row.status === 'PENDING_REVIEW' && !readAfterSaleIds.value.has(row.id)
+  return effectiveAfterSaleStatus(row) === 'PENDING_REVIEW' && !readAfterSaleIds.value.has(row.id)
 }
 
 function markAfterSaleRead(row: AfterSaleRow) {
@@ -691,6 +821,9 @@ function normalizeAfterSaleRow(item: typeof afterSales[number]) {
     1: '极光外设旗舰店',
     2: '极光外设旗舰店'
   }
+  const rowPlatformCode = 'platformCode' in item && typeof item.platformCode === 'string' ? item.platformCode : 'TWENTY_MALL'
+  const rowPlatformName = 'platformName' in item && typeof item.platformName === 'string' ? item.platformName : platformNameByCode(rowPlatformCode)
+  const rowPlatformIcon = 'platformIcon' in item && typeof item.platformIcon === 'string' ? item.platformIcon : platformIconByCode(rowPlatformCode)
   const productName = productNameByNo[item.afterSaleNo] || (
     'productName' in item && typeof item.productName === 'string'
       ? removePlatformPrefix(item.productName)
@@ -702,12 +835,12 @@ function normalizeAfterSaleRow(item: typeof afterSales[number]) {
       ? item.orderNo
       : fallbackOrderNo(item.afterSaleNo),
     productName,
-    platformCode: 'TWENTY_MALL',
-    platformName: '万象商城',
-    platformIcon: twentyMallIcon,
+    platformCode: rowPlatformCode,
+    platformName: rowPlatformName,
+    platformIcon: rowPlatformIcon,
     shopName: 'shopName' in item && typeof item.shopName === 'string'
       ? item.shopName
-      : shopNameMap[item.id] || '万象商城店铺'
+      : shopNameMap[item.id] || `${rowPlatformName}店铺`
   }
 }
 
@@ -726,7 +859,7 @@ function normalizeEvidenceUrls(images: string[]) {
 }
 
 function removePlatformPrefix(productName: string) {
-  return productName.replace(/^万象商城\s*/, '').trim()
+  return productName.replace(/^(万象商城|悦购集市)\s*/, '').trim()
 }
 
 function fallbackOrderNo(afterSaleNo: string) {
@@ -737,6 +870,22 @@ function fallbackOrderNo(afterSaleNo: string) {
     AS202606250002: 'TM202606270004'
   }
   return map[afterSaleNo] || afterSaleNo.replace(/^TMAS/, 'TM')
+}
+
+function platformIconByCode(platformCode = 'TWENTY_MALL') {
+  return platformCode === 'YUEGOU_MARKET' ? yuegouMarketIcon : twentyMallIcon
+}
+
+function platformNameByCode(platformCode = 'TWENTY_MALL') {
+  return platformCode === 'YUEGOU_MARKET' ? '悦购集市' : '万象商城'
+}
+
+function platformCodeByName(platformName = '') {
+  return platformName === '悦购集市' ? 'YUEGOU_MARKET' : 'TWENTY_MALL'
+}
+
+function platformCodeByAfterSaleId(afterSaleId: number) {
+  return afterSalesData.value.find((item) => item.id === afterSaleId)?.platformCode || 'TWENTY_MALL'
 }
 </script>
 
@@ -929,6 +1078,21 @@ function fallbackOrderNo(afterSaleNo: string) {
 
 .after-sale-table :deep(.after-sale-row:hover > td) {
   background: #f6faff !important;
+}
+
+.after-sale-apply-time {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: #334155;
+  line-height: 1.3;
+}
+
+.after-sale-apply-time em {
+  color: #ef4444;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 600;
 }
 
 .evidence-list {

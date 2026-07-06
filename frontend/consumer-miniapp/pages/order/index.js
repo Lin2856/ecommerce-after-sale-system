@@ -1,5 +1,7 @@
-import { fetchTwentyMallBindingsFromDatabase } from "../../utils/auth"
+import { fetchLocalPlatformBindingsFromDatabase, getLocalPlatformConfig } from "../../utils/auth"
 import { enrichOrderDisplay } from "../../utils/order-display"
+
+const LOCAL_PLATFORM_CODES = ["TWENTY_MALL", "YUEGOU_MARKET"]
 
 const FILTERS = [
   { key: "ALL", label: "全部" },
@@ -9,7 +11,7 @@ const FILTERS = [
 ]
 
 function cleanProductTitle(title) {
-  return String(title || "").replace(/^万象商城\s*/, "").trim()
+  return String(title || "").replace(/^(万象商城|悦购集市)\s*/, "").trim()
 }
 
 function afterSaleTone(afterSale) {
@@ -65,9 +67,28 @@ Page({
     if (typeof this.getTabBar === "function" && this.getTabBar()) {
       this.getTabBar().setData({ selected: 1 })
     }
-    fetchTwentyMallBindingsFromDatabase({
-      success: (bindings) => this.loadOrdersByBindings(bindings),
-      fail: (bindings) => this.loadOrdersByBindings(bindings)
+    this.loadAllLocalPlatformOrders()
+  },
+  loadAllLocalPlatformOrders() {
+    const tasks = LOCAL_PLATFORM_CODES.map((platformCode) => new Promise((resolve) => {
+      const config = getLocalPlatformConfig(platformCode)
+      fetchLocalPlatformBindingsFromDatabase(platformCode, {
+        success: (bindings) => resolve((bindings || []).map((binding) => ({
+          ...binding,
+          platformCode,
+          platformName: config.name,
+          apiPrefix: config.apiPrefix
+        }))),
+        fail: (bindings) => resolve((bindings || []).map((binding) => ({
+          ...binding,
+          platformCode,
+          platformName: config.name,
+          apiPrefix: config.apiPrefix
+        })))
+      })
+    }))
+    Promise.all(tasks).then((groups) => {
+      this.loadOrdersByBindings(groups.reduce((all, group) => all.concat(group), []))
     })
   },
   loadOrdersByBindings(bindings) {
@@ -76,8 +97,10 @@ Page({
       return
     }
     const requests = bindings.map((binding) => new Promise((resolve) => {
+      const platformName = binding.platformName || binding.platform || "电商平台"
+      const apiPrefix = binding.apiPrefix || getLocalPlatformConfig(binding.platformCode).apiPrefix
       wx.request({
-        url: `http://localhost:8080/api/twenty-mall/consumer/orders?accountNo=${binding.accountNo}`,
+        url: `http://localhost:8080${apiPrefix}/consumer/orders?accountNo=${encodeURIComponent(binding.accountNo)}`,
         success: (res) => {
           const list = (res.data && res.data.data) || []
           const groupOrders = list.map((item) => enrichOrderDisplay({
@@ -85,7 +108,7 @@ Page({
             title: cleanProductTitle(item.title),
             status: item.status,
             afterSale: item.afterSale,
-            platform: "万象商城",
+            platform: platformName,
             accountNo: binding.accountNo,
             merchant: item.merchant,
             price: item.price,
@@ -96,7 +119,7 @@ Page({
             afterSaleTone: afterSaleTone(item.afterSale)
           }))
           resolve({
-            platform: "万象商城",
+            platform: platformName,
             accountNo: binding.accountNo,
             orders: groupOrders,
             shops: groupOrdersByMerchant(groupOrders)
@@ -104,7 +127,7 @@ Page({
         },
         fail: () => {
           resolve({
-            platform: "万象商城",
+            platform: platformName,
             accountNo: binding.accountNo,
             orders: [],
             shops: []

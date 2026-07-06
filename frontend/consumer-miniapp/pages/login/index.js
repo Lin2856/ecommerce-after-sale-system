@@ -9,13 +9,7 @@ Page({
     importWechatAvatar: true,
     showWechatAvatarPicker: false,
     pendingWechatPhoneCode: "",
-    wechatAvatar: "",
-    demoPhone: "13338907583",
-    demoCode: "123456",
-    demoAccounts: [
-      { phone: "13338907583", code: "123456" },
-      { phone: "13338907582", code: "123456" }
-    ]
+    wechatAvatar: ""
   },
   onPhoneInput(e) {
     this.setData({ phone: e.detail.value })

@@ -1,4 +1,6 @@
-import { clearDemoToken, clearPrimaryAccountData, fetchPrimaryProfileFromDatabase, fetchTwentyMallBindingsFromDatabase, getConsumerAddresses, getConsumerProfile, getPrimaryPhone, getTwentyMallBindings } from "../../utils/auth"
+import { clearDemoToken, clearPrimaryAccountData, fetchLocalPlatformBindingsFromDatabase, fetchPrimaryProfileFromDatabase, getConsumerAddresses, getConsumerProfile, getLocalPlatformBindings, getLocalPlatformConfig, getPrimaryPhone } from "../../utils/auth"
+
+const LOCAL_PLATFORM_CODES = ["TWENTY_MALL", "YUEGOU_MARKET"]
 
 const defaultProfile = {
   nickname: "",
@@ -29,10 +31,10 @@ Page({
     const phone = getPrimaryPhone()
     const localProfile = getConsumerProfile()
     const addresses = getConsumerAddresses()
-    const bindings = getTwentyMallBindings()
+    const bindings = this.localPlatformBindings()
     const nextProfile = localProfile ? { ...defaultProfile, ...localProfile } : { ...defaultProfile }
     nextProfile.phone = this.displayPhone(nextProfile.phone) || this.displayPhone(phone)
-    nextProfile.bindPlatform = bindings.length ? `已绑定 ${bindings.length} 个电商账号` : "未绑定电商平台"
+    nextProfile.bindPlatform = this.bindingText(bindings)
     nextProfile.lastConsult = wx.getStorageSync(`consumerLastConsultAt:${phone}`) || "暂无"
     const defaultAddress = addresses.find((item) => item.isDefault) || addresses[0]
     if (defaultAddress && defaultAddress.fullAddress) {
@@ -43,7 +45,7 @@ Page({
       success: (profile) => this.applyProfileFromDatabase(profile),
       fail: () => {}
     })
-    fetchTwentyMallBindingsFromDatabase({
+    this.fetchAllLocalPlatformBindings({
       success: (dbBindings) => this.applyBindingCount(dbBindings),
       fail: (cachedBindings) => this.applyBindingCount(cachedBindings)
     })
@@ -62,8 +64,52 @@ Page({
   },
   applyBindingCount(bindings) {
     this.setData({
-      "profile.bindPlatform": bindings.length ? `已绑定 ${bindings.length} 个电商账号` : "未绑定电商平台"
+      "profile.bindPlatform": this.bindingText(bindings)
     })
+  },
+  localPlatformBindings() {
+    return LOCAL_PLATFORM_CODES.reduce((all, platformCode) => {
+      const config = getLocalPlatformConfig(platformCode)
+      const rows = getLocalPlatformBindings(platformCode).map((item) => ({
+        ...item,
+        platformCode,
+        platformName: item.platform || config.name
+      }))
+      return all.concat(rows)
+    }, [])
+  },
+  fetchAllLocalPlatformBindings({ success, fail } = {}) {
+    const tasks = LOCAL_PLATFORM_CODES.map((platformCode) => new Promise((resolve) => {
+      const config = getLocalPlatformConfig(platformCode)
+      fetchLocalPlatformBindingsFromDatabase(platformCode, {
+        success: (bindings) => resolve((bindings || []).map((item) => ({
+          ...item,
+          platformCode,
+          platformName: item.platform || config.name
+        }))),
+        fail: (bindings) => resolve((bindings || []).map((item) => ({
+          ...item,
+          platformCode,
+          platformName: item.platform || config.name
+        })))
+      })
+    }))
+    Promise.all(tasks).then((groups) => {
+      const bindings = groups.reduce((all, group) => all.concat(group), [])
+      if (success) success(bindings)
+    }).catch(() => {
+      if (fail) fail(this.localPlatformBindings())
+    })
+  },
+  bindingText(bindings = []) {
+    if (!bindings.length) {
+      return "未绑定电商平台"
+    }
+    const platformNames = Array.from(new Set(bindings.map((item) => item.platformName || item.platform).filter(Boolean)))
+    if (platformNames.length === 1) {
+      return platformNames[0]
+    }
+    return platformNames.length ? platformNames.join("、") : `${bindings.length} 个电商账号`
   },
   editProfile() {
     wx.navigateTo({ url: "/pages/profile-edit/index" })

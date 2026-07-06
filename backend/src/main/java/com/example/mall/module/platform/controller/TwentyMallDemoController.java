@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.example.mall.common.response.ApiResponse;
+import com.example.mall.module.ai.service.AiCallLogService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -53,6 +54,7 @@ public class TwentyMallDemoController {
 
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper;
+    private final AiCallLogService aiCallLogService;
     @Value("${app.wechat.miniapp.app-id:}")
     private String wechatMiniAppId;
     @Value("${app.wechat.miniapp.secret:}")
@@ -66,13 +68,15 @@ public class TwentyMallDemoController {
     private static final PlatformInfo TWENTY_MALL_PLATFORM = new PlatformInfo("TWENTY_MALL", "万象商城");
     private static final PlatformInfo YUEGOU_MARKET_PLATFORM = new PlatformInfo("YUEGOU_MARKET", "悦购集市");
 
-    public TwentyMallDemoController(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper) {
+    public TwentyMallDemoController(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper, AiCallLogService aiCallLogService) {
         this.jdbcTemplate = jdbcTemplate;
         this.objectMapper = objectMapper;
+        this.aiCallLogService = aiCallLogService;
     }
 
     @GetMapping("/admin/overview")
     public ApiResponse<TwentyMallAdminOverviewResponse> adminOverview() {
+        autoRefundExpiredPendingAfterSales();
         Long merchantCount = jdbcTemplate.queryForObject(
             """
             SELECT COUNT(*)
@@ -136,6 +140,7 @@ public class TwentyMallDemoController {
             )
             """
         );
+        Long aiCallCount = aiCallLogService.countAll();
         return ApiResponse.success(new TwentyMallAdminOverviewResponse(
             merchantCount == null ? 0 : merchantCount,
             boundShopCount == null ? 0 : boundShopCount,
@@ -145,6 +150,7 @@ public class TwentyMallDemoController {
             highRiskReviewCount,
             activeRuleCount,
             knowledgeCount,
+            aiCallCount,
             loadAdminTrendRows(),
             loadAdminActivityRows()
         ), traceId());
@@ -251,7 +257,7 @@ public class TwentyMallDemoController {
         ensureReviewDisputeTable();
         String sql = """
             SELECT r.id, r.product_score, r.service_score, r.content, r.reviewed_at, r.created_at,
-                   o.order_no, p.product_name, ma.display_name AS merchant_name,
+                   o.order_no, p.product_name, ma.display_name AS merchant_name, ma.platform_code,
                    d.id AS dispute_id, d.status AS dispute_status, d.reason AS dispute_reason,
                    d.admin_note AS dispute_admin_note, d.created_at AS dispute_created_at
             FROM twenty_mall_review r
@@ -270,7 +276,7 @@ public class TwentyMallDemoController {
             String riskLevel = reviewRiskLevel(productScore, serviceScore, content);
             return new TwentyMallAdminReviewResponse(
                 rs.getLong("id"),
-                "万象商城",
+                platformNameByCode(rs.getString("platform_code")),
                 rs.getString("order_no"),
                 rs.getString("merchant_name"),
                 cleanProductName(rs.getString("product_name")),
@@ -768,32 +774,7 @@ public class TwentyMallDemoController {
     public ApiResponse<TwentyMallVerificationCodeResponse> sendConsumerVerificationCode(
         @Valid @RequestBody TwentyMallVerificationCodeSendRequest request
     ) {
-        String phone = normalizePhone(request.phone());
-        ensurePrimaryVerificationCodeTable();
-        String code = String.format("%06d", ThreadLocalRandom.current().nextInt(1_000_000));
-        jdbcTemplate.update(
-            """
-            UPDATE primary_login_verification_code
-            SET status = 'EXPIRED', updated_at = NOW()
-            WHERE phone = ? AND account_type = 'CONSUMER' AND scene = 'LOGIN' AND status = 'ACTIVE'
-            """,
-            phone
-        );
-        jdbcTemplate.update(
-            """
-            INSERT INTO primary_login_verification_code (
-              phone, account_type, scene, verification_code, status, expires_at, created_at, updated_at
-            ) VALUES (?, 'CONSUMER', 'LOGIN', ?, 'ACTIVE', DATE_ADD(NOW(), INTERVAL 5 MINUTE), NOW(), NOW())
-            """,
-            phone,
-            code
-        );
-        return ApiResponse.success(new TwentyMallVerificationCodeResponse(
-            maskPhone(phone),
-            300,
-            "验证码已发送，5分钟内有效",
-            code
-        ), traceId());
+        return sendPrimaryVerificationCode(request, "CONSUMER");
     }
 
     @PostMapping("/consumer/phone-login")
@@ -802,38 +783,9 @@ public class TwentyMallDemoController {
     ) {
         String phone = normalizePhone(request.phone());
         String code = request.code() == null ? "" : request.code().trim();
-        ensurePrimaryVerificationCodeTable();
-        Long matched = jdbcTemplate.queryForObject(
-            """
-            SELECT COUNT(*)
-            FROM primary_login_verification_code
-            WHERE phone = ?
-              AND account_type = 'CONSUMER'
-              AND scene = 'LOGIN'
-              AND verification_code = ?
-              AND status = 'ACTIVE'
-              AND expires_at > NOW()
-            """,
-            Long.class,
-            phone,
-            code
-        );
-        if (matched == null || matched == 0) {
+        if (!consumePrimaryVerificationCode(phone, code, "CONSUMER")) {
             return ApiResponse.fail("400", "验证码错误或已过期", traceId());
         }
-        jdbcTemplate.update(
-            """
-            UPDATE primary_login_verification_code
-            SET status = 'USED', used_at = NOW(), updated_at = NOW()
-            WHERE phone = ?
-              AND account_type = 'CONSUMER'
-              AND scene = 'LOGIN'
-              AND verification_code = ?
-              AND status = 'ACTIVE'
-            """,
-            phone,
-            code
-        );
         ensurePrimaryAccount(phone, "CONSUMER", phone, null, "PHONE_CODE");
         TwentyMallPrimaryBanStatusResponse banStatus = primaryBanStatusValue(phone, "CONSUMER");
         if (!banStatus.allowed()) {
@@ -859,6 +811,39 @@ public class TwentyMallDemoController {
         ), traceId());
     }
 
+    @PostMapping("/merchant/verification-code/send")
+    public ApiResponse<TwentyMallVerificationCodeResponse> sendMerchantVerificationCode(
+        @Valid @RequestBody TwentyMallVerificationCodeSendRequest request
+    ) {
+        return sendPrimaryVerificationCode(request, "MERCHANT");
+    }
+
+    @PostMapping("/merchant/phone-login")
+    public ApiResponse<TwentyMallMerchantWechatLoginResponse> merchantPhoneLogin(
+        @Valid @RequestBody TwentyMallPhoneLoginRequest request
+    ) {
+        String phone = normalizePhone(request.phone());
+        String code = request.code() == null ? "" : request.code().trim();
+        if (!consumePrimaryVerificationCode(phone, code, "MERCHANT")) {
+            return ApiResponse.fail("400", "验证码错误或已过期", traceId());
+        }
+        ensurePrimaryAccount(phone, "MERCHANT", phone, null, "PHONE_CODE");
+        TwentyMallPrimaryBanStatusResponse banStatus = primaryBanStatusValue(phone, "MERCHANT");
+        if (!banStatus.allowed()) {
+            return ApiResponse.fail("403", banStatus.message(), traceId());
+        }
+        jdbcTemplate.update(
+            """
+            UPDATE primary_account
+            SET phone = ?, login_mode = 'PHONE_CODE', updated_at = NOW()
+            WHERE account_no = ? AND account_type = 'MERCHANT' AND deleted = 0
+            """,
+            phone,
+            phone
+        );
+        return merchantPhoneLoginByAccountNo(phone);
+    }
+
     @PostMapping("/merchant/wechat-login")
     public ApiResponse<TwentyMallMerchantWechatLoginResponse> merchantWechatLogin(
         @Valid @RequestBody TwentyMallMerchantWechatLoginRequest request
@@ -869,6 +854,80 @@ public class TwentyMallDemoController {
             return ApiResponse.fail("404", "该微信未绑定商家一级账号，请先完成绑定后再扫码登录", traceId());
         }
         return merchantWechatLoginByAccountNo(accountNo);
+    }
+
+    private ApiResponse<TwentyMallVerificationCodeResponse> sendPrimaryVerificationCode(
+        TwentyMallVerificationCodeSendRequest request,
+        String accountType
+    ) {
+        String phone = normalizePhone(request.phone());
+        String cleanAccountType = normalizePrimaryAccountType(accountType);
+        ensurePrimaryVerificationCodeTable();
+        String code = String.format("%06d", ThreadLocalRandom.current().nextInt(1_000_000));
+        jdbcTemplate.update(
+            """
+            UPDATE primary_login_verification_code
+            SET status = 'EXPIRED', updated_at = NOW()
+            WHERE phone = ? AND account_type = ? AND scene = 'LOGIN' AND status = 'ACTIVE'
+            """,
+            phone,
+            cleanAccountType
+        );
+        jdbcTemplate.update(
+            """
+            INSERT INTO primary_login_verification_code (
+              phone, account_type, scene, verification_code, status, expires_at, created_at, updated_at
+            ) VALUES (?, ?, 'LOGIN', ?, 'ACTIVE', DATE_ADD(NOW(), INTERVAL 5 MINUTE), NOW(), NOW())
+            """,
+            phone,
+            cleanAccountType,
+            code
+        );
+        return ApiResponse.success(new TwentyMallVerificationCodeResponse(
+            maskPhone(phone),
+            300,
+            "验证码已发送，5分钟内有效",
+            code
+        ), traceId());
+    }
+
+    private boolean consumePrimaryVerificationCode(String phone, String code, String accountType) {
+        String cleanAccountType = normalizePrimaryAccountType(accountType);
+        ensurePrimaryVerificationCodeTable();
+        Long matched = jdbcTemplate.queryForObject(
+            """
+            SELECT COUNT(*)
+            FROM primary_login_verification_code
+            WHERE phone = ?
+              AND account_type = ?
+              AND scene = 'LOGIN'
+              AND verification_code = ?
+              AND status = 'ACTIVE'
+              AND expires_at > NOW()
+            """,
+            Long.class,
+            phone,
+            cleanAccountType,
+            code
+        );
+        if (matched == null || matched == 0) {
+            return false;
+        }
+        jdbcTemplate.update(
+            """
+            UPDATE primary_login_verification_code
+            SET status = 'USED', used_at = NOW(), updated_at = NOW()
+            WHERE phone = ?
+              AND account_type = ?
+              AND scene = 'LOGIN'
+              AND verification_code = ?
+              AND status = 'ACTIVE'
+            """,
+            phone,
+            cleanAccountType,
+            code
+        );
+        return true;
     }
 
     @GetMapping("/merchant/wechat/qr-url")
@@ -893,6 +952,18 @@ public class TwentyMallDemoController {
     }
 
     private ApiResponse<TwentyMallMerchantWechatLoginResponse> merchantWechatLoginByAccountNo(String accountNo) {
+        return merchantPrimaryLoginByAccountNo(accountNo, "WECHAT", "未找到可用于微信登录的商家一级账号");
+    }
+
+    private ApiResponse<TwentyMallMerchantWechatLoginResponse> merchantPhoneLoginByAccountNo(String accountNo) {
+        return merchantPrimaryLoginByAccountNo(accountNo, "PHONE_CODE", "未找到可用于手机号登录的商家一级账号");
+    }
+
+    private ApiResponse<TwentyMallMerchantWechatLoginResponse> merchantPrimaryLoginByAccountNo(
+        String accountNo,
+        String loginMode,
+        String notFoundMessage
+    ) {
         TwentyMallPrimaryBanStatusResponse banStatus = primaryBanStatusValue(accountNo, "MERCHANT");
         if (!banStatus.allowed()) {
             return ApiResponse.fail("403", banStatus.message(), traceId());
@@ -905,17 +976,18 @@ public class TwentyMallDemoController {
               AND deleted = 0
               AND status = 'ACTIVE'
             LIMIT 1
-            """;
+        """;
         return jdbcTemplate.query(sql, rs -> {
             if (!rs.next()) {
-                return ApiResponse.fail("404", "未找到可用于微信登录的商家一级账号", traceId());
+                return ApiResponse.fail("404", notFoundMessage, traceId());
             }
             jdbcTemplate.update(
                 """
                 UPDATE primary_account
-                SET login_mode = 'WECHAT', updated_at = NOW()
+                SET login_mode = ?, updated_at = NOW()
                 WHERE account_no = ? AND account_type = 'MERCHANT' AND deleted = 0
                 """,
+                loginMode,
                 accountNo
             );
             String displayName = cleanDisplayName(rs.getString("display_name"), accountNo);
@@ -929,7 +1001,7 @@ public class TwentyMallDemoController {
                     normalizedPrimaryAvatar(rs.getString("avatar_url")),
                     null,
                     List.of("MERCHANT_ADMIN"),
-                    "WECHAT"
+                    loginMode
                 )
             ), traceId());
         }, accountNo);
@@ -1636,6 +1708,7 @@ public class TwentyMallDemoController {
     @GetMapping("/merchant/reviews")
     public ApiResponse<List<TwentyMallMerchantReviewResponse>> merchantReviews(@RequestParam String accountNo) {
         ensureReviewDisputeTable();
+        PlatformInfo platform = currentPlatform();
         String sql = """
             SELECT r.id, r.product_score, r.service_score, r.content, r.reviewed_at, r.deleted AS review_deleted,
                    o.order_no, p.product_name, ma.display_name AS merchant_name,
@@ -1646,7 +1719,10 @@ public class TwentyMallDemoController {
             JOIN twenty_mall_product p ON p.id = r.product_id
             JOIN twenty_mall_account ma ON ma.id = o.merchant_account_id
             LEFT JOIN twenty_mall_review_dispute d ON d.review_id = r.id AND d.deleted = 0
-            WHERE ma.account_no = ? AND ma.account_role = 'MERCHANT' AND o.deleted = 0
+            WHERE ma.account_no = ?
+              AND ma.account_role = 'MERCHANT'
+              AND ma.platform_code = ?
+              AND o.deleted = 0
             ORDER BY r.deleted ASC, r.reviewed_at DESC, r.id DESC
             """;
         return ApiResponse.success(jdbcTemplate.query(sql, (rs, rowNum) -> {
@@ -1657,7 +1733,7 @@ public class TwentyMallDemoController {
             String riskLevel = reviewRiskLevel(productScore, serviceScore, content);
             return new TwentyMallMerchantReviewResponse(
                 rs.getLong("id"),
-                "万象商城",
+                platform.code(),
                 rs.getString("order_no"),
                 rs.getString("product_name"),
                 rs.getString("merchant_name"),
@@ -1675,7 +1751,7 @@ public class TwentyMallDemoController {
                 rs.getString("dispute_admin_note"),
                 rs.getBoolean("review_deleted")
             );
-        }, accountNo), traceId());
+        }, accountNo, platform.code()), traceId());
     }
 
     @GetMapping("/merchant/notifications")
@@ -1790,6 +1866,7 @@ public class TwentyMallDemoController {
         @RequestBody TwentyMallReviewDisputeSubmitRequest request
     ) {
         ensureReviewDisputeTable();
+        PlatformInfo platform = currentPlatform();
         if (request.reason() == null || request.reason().trim().isBlank()) {
             return ApiResponse.fail("400", "请填写异议原因", traceId());
         }
@@ -1799,12 +1876,17 @@ public class TwentyMallDemoController {
             FROM twenty_mall_review r
             JOIN twenty_mall_order o ON o.id = r.order_id
             JOIN twenty_mall_account ma ON ma.id = o.merchant_account_id
-            WHERE r.id = ? AND r.deleted = 0 AND ma.account_no = ? AND ma.account_role = 'MERCHANT'
+            WHERE r.id = ?
+              AND r.deleted = 0
+              AND ma.account_no = ?
+              AND ma.account_role = 'MERCHANT'
+              AND ma.platform_code = ?
             LIMIT 1
             """,
             (rs, rowNum) -> rs.getLong("merchant_account_id"),
             reviewId,
-            request.accountNo()
+            request.accountNo(),
+            platform.code()
         );
         if (merchantIds.isEmpty()) {
             return ApiResponse.fail("404", "评价不存在或不属于当前商家", traceId());
@@ -1838,6 +1920,8 @@ public class TwentyMallDemoController {
 
     @GetMapping("/merchant/after-sales")
     public ApiResponse<List<TwentyMallAfterSaleResponse>> merchantAfterSales(@RequestParam String accountNo) {
+        autoRefundExpiredPendingAfterSales();
+        PlatformInfo platform = currentPlatform();
         String sql = """
             SELECT a.id, a.after_sale_no, o.order_no, a.after_sale_type, a.reason_type, a.description,
                    a.requested_amount, a.status, a.created_at,
@@ -1850,6 +1934,7 @@ public class TwentyMallDemoController {
             JOIN twenty_mall_account ma ON ma.id = o.merchant_account_id
             LEFT JOIN twenty_mall_after_sale_dispute d ON d.after_sale_id = a.id AND d.deleted = 0
             WHERE ma.account_no = ? AND ma.account_role = 'MERCHANT'
+              AND ma.platform_code = ?
               AND a.deleted = 0 AND o.deleted = 0 AND i.deleted = 0
             ORDER BY a.created_at DESC, a.id DESC
             """;
@@ -1868,8 +1953,8 @@ public class TwentyMallDemoController {
                 "PENDING",
                 formatTime(rs.getTimestamp("created_at")),
                 rs.getString("product_name"),
-                "TWENTY_MALL",
-                "万象商城",
+                platform.code(),
+                platform.name(),
                 rs.getString("merchant_name"),
                 description.reason(),
                 description.evidenceImages(),
@@ -1877,7 +1962,7 @@ public class TwentyMallDemoController {
                 formatTime(rs.getTimestamp("return_shipped_at")),
                 disputeStatusText(rs.getString("dispute_status"))
             );
-        }, accountNo), traceId());
+        }, accountNo, platform.code()), traceId());
     }
 
     @PostMapping("/consumer/after-sales")
@@ -2061,6 +2146,7 @@ public class TwentyMallDemoController {
 
     @GetMapping("/consumer/after-sales/detail")
     public ApiResponse<TwentyMallAfterSaleResponse> consumerAfterSaleDetail(@RequestParam String orderNo) {
+        autoRefundExpiredPendingAfterSales();
         String sql = """
             SELECT a.id, a.after_sale_no, o.order_no, a.after_sale_type, a.reason_type, a.description,
                    a.requested_amount, a.status, a.created_at,
@@ -2108,20 +2194,24 @@ public class TwentyMallDemoController {
 
     @PostMapping("/merchant/after-sales/review")
     public ApiResponse<TwentyMallAfterSaleResponse> reviewAfterSale(@Valid @RequestBody TwentyMallAfterSaleReviewRequest request) {
+        autoRefundExpiredPendingAfterSales();
         String afterSaleType = findAfterSaleType(request.afterSaleId());
         String nextStatus = "REJECT".equals(request.result())
             ? "REJECTED"
             : ("REFUND_ONLY".equals(afterSaleType) ? "PROCESSING" : "WAITING_RETURN");
         String orderStatus = "REJECT".equals(request.result()) ? "REJECTED" : "AFTER_SALE";
         String itemStatus = "REJECT".equals(request.result()) ? "REJECTED" : "APPLIED";
-        if ("REJECT".equals(request.result())) {
-            persistReviewReason(request.afterSaleId(), request.reason());
-        }
-        jdbcTemplate.update(
-            "UPDATE twenty_mall_after_sale SET status = ?, updated_at = NOW() WHERE id = ? AND deleted = 0",
+        int updated = jdbcTemplate.update(
+            "UPDATE twenty_mall_after_sale SET status = ?, updated_at = NOW() WHERE id = ? AND deleted = 0 AND status = 'PENDING_REVIEW'",
             nextStatus,
             request.afterSaleId()
         );
+        if (updated == 0) {
+            return ApiResponse.fail("400", "该售后申请已超时自动退款，商家不能再审核", traceId());
+        }
+        if ("REJECT".equals(request.result())) {
+            persistReviewReason(request.afterSaleId(), request.reason());
+        }
         jdbcTemplate.update(
             """
             UPDATE twenty_mall_order o
@@ -2871,6 +2961,7 @@ public class TwentyMallDemoController {
         Long highRiskReviewCount,
         Long activeRuleCount,
         Long knowledgeCount,
+        Long aiCallCount,
         List<TwentyMallAdminTrendResponse> trendRows,
         List<TwentyMallAdminActivityResponse> activityRows
     ) {
@@ -3422,6 +3513,12 @@ public class TwentyMallDemoController {
         return uri != null && uri.startsWith("/api/yuegou-market") ? YUEGOU_MARKET_PLATFORM : TWENTY_MALL_PLATFORM;
     }
 
+    private String platformNameByCode(String platformCode) {
+        return YUEGOU_MARKET_PLATFORM.code().equals(platformCode)
+            ? YUEGOU_MARKET_PLATFORM.name()
+            : TWENTY_MALL_PLATFORM.name();
+    }
+
     private String disputeStatusText(String status) {
         return switch (status == null ? "" : status) {
             case "PENDING" -> "待审核";
@@ -3477,6 +3574,8 @@ public class TwentyMallDemoController {
             .replace("WRONG_GOODS", "商品错发")
             .replace("SIZE_MISMATCH", "尺码不符")
             .replace("NOT_AS_DESCRIBED", "描述不符")
+            .replace("PRICE_PROTECTION", "价格保护")
+            .replace("NO_REASON", "七天无理由")
             .replace("OTHER", "其他原因")
             .replace("PENDING_REVIEW", "待审核")
             .replace("PROCESSING", "处理中")
@@ -3867,7 +3966,49 @@ public class TwentyMallDemoController {
         );
     }
 
+    private void autoRefundExpiredPendingAfterSales() {
+        jdbcTemplate.update(
+            """
+            UPDATE twenty_mall_after_sale
+            SET status = 'COMPLETED',
+                updated_at = NOW()
+            WHERE deleted = 0
+              AND status = 'PENDING_REVIEW'
+              AND created_at <= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+            """
+        );
+        jdbcTemplate.update(
+            """
+            UPDATE twenty_mall_order o
+            JOIN twenty_mall_after_sale a ON a.order_id = o.id
+            SET o.order_status = 'REFUNDED',
+                o.pay_status = 'REFUNDED',
+                o.after_sale_status = 'COMPLETED',
+                o.updated_at = NOW()
+            WHERE a.deleted = 0
+              AND a.status = 'COMPLETED'
+              AND a.created_at <= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+              AND o.deleted = 0
+              AND o.after_sale_status = 'AFTER_SALE'
+            """
+        );
+        jdbcTemplate.update(
+            """
+            UPDATE twenty_mall_order_item i
+            JOIN twenty_mall_after_sale a ON a.order_item_id = i.id
+            SET i.after_sale_status = 'COMPLETED',
+                i.updated_at = NOW()
+            WHERE a.deleted = 0
+              AND a.status = 'COMPLETED'
+              AND a.created_at <= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+              AND i.deleted = 0
+              AND i.after_sale_status = 'APPLIED'
+            """
+        );
+    }
+
     private ApiResponse<TwentyMallAfterSaleResponse> merchantAfterSaleById(Long afterSaleId) {
+        autoRefundExpiredPendingAfterSales();
         String sql = """
             SELECT a.id, a.after_sale_no, o.order_no, a.after_sale_type, a.reason_type, a.description,
                    a.requested_amount, a.status, a.created_at,
