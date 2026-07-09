@@ -18,6 +18,37 @@
       <div class="filter-group">
         <span>筛选售后状态</span>
         <el-segmented v-model="status" :options="filterOptions" />
+        <el-select
+          v-model="selectedAfterSaleStoreKey"
+          class="after-sale-store-select"
+          placeholder="选择店铺查看售后"
+          filterable
+        >
+          <el-option label="全部店铺" value="ALL">
+            <div class="store-option">
+              <span class="store-option-placeholder"></span>
+              <span>全部店铺</span>
+            </div>
+          </el-option>
+          <el-option
+            v-for="item in afterSaleStoreOptions"
+            :key="item.key"
+            :label="item.label"
+            :value="item.key"
+          >
+            <div class="store-option">
+              <img :src="item.icon" :alt="item.platformName" />
+              <span>{{ item.label }}</span>
+              <em>{{ item.platformName }}</em>
+            </div>
+          </el-option>
+        </el-select>
+        <el-input
+          v-model="afterSaleOrderKeyword"
+          class="after-sale-order-search"
+          clearable
+          placeholder="搜索订单编号查看售后"
+        />
       </div>
       <el-button v-if="status === '全部' && filteredAfterSales.length" type="primary" @click="writeBackAllAfterSales">批量回写处理结果</el-button>
     </div>
@@ -86,6 +117,8 @@
         <el-descriptions-item label="售后申请时间">{{ selectedAfterSale.createdAt }}</el-descriptions-item>
         <el-descriptions-item label="退货单号">{{ selectedAfterSale.returnTrackingNo || '暂无' }}</el-descriptions-item>
         <el-descriptions-item label="寄回时间">{{ selectedAfterSale.returnShippedAt || '暂无' }}</el-descriptions-item>
+        <el-descriptions-item v-if="selectedAfterSale.afterSaleType === 'EXCHANGE'" label="换货快递单号">{{ selectedAfterSale.exchangeTrackingNo || '暂无' }}</el-descriptions-item>
+        <el-descriptions-item v-if="selectedAfterSale.afterSaleType === 'EXCHANGE'" label="换货发出时间">{{ selectedAfterSale.exchangeShippedAt || '暂无' }}</el-descriptions-item>
         <el-descriptions-item label="审核意见" :span="2">{{ selectedAfterSale.reviewOpinion || '暂无' }}</el-descriptions-item>
         <el-descriptions-item v-if="selectedDispute" label="平台介入" :span="2">
           <div class="dispute-box">
@@ -141,6 +174,7 @@
         <el-button v-if="selectedAfterSale && canReview(selectedAfterSale)" type="primary" @click="approveSelectedAfterSale">同意</el-button>
         <el-button v-if="selectedAfterSale && canRejectRefundOnly(selectedAfterSale)" type="danger" @click="openRejectDialog">拒绝</el-button>
         <el-button v-if="selectedAfterSale && canAgreeRefund(selectedAfterSale)" type="primary" @click="confirmAgreeRefund">同意退款</el-button>
+        <el-button v-if="selectedAfterSale && canSubmitExchangeShipping(selectedAfterSale)" type="primary" @click="openExchangeShippingDialog">填写换货快递单号</el-button>
         <el-button v-if="selectedDispute && selectedDispute.status === '待审核'" type="primary" @click="openDisputeEvidenceDialog">二次举证</el-button>
       </template>
     </el-dialog>
@@ -169,6 +203,20 @@
         <el-button type="primary" @click="submitAgreeRefund">确认同意退款</el-button>
       </template>
     </el-dialog>
+    <el-dialog v-model="exchangeShippingVisible" title="填写换货快递单号" width="540px" append-to-body>
+      <div class="refund-confirm-text">
+        请确认仓库已收到用户寄回的商品并检查是否有损坏，检查无误后可填写换货快递单号。
+      </div>
+      <el-form label-width="112px" class="exchange-shipping-form">
+        <el-form-item label="快递单号">
+          <el-input v-model="exchangeTrackingNo" placeholder="请输入换货发出的快递单号" clearable />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="exchangeShippingVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitExchangeShipping">确认提交</el-button>
+      </template>
+    </el-dialog>
     <el-dialog v-model="disputeEvidenceVisible" title="商家二次举证" width="560px" append-to-body>
       <el-input
         v-model="disputeEvidenceText"
@@ -195,13 +243,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { afterSales } from '../data/mock'
 import {
   loadSelfBuiltMerchantAfterSaleDisputes,
   loadSelfBuiltMerchantAfterSales,
   refundSelfBuiltAfterSale,
   reviewSelfBuiltAfterSale,
+  submitSelfBuiltExchangeShipping,
   submitSelfBuiltMerchantDisputeEvidence
 } from '../api'
 import { ElMessage } from 'element-plus'
@@ -220,6 +269,8 @@ type AfterSaleRow = typeof afterSales[number] & {
   evidenceImages?: string[]
   returnTrackingNo?: string
   returnShippedAt?: string
+  exchangeTrackingNo?: string
+  exchangeShippedAt?: string
 }
 type AfterSaleDisputeRow = {
   id: number
@@ -238,10 +289,14 @@ const status = ref('全部')
 const READ_AFTER_SALE_KEY = 'merchant_read_after_sale_ids'
 const afterSalesData = ref<AfterSaleRow[]>([])
 const disputeData = ref<AfterSaleDisputeRow[]>([])
+const selectedAfterSaleStoreKey = ref('ALL')
+const afterSaleOrderKeyword = ref('')
 const loading = ref(false)
 const reviewVisible = ref(false)
 const detailVisible = ref(false)
 const refundConfirmVisible = ref(false)
+const exchangeShippingVisible = ref(false)
+const exchangeTrackingNo = ref('')
 const disputeEvidenceVisible = ref(false)
 const disputeEvidenceText = ref('')
 const disputeEvidenceImages = ref<string[]>([])
@@ -259,7 +314,7 @@ const filterOptions = [
   { label: '争议订单', value: 'DISPUTE_REVIEW' }
 ]
 const labelText = {
-  afterSaleType: { RETURN_REFUND: '退货退款', REFUND_ONLY: '仅退款', PRICE_PROTECTION: '价保' } as Record<string, string>,
+  afterSaleType: { RETURN_REFUND: '退货退款', REFUND_ONLY: '仅退款', PRICE_PROTECTION: '价保', EXCHANGE: '换货' } as Record<string, string>,
   reason: { PRODUCT_QUALITY: '商品质量问题', LOGISTICS_DELAY: '物流延迟', WRONG_GOODS: '错发/漏发', PRICE_PROTECTION: '价格保护', OTHER: '其他原因' } as Record<string, string>,
   status: { PENDING_REVIEW: '待审核', PROCESSING: '处理中', WAITING_RETURN: '待用户寄回', RETURN_SHIPPED: '用户已寄回', REJECTED: '已拒绝', COMPLETED: '已完成', CLOSED: '已关闭' } as Record<string, string>,
   priority: { HIGH: '高', NORMAL: '普通', LOW: '低' } as Record<string, string>,
@@ -281,6 +336,17 @@ onMounted(async () => {
 onUnmounted(() => {
   if (countdownTimer) {
     window.clearInterval(countdownTimer)
+  }
+})
+
+watch(afterSaleOrderKeyword, (value) => {
+  const keyword = value.trim().toLowerCase()
+  if (!keyword) {
+    return
+  }
+  const matched = afterSalesData.value.find((item) => String(item.orderNo || '').toLowerCase().includes(keyword))
+  if (matched) {
+    selectedAfterSaleStoreKey.value = afterSaleStoreKey(matched)
   }
 })
 
@@ -382,49 +448,75 @@ const summaryCards = computed(() => [
   {
     label: '全部售后',
     value: '全部',
-    count: afterSalesData.value.length,
+    count: baseFilteredAfterSales.value.length,
     description: '当前绑定店铺售后总量'
   },
   {
     label: '待审核',
     value: 'PENDING_REVIEW',
-    count: countByFilter(afterSalesData.value, 'PENDING_REVIEW'),
+    count: countByFilter(baseFilteredAfterSales.value, 'PENDING_REVIEW'),
     description: '需要商家优先处理'
   },
   {
     label: '处理中',
     value: 'IN_PROGRESS',
-    count: countByFilter(afterSalesData.value, 'IN_PROGRESS'),
+    count: countByFilter(baseFilteredAfterSales.value, 'IN_PROGRESS'),
     description: '已进入售后履约环节'
   },
   {
     label: '已结束',
     value: 'FINISHED',
-    count: countByFilter(afterSalesData.value, 'FINISHED'),
+    count: countByFilter(baseFilteredAfterSales.value, 'FINISHED'),
     description: '已完成、已拒绝或关闭'
   },
   {
     label: '争议订单',
     value: 'DISPUTE_REVIEW',
-    count: countByFilter(afterSalesData.value, 'DISPUTE_REVIEW'),
+    count: countByFilter(baseFilteredAfterSales.value, 'DISPUTE_REVIEW'),
     description: '平台正在审核的争议'
   }
 ])
 
+const afterSaleStoreOptions = computed(() => {
+  const map = new Map<string, { key: string; label: string; icon: string; platformName: string }>()
+  afterSalesData.value.forEach((item) => {
+    const key = afterSaleStoreKey(item)
+    if (!map.has(key)) {
+      map.set(key, {
+        key,
+        label: item.shopName,
+        icon: item.platformIcon,
+        platformName: item.platformName
+      })
+    }
+  })
+  return Array.from(map.values()).sort(compareStoreOptions)
+})
+
+const baseFilteredAfterSales = computed(() => {
+  const keyword = afterSaleOrderKeyword.value.trim().toLowerCase()
+  return afterSalesData.value.filter((item) => {
+    const storeMatched = selectedAfterSaleStoreKey.value === 'ALL' || afterSaleStoreKey(item) === selectedAfterSaleStoreKey.value
+    const orderMatched = !keyword || String(item.orderNo || '').toLowerCase().includes(keyword)
+    return storeMatched && orderMatched
+  })
+})
+
 const filteredAfterSales = computed(() => {
+  const source = baseFilteredAfterSales.value
   if (status.value === '全部') {
-    return afterSalesData.value
+    return source
   }
   if (status.value === 'IN_PROGRESS') {
-    return afterSalesData.value.filter((item) => ['PROCESSING', 'WAITING_RETURN', 'RETURN_SHIPPED'].includes(effectiveAfterSaleStatus(item)))
+    return source.filter((item) => ['PROCESSING', 'WAITING_RETURN', 'RETURN_SHIPPED'].includes(effectiveAfterSaleStatus(item)))
   }
   if (status.value === 'FINISHED') {
-    return afterSalesData.value.filter((item) => ['COMPLETED', 'REJECTED', 'CLOSED'].includes(effectiveAfterSaleStatus(item)) && !hasPendingDispute(item))
+    return source.filter((item) => ['COMPLETED', 'REJECTED', 'CLOSED'].includes(effectiveAfterSaleStatus(item)) && !hasPendingDispute(item))
   }
   if (status.value === 'DISPUTE_REVIEW') {
-    return afterSalesData.value.filter((item) => hasPendingDispute(item))
+    return source.filter((item) => hasPendingDispute(item))
   }
-  return afterSalesData.value.filter((item) => effectiveAfterSaleStatus(item) === status.value)
+  return source.filter((item) => effectiveAfterSaleStatus(item) === status.value)
 })
 
 const groupedAfterSales = computed(() => {
@@ -579,7 +671,8 @@ function openRejectDialog() {
 async function approveAfterSale(afterSaleId: number, result = 'APPROVE', reason = '') {
   try {
     const platformCode = selectedAfterSale.value?.platformCode || platformCodeByAfterSaleId(afterSaleId)
-    const updated = await reviewSelfBuiltAfterSale(afterSaleId, result as 'APPROVE' | 'REJECT', reason, platformCode) as AfterSaleRow
+    const orderNo = selectedAfterSale.value?.orderNo || orderNoByAfterSaleId(afterSaleId)
+    const updated = await reviewSelfBuiltAfterSale(afterSaleId, result as 'APPROVE' | 'REJECT', reason, platformCode, orderNo) as AfterSaleRow
     afterSalesData.value = afterSalesData.value.map((item) => (
       item.id === afterSaleId ? normalizeAfterSaleRow({ ...item, ...updated }) : item
     ))
@@ -679,9 +772,18 @@ function parseDisplayTime(value?: string) {
 
 function canAgreeRefund(row: AfterSaleRow) {
   const effectiveStatus = effectiveAfterSaleStatus(row)
+  if (row.afterSaleType === 'EXCHANGE') {
+    return false
+  }
   return effectiveStatus === 'RETURN_SHIPPED' || (
     row.afterSaleType === 'REFUND_ONLY' && !['COMPLETED', 'REJECTED', 'CLOSED'].includes(effectiveStatus)
   )
+}
+
+function canSubmitExchangeShipping(row: AfterSaleRow) {
+  return row.afterSaleType === 'EXCHANGE'
+    && effectiveAfterSaleStatus(row) === 'RETURN_SHIPPED'
+    && !row.exchangeTrackingNo
 }
 
 function canRejectRefundOnly(row: AfterSaleRow) {
@@ -702,7 +804,7 @@ async function submitAgreeRefund() {
   }
   try {
     const afterSaleId = selectedAfterSale.value.id
-    const updated = await refundSelfBuiltAfterSale(afterSaleId, selectedAfterSale.value.platformCode) as AfterSaleRow
+    const updated = await refundSelfBuiltAfterSale(afterSaleId, selectedAfterSale.value.platformCode, selectedAfterSale.value.orderNo) as AfterSaleRow
     afterSalesData.value = afterSalesData.value.map((item) => (
       item.id === afterSaleId ? normalizeAfterSaleRow({ ...item, ...updated }) : item
     ))
@@ -713,6 +815,35 @@ async function submitAgreeRefund() {
     ElMessage({ type: 'success', message: '已同意退款，本次退货退款售后流程已完成' })
   } catch {
     ElMessage({ type: 'error', message: '同意退款失败，请确认后端服务和数据库已启动' })
+  }
+}
+
+function openExchangeShippingDialog() {
+  exchangeTrackingNo.value = selectedAfterSale.value?.exchangeTrackingNo || ''
+  exchangeShippingVisible.value = true
+}
+
+async function submitExchangeShipping() {
+  if (!selectedAfterSale.value) {
+    return
+  }
+  const trackingNo = exchangeTrackingNo.value.trim()
+  if (!trackingNo) {
+    ElMessage({ type: 'warning', message: '请填写换货快递单号' })
+    return
+  }
+  try {
+    const afterSaleId = selectedAfterSale.value.id
+    const updated = await submitSelfBuiltExchangeShipping(afterSaleId, trackingNo, selectedAfterSale.value.platformCode, selectedAfterSale.value.orderNo) as AfterSaleRow
+    afterSalesData.value = afterSalesData.value.map((item) => (
+      item.id === afterSaleId ? normalizeAfterSaleRow({ ...item, ...updated }) : item
+    ))
+    syncSelectedAfterSale(afterSaleId)
+    exchangeShippingVisible.value = false
+    status.value = 'FINISHED'
+    ElMessage({ type: 'success', message: '换货快递单号已填写，本次换货售后已完成' })
+  } catch {
+    ElMessage({ type: 'error', message: '换货快递单号提交失败，请确认后端服务和数据库已启动' })
   }
 }
 
@@ -735,7 +866,8 @@ async function submitDisputeEvidence() {
       selectedDispute.value.id,
       disputeEvidenceText.value.trim(),
       disputeEvidenceImages.value,
-      selectedAfterSale.value?.platformCode || 'TWENTY_MALL'
+      selectedAfterSale.value?.platformCode || platformCodeByOrderNo(selectedDispute.value.orderNo),
+      selectedDispute.value.orderNo
     ) as AfterSaleDisputeRow
     disputeData.value = disputeData.value.map((item) => item.id === updated.id ? normalizeDisputeRow(updated) : item)
     disputeEvidenceVisible.value = false
@@ -876,6 +1008,20 @@ function platformIconByCode(platformCode = 'TWENTY_MALL') {
   return platformCode === 'YUEGOU_MARKET' ? yuegouMarketIcon : twentyMallIcon
 }
 
+function compareStoreOptions(
+  a: { key: string; label: string; platformName: string },
+  b: { key: string; label: string; platformName: string }
+) {
+  const order: Record<string, number> = { 万象商城: 1, 悦购集市: 2 }
+  const platformDiff = (order[a.platformName] || 99) - (order[b.platformName] || 99)
+  if (platformDiff !== 0) return platformDiff
+  return a.label.localeCompare(b.label, 'zh-Hans-CN')
+}
+
+function afterSaleStoreKey(item: AfterSaleRow) {
+  return `${item.platformCode || 'TWENTY_MALL'}:${item.shopName || ''}`
+}
+
 function platformNameByCode(platformCode = 'TWENTY_MALL') {
   return platformCode === 'YUEGOU_MARKET' ? '悦购集市' : '万象商城'
 }
@@ -886,6 +1032,14 @@ function platformCodeByName(platformName = '') {
 
 function platformCodeByAfterSaleId(afterSaleId: number) {
   return afterSalesData.value.find((item) => item.id === afterSaleId)?.platformCode || 'TWENTY_MALL'
+}
+
+function orderNoByAfterSaleId(afterSaleId: number) {
+  return afterSalesData.value.find((item) => item.id === afterSaleId)?.orderNo || ''
+}
+
+function platformCodeByOrderNo(orderNo: string) {
+  return afterSalesData.value.find((item) => item.orderNo === orderNo)?.platformCode || 'TWENTY_MALL'
 }
 </script>
 
@@ -962,6 +1116,7 @@ function platformCodeByAfterSaleId(afterSaleId: number) {
 .filter-group {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
 }
 
@@ -969,6 +1124,52 @@ function platformCodeByAfterSaleId(afterSaleId: number) {
   color: #64748b;
   font-size: 13px;
   font-weight: 600;
+}
+
+.after-sale-store-select {
+  width: 280px;
+}
+
+.after-sale-order-search {
+  width: 240px;
+}
+
+.store-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.store-option img {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.store-option-placeholder {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: 4px;
+  background: #e8eef7;
+}
+
+.store-option span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.store-option em {
+  flex-shrink: 0;
+  color: #94a3b8;
+  font-size: 12px;
+  font-style: normal;
 }
 
 .platform-group {

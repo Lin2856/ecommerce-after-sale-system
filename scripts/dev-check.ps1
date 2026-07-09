@@ -86,15 +86,21 @@ function Test-BackendAi {
   }
 }
 
-Write-Step "Docker"
-docker version
-$dockerReady = $LASTEXITCODE -eq 0
-if ($LASTEXITCODE -ne 0) {
-  Write-Host "Docker CLI can run, but Docker Engine is not reachable. Open Docker Desktop and try again." -ForegroundColor Yellow
+$dockerReady = $false
+if ($StartCompose) {
+  Write-Step "Docker"
+  docker version
+  $dockerReady = $LASTEXITCODE -eq 0
+  if ($LASTEXITCODE -ne 0) {
+    Write-Host "Docker CLI can run, but Docker Engine is not reachable. Open Docker Desktop and try again." -ForegroundColor Yellow
+  }
+} else {
+  Write-Step "Docker"
+  Write-Host "[SKIP] Local script startup does not require Docker. Use -StartCompose only when you want Docker Compose." -ForegroundColor Yellow
 }
 
 Write-Step "Ports"
-$ports = 3306, 6379, 8080, 9000, 5173, 5175
+$ports = 3306, 6379, 8080, 9000, 5177, 5175
 $connections = Get-NetTCPConnection -LocalPort $ports -ErrorAction SilentlyContinue |
   Select-Object LocalPort, State, OwningProcess
 if ($connections) {
@@ -113,17 +119,21 @@ if ($StartCompose) {
 }
 
 Write-Step "Compose Status"
-if ($dockerReady) {
-  docker compose ps
+if ($StartCompose) {
+  if ($dockerReady) {
+    docker compose ps
+  } else {
+    Write-Host "[SKIP] Docker Compose status skipped because Docker Engine is not reachable." -ForegroundColor Yellow
+  }
 } else {
-  Write-Host "[SKIP] Docker Compose status skipped because Docker Engine is not reachable." -ForegroundColor Yellow
+  Write-Host "[SKIP] Docker Compose status skipped for local script startup." -ForegroundColor Yellow
 }
 
 Write-Step "Health Checks"
 Test-Http "Backend" "http://localhost:8080/api/health"
 Test-Http "Swagger" "http://localhost:8080/swagger-ui.html"
 Test-Http "AI Service" "http://localhost:9000/health"
-Test-Http "Merchant Web" "http://localhost:5173"
+Test-Http "Merchant Web" "http://localhost:5177"
 Test-Http "Admin Web" "http://localhost:5175"
 
 Write-Step "AI Sample"

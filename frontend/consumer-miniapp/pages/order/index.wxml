@@ -19,7 +19,10 @@
   <block wx:for="{{filteredOrderGroups}}" wx:key="accountNo" wx:for-item="group">
     <view class="source-banner">
       <view>
-        <view class="source-title">{{group.platform}}</view>
+        <view class="source-title-row">
+          <image class="source-icon" src="{{group.icon}}" mode="aspectFill" />
+          <view class="source-title">{{group.platform}}</view>
+        </view>
         <view class="source-account">{{group.accountNo}}</view>
       </view>
       <view class="source-count">{{group.orders.length}}</view>
@@ -29,7 +32,6 @@
       <view class="shop-banner">
         <view class="shop-dot"></view>
         <view class="shop-title">{{shop.merchant}}</view>
-        <view class="shop-count">{{shop.orders.length}}</view>
       </view>
       <view wx:for="{{shop.orders}}" wx:key="no" wx:for-item="item" class="order-card" bindtap="goDetail" data-no="{{item.no}}">
         <image class="product-thumb" src="{{item.image}}" mode="aspectFill" />

@@ -25,7 +25,7 @@
 
 - 后端接口：`http://localhost:8080`
 - AI 服务健康检查：`http://localhost:9000/health`
-- 商家端：`http://localhost:5173`
+- 商家端：`http://localhost:5177`
 - 管理员端：`http://localhost:5175`
 - 消费者端：微信开发者工具导入 `frontend/consumer-miniapp`
 

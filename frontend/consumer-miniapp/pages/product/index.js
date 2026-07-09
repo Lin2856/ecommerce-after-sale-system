@@ -9,6 +9,10 @@ function resolveOrderPlatform(orderNo) {
   return { code: "TWENTY_MALL", fallbackMerchant: "万象商城店铺" }
 }
 
+function isLocalPlatformOrderNo(orderNo) {
+  return /^(TM|WX|YG)\d+/i.test(String(orderNo || ""))
+}
+
 Page({
   data: {
     product: null,
@@ -18,15 +22,30 @@ Page({
     disputeDialogVisible: false,
     disputeReasonText: "",
     disputeImages: [],
+    afterSaleApplyVisible: false,
+    afterSaleApplyMode: "create",
+    afterSaleTypeOptions: [
+      { label: "仅退款", value: "REFUND_ONLY", icon: "款" },
+      { label: "退货退款", value: "RETURN_REFUND", icon: "退" },
+      { label: "价保", value: "PRICE_PROTECTION", icon: "保" },
+      { label: "换货", value: "EXCHANGE", icon: "换" }
+    ],
+    selectedAfterSaleType: "RETURN_REFUND",
+    selectedAfterSaleLabel: "退货退款",
+    reasonOptions: ["商品质量问题", "商品破损/污渍", "实物与描述不符", "少件/漏发", "价格保护", "其他问题"],
+    currentReasonOptions: ["商品质量问题", "商品破损/污渍", "实物与描述不符", "少件/漏发", "其他问题"],
+    reasonIndex: 0,
     reasonDialogVisible: false,
     reasonForm: null,
     reasonText: "",
+    reasonTextLength: 0,
     reasonImages: [],
     reviewVisible: false,
     productReviewScore: 5,
     merchantReviewScore: 5,
     productReviewText: "",
     merchantReviewText: "",
+    reviewImages: [],
     reviewDetailVisible: false,
     reviewDetail: null,
     apiBase: "http://localhost:8080/api/twenty-mall",
@@ -54,7 +73,7 @@ Page({
       apiBase,
       platformName: config.name
     })
-    if (options.no && (options.no.startsWith("TM") || options.no.startsWith("YG"))) {
+    if (options.no && isLocalPlatformOrderNo(options.no)) {
       wx.request({
         url: `${apiBase}/consumer/orders/detail?orderNo=${encodeURIComponent(options.no)}`,
         success: (res) => {
@@ -101,6 +120,11 @@ Page({
     this.submitAfterSale(false)
   },
   modifyAfterSale() {
+    const status = this.data.product && this.data.product.afterSale
+    if (this.isAfterSaleFinalStatus(status)) {
+      wx.showToast({ title: "售后已完成，不能修改", icon: "none" })
+      return
+    }
     this.submitAfterSale(true)
   },
   closeAfterSaleDetail() {
@@ -108,32 +132,79 @@ Page({
   },
   submitAfterSale(isModify) {
     if (!this.data.product) return
-    const itemList = isModify ? ["仅退款", "退货退款", "价保", "取消售后申请"] : ["仅退款", "退货退款", "价保"]
-    wx.showActionSheet({
-      itemList,
-      success: (res) => {
-        const type = itemList[res.tapIndex]
-        if (type === "取消售后申请") {
-          this.cancelAfterSale()
-          return
-        }
-        const typeMap = {
-          "仅退款": "REFUND_ONLY",
-          "退货退款": "RETURN_REFUND",
-          "价保": "PRICE_PROTECTION"
-        }
-        const reasonMap = {
-          "仅退款": "PRODUCT_QUALITY",
-          "退货退款": "PRODUCT_QUALITY",
-          "价保": "PRICE_PROTECTION"
-        }
-        if (type === "仅退款" || type === "退货退款") {
-          this.requestAfterSaleReason(type, typeMap[type], reasonMap[type], isModify)
-          return
-        }
-        this.doSubmitAfterSale(type, typeMap[type], reasonMap[type], "用户申请价保，请商家核实订单价格变化。", isModify)
-      }
+    this.setData({
+      afterSaleApplyVisible: true,
+      afterSaleApplyMode: isModify ? "modify" : "create",
+      selectedAfterSaleType: "RETURN_REFUND",
+      selectedAfterSaleLabel: "退货退款",
+      currentReasonOptions: this.getReasonOptionsByAfterSaleType("RETURN_REFUND"),
+      reasonIndex: 0,
+      reasonText: "",
+      reasonTextLength: 0,
+      reasonImages: []
     })
+  },
+  closeAfterSaleApply() {
+    this.setData({
+      afterSaleApplyVisible: false,
+      afterSaleApplyMode: "create",
+      selectedAfterSaleType: "RETURN_REFUND",
+      selectedAfterSaleLabel: "退货退款",
+      currentReasonOptions: this.getReasonOptionsByAfterSaleType("RETURN_REFUND"),
+      reasonIndex: 0,
+      reasonText: "",
+      reasonTextLength: 0,
+      reasonImages: []
+    })
+  },
+  selectAfterSaleType(event) {
+    const value = event.currentTarget.dataset.value
+    const selected = this.data.afterSaleTypeOptions.find((item) => item.value === value) || this.data.afterSaleTypeOptions[1]
+    const currentReasonOptions = this.getReasonOptionsByAfterSaleType(selected.value)
+    this.setData({
+      selectedAfterSaleType: selected.value,
+      selectedAfterSaleLabel: selected.label,
+      currentReasonOptions,
+      reasonIndex: 0
+    })
+  },
+  getReasonOptionsByAfterSaleType(afterSaleType) {
+    if (afterSaleType === "PRICE_PROTECTION") {
+      return ["价格保护"]
+    }
+    return this.data.reasonOptions.filter((item) => item !== "价格保护")
+  },
+  onReasonOptionChange(event) {
+    this.setData({ reasonIndex: Number(event.detail.value || 0) })
+  },
+  submitAfterSaleApply() {
+    const typeValue = this.data.selectedAfterSaleType
+    const label = this.data.selectedAfterSaleLabel
+    const currentReasonOptions = this.getReasonOptionsByAfterSaleType(typeValue)
+    const reason = currentReasonOptions[this.data.reasonIndex] || currentReasonOptions[0] || "商品质量问题"
+    const detail = this.data.reasonText.trim()
+    if (!detail) {
+      wx.showToast({ title: "请填写问题描述", icon: "none" })
+      return
+    }
+    const backendTypeMap = {
+      REFUND_ONLY: "REFUND_ONLY",
+      RETURN_REFUND: "RETURN_REFUND",
+      PRICE_PROTECTION: "PRICE_PROTECTION",
+      EXCHANGE: "EXCHANGE"
+    }
+    const reasonTypeMap = {
+      PRICE_PROTECTION: "PRICE_PROTECTION"
+    }
+    this.setData({ afterSaleApplyVisible: false })
+    this.doSubmitAfterSale(
+      label,
+      backendTypeMap[typeValue] || "RETURN_REFUND",
+      reasonTypeMap[typeValue] || "PRODUCT_QUALITY",
+      `${reason}：${detail}`,
+      this.data.afterSaleApplyMode === "modify",
+      this.data.reasonImages
+    )
   },
   cancelAfterSale() {
     if (!this.data.product) return
@@ -165,7 +236,9 @@ Page({
             this.setData({
               product,
               afterSaleDetail: null,
-              afterSaleDetailVisible: false
+              afterSaleDetailVisible: false,
+              afterSaleApplyVisible: false,
+              afterSaleApplyMode: "create"
             })
             wx.showToast({ title: "售后已取消", icon: "success" })
           },
@@ -188,7 +261,8 @@ Page({
     })
   },
   onReasonInput(event) {
-    this.setData({ reasonText: event.detail.value })
+    const value = event.detail.value || ""
+    this.setData({ reasonText: value, reasonTextLength: value.length })
   },
   chooseReasonImage() {
     const remainCount = 3 - this.data.reasonImages.length
@@ -310,6 +384,11 @@ Page({
               status: product.afterSale,
               type,
               reason: description,
+              consumerTip: this.buildAfterSaleConsumerTip({
+                status: data.status || "PENDING_REVIEW",
+                statusText: product.afterSale,
+                type
+              }),
               evidenceImages: this.normalizeEvidenceImages(data.evidenceImages || evidenceImages),
               returnTrackingNo: data.returnTrackingNo || "",
               returnShippedAt: data.returnShippedAt || "",
@@ -347,6 +426,13 @@ Page({
         }
         const data = payload.data
         const afterSaleTypeText = this.afterSaleTypeText(data.afterSaleType)
+        const statusText = this.afterSaleDetailStatusText(data.status, data.afterSaleType)
+        const consumerTip = this.buildAfterSaleConsumerTip({
+          status: data.status,
+          statusText,
+          type: afterSaleTypeText,
+          reviewOpinion: data.reviewOpinion || ""
+        })
         const disputeResult = this.buildDisputeResultText({
           type: afterSaleTypeText,
           disputeStatus: data.disputeStatus || "",
@@ -358,9 +444,11 @@ Page({
             orderNo: data.orderNo,
             productName: data.productName,
             merchantName: data.shopName,
-            status: this.afterSaleStatusText(data.status),
+            status: statusText,
             type: afterSaleTypeText,
             reason: data.description,
+            reviewOpinion: data.reviewOpinion || "",
+            consumerTip,
             evidenceImages: this.normalizeEvidenceImages(data.evidenceImages || []),
             returnTrackingNo: data.returnTrackingNo || "",
             returnShippedAt: data.returnShippedAt || "",
@@ -370,7 +458,8 @@ Page({
             disputeResultText: disputeResult.text,
             disputeResultTip: disputeResult.tip,
             appliedAt: data.createdAt
-          }
+          },
+          product: this.data.product ? { ...this.data.product, afterSale: statusText } : this.data.product
         })
       }
     })
@@ -413,7 +502,12 @@ Page({
             ...this.data.afterSaleDetail,
             status: product.afterSale,
             returnTrackingNo: data.returnTrackingNo || trackingNo,
-            returnShippedAt: data.returnShippedAt || this.formatNow()
+            returnShippedAt: data.returnShippedAt || this.formatNow(),
+            consumerTip: this.buildAfterSaleConsumerTip({
+              status: data.status || "RETURN_SHIPPED",
+              statusText: product.afterSale,
+              type: this.data.afterSaleDetail.type
+            })
           }
         })
         wx.showToast({ title: "快递单号已同步", icon: "success" })
@@ -540,7 +634,8 @@ Page({
     const map = {
       REFUND_ONLY: "仅退款",
       RETURN_REFUND: "退货退款",
-      PRICE_PROTECTION: "价保"
+      PRICE_PROTECTION: "价保",
+      EXCHANGE: "换货"
     }
     return map[value] || value || ""
   },
@@ -555,6 +650,67 @@ Page({
       CLOSED: "已关闭"
     }
     return map[value] || value || ""
+  },
+  afterSaleDetailStatusText(status, afterSaleType) {
+    if (afterSaleType === "PRICE_PROTECTION" && (status === "COMPLETED" || status === "WAITING_RETURN" || status === "PROCESSING")) {
+      return "商家已同意价保申请，差价已自动退回你的账户"
+    }
+    return this.afterSaleStatusText(status)
+  },
+  buildAfterSaleConsumerTip(detail) {
+    const status = detail.status || ""
+    const statusText = detail.statusText || ""
+    const type = detail.type || "售后"
+    const reviewOpinion = detail.reviewOpinion || ""
+    if (status === "PENDING_REVIEW") {
+      return `你的${type}申请已提交，商家将在规定时间内审核处理。`
+    }
+    if (status === "REJECTED") {
+      const reason = reviewOpinion.replace(/^审核拒绝：/, "").trim()
+      if (type === "价保") {
+        return reason
+          ? `商家未同意本次价保申请，拒绝原因：${reason}。如你仍有疑问，可以联系商家进一步沟通。`
+          : "商家未同意本次价保申请。如你仍有疑问，可以联系商家进一步沟通。"
+      }
+      return reason
+        ? `商家未同意本次${type}申请，拒绝原因：${reason}。如你仍有异议，可以申请平台介入。`
+        : `商家未同意本次${type}申请。如你仍有异议，可以申请平台介入。`
+    }
+    if (type === "价保" && statusText === "商家已同意价保申请，差价已自动退回你的账户") {
+      return "商家已同意价保申请，差价已自动退回你的账户。"
+    }
+    if (status === "WAITING_RETURN") {
+      return type === "换货"
+        ? "商家已同意换货申请，请按页面提示寄回商品，商家收货验收后将为你安排换货。"
+        : "商家已同意退货退款申请，请按页面提示寄回商品，商家收货验收后将继续处理退款。"
+    }
+    if (status === "RETURN_SHIPPED") {
+      return "退货快递单号已提交，商家收到商品并验收后会继续处理。"
+    }
+    if (status === "PROCESSING") {
+      return type === "仅退款"
+        ? "商家已同意仅退款申请，退款将按原支付方式退回你的账户。"
+        : `商家已同意本次${type}申请，正在为你处理。`
+    }
+    if (status === "COMPLETED") {
+      if (type === "仅退款") {
+        return "商家已同意仅退款申请，退款已退回你的账户。"
+      }
+      if (type === "退货退款") {
+        return "商家已完成退货退款处理，退款已退回你的账户。"
+      }
+      if (type === "换货") {
+        return "商家已完成换货处理，请留意新商品物流信息。"
+      }
+      return "本次售后已完成。"
+    }
+    if (status === "CLOSED") {
+      return "本次售后已关闭，如仍有问题可以重新联系商家确认。"
+    }
+    return `本次${type}申请正在处理，请留意后续结果。`
+  },
+  isAfterSaleFinalStatus(status) {
+    return ["已完成", "已关闭", "商家已同意价保申请，差价已自动退回你的账户"].includes(status)
   },
   buildDisputeResultText(detail) {
     const status = detail.disputeStatus || ""
@@ -610,6 +766,7 @@ Page({
       merchantReviewScore: 5,
       productReviewText: "",
       merchantReviewText: "",
+      reviewImages: [],
       productReviewStars: this.buildStars(5),
       merchantReviewStars: this.buildStars(5)
     })
@@ -630,6 +787,7 @@ Page({
           reviewDetailVisible: true,
           reviewDetail: {
             ...detail,
+            imageUrls: this.normalizeEvidenceImages(detail.imageUrls || []),
             productStars: this.buildStars(Number(detail.productScore || 0)),
             serviceStars: this.buildStars(Number(detail.serviceScore || 0))
           }
@@ -650,7 +808,7 @@ Page({
     })
   },
   closeReviewDialog() {
-    this.setData({ reviewVisible: false })
+    this.setData({ reviewVisible: false, reviewImages: [] })
   },
   setProductReviewScore(event) {
     const score = Number(event.currentTarget.dataset.score)
@@ -671,6 +829,40 @@ Page({
   },
   onMerchantReviewInput(event) {
     this.setData({ merchantReviewText: event.detail.value })
+  },
+  chooseReviewImage() {
+    const remainCount = 3 - this.data.reviewImages.length
+    if (remainCount <= 0) {
+      wx.showToast({ title: "最多上传3张照片", icon: "none" })
+      return
+    }
+    const handleFiles = (paths) => {
+      this.prepareEvidenceImages(paths).then((images) => {
+        this.setData({
+          reviewImages: this.data.reviewImages.concat(images).slice(0, 3)
+        })
+      })
+    }
+    if (wx.chooseMedia) {
+      wx.chooseMedia({
+        count: remainCount,
+        mediaType: ["image"],
+        sourceType: ["album", "camera"],
+        success: (res) => handleFiles((res.tempFiles || []).map((file) => file.tempFilePath))
+      })
+      return
+    }
+    wx.chooseImage({
+      count: remainCount,
+      sourceType: ["album", "camera"],
+      success: (res) => handleFiles(res.tempFilePaths || [])
+    })
+  },
+  removeReviewImage(event) {
+    const index = Number(event.currentTarget.dataset.index)
+    this.setData({
+      reviewImages: this.data.reviewImages.filter((_, currentIndex) => currentIndex !== index)
+    })
   },
   submitReview() {
     const productContent = this.data.productReviewText.trim()
@@ -693,7 +885,8 @@ Page({
         productScore: this.data.productReviewScore,
         serviceScore: this.data.merchantReviewScore,
         productContent,
-        merchantContent
+        merchantContent,
+        imageUrls: this.data.reviewImages
       },
       success: (response) => {
         const payload = response.data || {}
@@ -704,6 +897,7 @@ Page({
         wx.showToast({ title: "评价已提交", icon: "success" })
         this.setData({
           reviewVisible: false,
+          reviewImages: [],
           product: {
             ...this.data.product,
             reviewed: true

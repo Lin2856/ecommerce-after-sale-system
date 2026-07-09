@@ -24,9 +24,10 @@ api.interceptors.request.use((config) => {
 })
 
 api.interceptors.response.use((response) => {
-  const operationMeta = (response.config as unknown as { operationMeta?: OperationMeta }).operationMeta
+  const operationConfig = response.config as unknown as OperationConfig
+  const operationMeta = operationConfig.operationMeta
   if (operationMeta && response.data?.code === '200') {
-    writeOperationLog(operationMeta)
+    writeOperationLog(operationMeta, operationConfig.operationTargetId || resolveOperationTargetId(response.config.data))
   }
   return response
 })
@@ -41,6 +42,11 @@ type OperationMeta = {
   targetType: string
 }
 
+type OperationConfig = {
+  operationMeta?: OperationMeta
+  operationTargetId?: string
+}
+
 function resolveProtectedOperation(method: string, url: string): OperationMeta | null {
   const normalizedMethod = method.toUpperCase()
   if (normalizedMethod === 'GET' || url.includes('/merchant/operation-logs')) {
@@ -51,6 +57,9 @@ function resolveProtectedOperation(method: string, url: string): OperationMeta |
   }
   if (url.includes('/after-sales/refund')) {
     return { actionType: 'AFTER_SALE_REFUND', actionName: '同意退款', targetType: '售后订单' }
+  }
+  if (url.includes('/after-sales/exchange-shipping')) {
+    return { actionType: 'AFTER_SALE_EXCHANGE_SHIPPING', actionName: '填写换货快递单号', targetType: '售后订单' }
   }
   if (url.includes('/after-sales/disputes') && url.includes('/evidence')) {
     return { actionType: 'DISPUTE_EVIDENCE', actionName: '提交争议举证', targetType: '争议订单' }
@@ -83,7 +92,32 @@ function knowledgeActionName(method: string, label: string) {
   return `维护${label}`
 }
 
-function writeOperationLog(meta: OperationMeta) {
+function resolveOperationTargetId(data: unknown) {
+  if (!data) {
+    return ''
+  }
+  try {
+    const payload = typeof data === 'string' ? JSON.parse(data) : data as Record<string, unknown>
+    const orderNo = payload.orderNo || payload.order_no
+    if (orderNo) {
+      return String(orderNo)
+    }
+    if (payload.afterSaleId) {
+      return `售后ID：${payload.afterSaleId}`
+    }
+    if (payload.disputeId) {
+      return `争议ID：${payload.disputeId}`
+    }
+    if (payload.reviewId) {
+      return `评价ID：${payload.reviewId}`
+    }
+  } catch {
+    return ''
+  }
+  return ''
+}
+
+function writeOperationLog(meta: OperationMeta, targetId = '') {
   const staff = getConfirmedStaff()
   const user = getStoredUser<{ username?: string; phone?: string }>()
   if (!staff) {
@@ -96,7 +130,7 @@ function writeOperationLog(meta: OperationMeta) {
     actionType: meta.actionType,
     actionName: meta.actionName,
     targetType: meta.targetType,
-    targetId: '当前操作对象',
+    targetId: targetId || '-',
     detail: `${staff.name}执行了${meta.actionName}`
   }).catch(() => undefined)
 }

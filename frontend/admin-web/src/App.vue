@@ -48,7 +48,6 @@
             v-model="adminLoginKey"
             size="large"
             show-password
-            :placeholder="selectedAdmin ? `请输入${selectedAdmin.name}的 8 位秘钥` : '请输入 8 位管理员秘钥'"
             @keyup.enter="loginAdmin"
           />
         </el-form-item>
@@ -1844,7 +1843,7 @@ const syncDetailVisible = computed({
   }
 })
 const metrics = computed(() => [
-  { label: '商家数', value: formatNumber(overview.value.merchantCount), description: '万象商城中已启用的商家账号' },
+  { label: '商家数', value: formatNumber(overview.value.merchantCount), description: '电商平台中已启用的商家账号' },
   { label: '绑定店铺', value: formatNumber(overview.value.boundShopCount), description: '商家一级账号已绑定的店铺数量' },
   { label: '今日同步', value: formatNumber(overview.value.todaySyncCount), description: '今日更新的订单、售后和评价数据' },
   { label: 'AI 调用', value: formatNumber(overview.value.aiCallCount), description: '来自数据库 AI 调用日志的真实统计' }
@@ -1877,9 +1876,9 @@ const pendingItems = computed(() => [
 ])
 const pendingTotal = computed(() => overview.value.pendingAfterSaleCount + overview.value.highRiskReviewCount)
 const syncOverview = computed(() => syncLogs.value.length > 0 ? syncLogs.value : [
-  { task: '万象商城订单数据同步', status: '暂无数据', count: 0, time: '' },
-  { task: '万象商城售后数据同步', status: '暂无数据', count: 0, time: '' },
-  { task: '万象商城评价数据同步', status: '暂无数据', count: 0, time: '' }
+  { task: '电商平台订单数据同步', status: '暂无数据', count: 0, time: '' },
+  { task: '电商平台售后数据同步', status: '暂无数据', count: 0, time: '' },
+  { task: '电商平台评价数据同步', status: '暂无数据', count: 0, time: '' }
 ])
 const syncMetrics = computed(() => {
   const list = syncOverview.value
@@ -2618,7 +2617,7 @@ async function loadSyncLogs() {
     const payload = await response.json()
     if (payload.code === '200' && Array.isArray(payload.data)) {
       syncLogs.value = payload.data.map((item: SyncLogRow) => ({
-        task: item.task,
+        task: normalizeSyncTaskName(item.task),
         status: item.status,
         count: Number(item.count || 0),
         time: item.time || ''
@@ -3029,6 +3028,7 @@ function mapAdminFaqCategory(category: string) {
   const map: Record<string, string> = {
     REFUND_ONLY: 'REFUND',
     RETURN_REFUND: 'RETURN',
+    EXCHANGE: 'AFTER_SALE',
     QUALITY_RETURN: 'AFTER_SALE',
     REPAIR: 'AFTER_SALE',
     PRICE_PROTECTION: 'AFTER_SALE',
@@ -3744,7 +3744,7 @@ function syncProgress(count: number) {
 
 function syncTaskDescription(task: string, count: number) {
   if (task.includes('订单')) {
-    return `已从万象商城同步 ${formatNumber(count)} 条订单数据，用于消费者端订单列表、商家端售后处理和管理员统计。`
+    return `已从电商平台同步 ${formatNumber(count)} 条订单数据，用于消费者端订单列表、商家端售后处理和管理员统计。`
   }
   if (task.includes('售后')) {
     return `已同步 ${formatNumber(count)} 条售后记录，用于三端售后状态流转和争议处理。`
@@ -3753,6 +3753,10 @@ function syncTaskDescription(task: string, count: number) {
     return `已同步 ${formatNumber(count)} 条评价数据，用于商家评价分析和管理员风险审核。`
   }
   return `当前任务已同步 ${formatNumber(count)} 条业务数据。`
+}
+
+function normalizeSyncTaskName(task = '') {
+  return task.replace(/万象商城/g, '电商平台')
 }
 
 function parseTags(value: string) {
@@ -3839,7 +3843,8 @@ function afterSaleTypeText(type?: string) {
   const map: Record<string, string> = {
     REFUND_ONLY: '仅退款',
     RETURN_REFUND: '退货退款',
-    PRICE_PROTECTION: '价保'
+    PRICE_PROTECTION: '价保',
+    EXCHANGE: '换货'
   }
   return map[type || ''] || type || '未知类型'
 }

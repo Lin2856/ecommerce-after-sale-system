@@ -49,9 +49,14 @@ ai-service/*.pyc
 database/*.bak
 database/*.dump
 database/*.sql.gz
+database_backups/
+generated_docs/
 output/
 outputs/
+projects/
 tmp/
+tmp*.docx
+scripts/__pycache__/
 
 # Deployment
 deploy/.data/

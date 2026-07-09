@@ -25,10 +25,10 @@
           <div class="platform-title-row">
             <strong>{{ item.name }}</strong>
             <el-tag v-if="platformBindingCount(item.code) > 0" type="success" size="small">已绑定 {{ platformBindingCount(item.code) }}</el-tag>
-            <el-tag v-else-if="!isSelfBuiltPlatform(item.code)" type="info" size="small">待接入</el-tag>
+            <el-tag v-else-if="!isSelfBuiltPlatform(item.code)" type="info" size="small">未绑定</el-tag>
             <el-tag v-else type="warning" size="small">未绑定</el-tag>
           </div>
-          <span>{{ item.desc }}</span>
+          <span v-if="item.desc">{{ item.desc }}</span>
         </div>
           <el-button :type="isSelfBuiltPlatform(item.code) ? 'primary' : 'default'" @click="bindPlatform(item)">绑定</el-button>
       </div>
@@ -84,19 +84,6 @@
           </div>
         </div>
       </div>
-      <div class="panel prepare-panel">
-        <div class="card-toolbar">
-          <h2 class="section-title">开放平台准备项</h2>
-          <span class="page-kicker">真实平台接入前检查</span>
-        </div>
-        <div v-for="item in platformPrepareSteps" :key="item.title" class="prepare-step" :class="{ done: item.done }">
-          <span>{{ item.index }}</span>
-          <div>
-            <strong>{{ item.title }}</strong>
-            <em>{{ item.desc }}</em>
-          </div>
-        </div>
-      </div>
     </div>
     <el-dialog v-model="selfBuiltDialogVisible" :title="`绑定${selectedSelfBuiltPlatform?.name || '自建商城'}账号`" width="460px">
       <el-alert
@@ -144,20 +131,14 @@ const selfBuiltDialogVisible = ref(false)
 const selfBuiltBinding = ref(false)
 const selfBuiltForm = ref({ accountNo: '', password: '' })
 const platformOptions = [
-  { code: 'DOUYIN', name: '抖音商城', desc: '同步抖店订单与售后', icon: douyinIcon },
-  { code: 'TAOBAO', name: '淘宝', desc: '预留淘宝店铺接入', icon: taobaoIcon },
-  { code: 'PDD', name: '拼多多', desc: '预留拼多多店铺接入', icon: pddIcon },
-  { code: 'JD', name: '京东', desc: '预留京东店铺接入', icon: jdIcon },
-  { code: 'TWENTY_MALL', name: '万象商城', desc: '自建数据库模拟电商平台', icon: twentyMallIcon },
-  { code: 'YUEGOU_MARKET', name: '悦购集市', desc: '第二个自建数据库模拟电商平台', icon: yuegouMarketIcon }
+  { code: 'DOUYIN', name: '抖音商城', desc: '', icon: douyinIcon },
+  { code: 'TAOBAO', name: '淘宝', desc: '', icon: taobaoIcon },
+  { code: 'PDD', name: '拼多多', desc: '', icon: pddIcon },
+  { code: 'JD', name: '京东', desc: '', icon: jdIcon },
+  { code: 'TWENTY_MALL', name: '万象商城', desc: '', icon: twentyMallIcon },
+  { code: 'YUEGOU_MARKET', name: '悦购集市', desc: '', icon: yuegouMarketIcon }
 ]
 const selectedSelfBuiltPlatform = ref<(typeof platformOptions)[number] | null>(null)
-const platformPrepareSteps = [
-  { index: 1, title: '准备 App Key', desc: '用于识别开放平台应用身份', done: true },
-  { index: 2, title: '配置 App Secret', desc: '用于接口签名和访问令牌换取', done: true },
-  { index: 3, title: '设置回调地址', desc: '接收订单、售后和授权状态变更通知', done: true },
-  { index: 4, title: '申请真实权限审批', desc: '提交平台审核后才能读取真实店铺数据', done: false }
-]
 const overviewMetrics = computed(() => [
   {
     label: '已绑定平台',
@@ -258,13 +239,13 @@ async function runSync(syncType: string) {
 }
 
 function bindPlatform(item: (typeof platformOptions)[number]) {
-  if (isSelfBuiltPlatform(item.code)) {
-    selectedSelfBuiltPlatform.value = item
-    selfBuiltForm.value = { accountNo: '', password: '' }
-    selfBuiltDialogVisible.value = true
+  if (!isSelfBuiltPlatform(item.code)) {
+    mockAuthorize(item.name)
     return
   }
-  mockAuthorize(item.name)
+  selectedSelfBuiltPlatform.value = item
+  selfBuiltForm.value = { accountNo: '', password: '' }
+  selfBuiltDialogVisible.value = true
 }
 
 async function submitSelfBuiltBind() {
@@ -423,6 +404,7 @@ function mockAuthorize(platformName = '抖音商城', accountNo = '') {
   loadLocalBindings()
   ElMessage({ type: 'success', message: `${platformName}店铺已完成模拟绑定` })
 }
+
 </script>
 
 <style scoped>
@@ -610,52 +592,6 @@ function mockAuthorize(platformName = '抖音商城', accountNo = '') {
   margin-top: 5px;
   color: #64748b;
   font-size: 12px;
-}
-
-.prepare-step {
-  display: flex;
-  gap: 12px;
-  padding: 14px 0;
-  border-bottom: 1px solid #edf2f7;
-}
-
-.prepare-step:last-child {
-  border-bottom: none;
-}
-
-.prepare-step > span {
-  display: inline-flex;
-  width: 28px;
-  height: 28px;
-  flex: 0 0 28px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: #e2e8f0;
-  color: #475569;
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.prepare-step.done > span {
-  background: #dcfce7;
-  color: #16a34a;
-}
-
-.prepare-step strong,
-.prepare-step em {
-  display: block;
-}
-
-.prepare-step strong {
-  color: #0f172a;
-}
-
-.prepare-step em {
-  margin-top: 4px;
-  color: #64748b;
-  font-size: 12px;
-  font-style: normal;
 }
 
 @media (max-width: 1280px) {

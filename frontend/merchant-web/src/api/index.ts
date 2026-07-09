@@ -40,20 +40,28 @@ export async function loadSelfBuiltMerchantAfterSales(accountNo: string, platfor
   return unwrap(await api.get(`${selfBuiltApiPrefix(platformCode)}/merchant/after-sales`, { params: { accountNo } }))
 }
 
-export async function reviewTwentyMallAfterSale(afterSaleId: number, result: 'APPROVE' | 'REJECT', reason = '') {
-  return unwrap(await api.post('/twenty-mall/merchant/after-sales/review', { afterSaleId, result, reason }))
+function operationTargetConfig(orderNo?: string) {
+  return orderNo ? { operationTargetId: orderNo } as Record<string, unknown> : undefined
 }
 
-export async function reviewSelfBuiltAfterSale(afterSaleId: number, result: 'APPROVE' | 'REJECT', reason = '', platformCode = 'TWENTY_MALL') {
-  return unwrap(await api.post(`${selfBuiltApiPrefix(platformCode)}/merchant/after-sales/review`, { afterSaleId, result, reason }))
+export async function reviewTwentyMallAfterSale(afterSaleId: number, result: 'APPROVE' | 'REJECT', reason = '', orderNo = '') {
+  return unwrap(await api.post('/twenty-mall/merchant/after-sales/review', { afterSaleId, result, reason }, operationTargetConfig(orderNo)))
 }
 
-export async function refundTwentyMallAfterSale(afterSaleId: number) {
-  return unwrap(await api.post('/twenty-mall/merchant/after-sales/refund', { afterSaleId }))
+export async function reviewSelfBuiltAfterSale(afterSaleId: number, result: 'APPROVE' | 'REJECT', reason = '', platformCode = 'TWENTY_MALL', orderNo = '') {
+  return unwrap(await api.post(`${selfBuiltApiPrefix(platformCode)}/merchant/after-sales/review`, { afterSaleId, result, reason }, operationTargetConfig(orderNo)))
 }
 
-export async function refundSelfBuiltAfterSale(afterSaleId: number, platformCode = 'TWENTY_MALL') {
-  return unwrap(await api.post(`${selfBuiltApiPrefix(platformCode)}/merchant/after-sales/refund`, { afterSaleId }))
+export async function refundTwentyMallAfterSale(afterSaleId: number, orderNo = '') {
+  return unwrap(await api.post('/twenty-mall/merchant/after-sales/refund', { afterSaleId }, operationTargetConfig(orderNo)))
+}
+
+export async function refundSelfBuiltAfterSale(afterSaleId: number, platformCode = 'TWENTY_MALL', orderNo = '') {
+  return unwrap(await api.post(`${selfBuiltApiPrefix(platformCode)}/merchant/after-sales/refund`, { afterSaleId }, operationTargetConfig(orderNo)))
+}
+
+export async function submitSelfBuiltExchangeShipping(afterSaleId: number, trackingNo: string, platformCode = 'TWENTY_MALL', orderNo = '') {
+  return unwrap(await api.post(`${selfBuiltApiPrefix(platformCode)}/merchant/after-sales/exchange-shipping`, { afterSaleId, trackingNo }, operationTargetConfig(orderNo)))
 }
 
 export async function loadTwentyMallMerchantAfterSaleDisputes(accountNo: string) {
@@ -64,18 +72,18 @@ export async function loadSelfBuiltMerchantAfterSaleDisputes(accountNo: string, 
   return unwrap(await api.get(`${selfBuiltApiPrefix(platformCode)}/merchant/after-sales/disputes`, { params: { accountNo } }))
 }
 
-export async function submitTwentyMallMerchantDisputeEvidence(disputeId: number, evidenceText: string, evidenceImages: string[] = []) {
+export async function submitTwentyMallMerchantDisputeEvidence(disputeId: number, evidenceText: string, evidenceImages: string[] = [], orderNo = '') {
   return unwrap(await api.post(`/twenty-mall/merchant/after-sales/disputes/${disputeId}/evidence`, {
     evidenceText,
     evidenceImages
-  }))
+  }, operationTargetConfig(orderNo)))
 }
 
-export async function submitSelfBuiltMerchantDisputeEvidence(disputeId: number, evidenceText: string, evidenceImages: string[] = [], platformCode = 'TWENTY_MALL') {
+export async function submitSelfBuiltMerchantDisputeEvidence(disputeId: number, evidenceText: string, evidenceImages: string[] = [], platformCode = 'TWENTY_MALL', orderNo = '') {
   return unwrap(await api.post(`${selfBuiltApiPrefix(platformCode)}/merchant/after-sales/disputes/${disputeId}/evidence`, {
     evidenceText,
     evidenceImages
-  }))
+  }, operationTargetConfig(orderNo)))
 }
 
 export async function loadConversations() {
@@ -120,12 +128,12 @@ export async function loadTwentyMallMerchantNotifications(accountNo: string) {
   return unwrap(await api.get('/twenty-mall/merchant/notifications', { params: { accountNo } }))
 }
 
-export async function submitTwentyMallReviewDispute(reviewId: number, accountNo: string, reason: string) {
-  return unwrap(await api.post(`/twenty-mall/merchant/reviews/${reviewId}/dispute`, { accountNo, reason }))
+export async function submitTwentyMallReviewDispute(reviewId: number, accountNo: string, reason: string, orderNo = '') {
+  return unwrap(await api.post(`/twenty-mall/merchant/reviews/${reviewId}/dispute`, { accountNo, reason }, operationTargetConfig(orderNo)))
 }
 
-export async function submitSelfBuiltReviewDispute(reviewId: number, accountNo: string, reason: string, platformCode = 'TWENTY_MALL') {
-  return unwrap(await api.post(`${selfBuiltApiPrefix(platformCode)}/merchant/reviews/${reviewId}/dispute`, { accountNo, reason }))
+export async function submitSelfBuiltReviewDispute(reviewId: number, accountNo: string, reason: string, platformCode = 'TWENTY_MALL', orderNo = '') {
+  return unwrap(await api.post(`${selfBuiltApiPrefix(platformCode)}/merchant/reviews/${reviewId}/dispute`, { accountNo, reason }, operationTargetConfig(orderNo)))
 }
 
 export async function loadArticles(params: Record<string, unknown> = {}) {

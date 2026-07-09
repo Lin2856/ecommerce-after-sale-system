@@ -56,7 +56,7 @@
     {{product.afterSale && product.afterSale !== '未申请' ? '查看售后详细' : '申请售后'}}
   </button>
   <button
-    wx:if="{{product.afterSale && product.afterSale !== '未申请'}}"
+    wx:if="{{product.afterSale && product.afterSale !== '未申请' && product.afterSale !== '已完成' && product.afterSale !== '已关闭' && product.afterSale !== '商家已同意价保申请，差价已自动退回你的账户'}}"
     class="modify-after-sale-btn"
     bindtap="modifyAfterSale"
   >修改售后信息</button>
@@ -64,6 +64,98 @@
   <button class="review-btn {{product.reviewed ? 'review-btn-view' : ''}}" bindtap="openReviewDialog">
     {{product.reviewed ? '查看评价' : '评价商家'}}
   </button>
+
+  <view wx:if="{{afterSaleApplyVisible}}" class="apply-mask">
+    <view class="apply-sheet">
+      <view class="apply-steps">
+        <view class="step done">
+          <text>1</text>
+          <view>选择订单</view>
+        </view>
+        <view class="step-line"></view>
+        <view class="step active">
+          <text>2</text>
+          <view>填写信息</view>
+        </view>
+        <view class="step-line"></view>
+        <view class="step">
+          <text>3</text>
+          <view>提交审核</view>
+        </view>
+      </view>
+
+      <scroll-view scroll-y class="apply-content">
+        <view class="apply-card">
+          <view class="apply-section-title">订单信息</view>
+          <view class="apply-order">
+            <image class="apply-order-image" src="{{product.image}}" mode="aspectFill" />
+            <view class="apply-order-main">
+              <view class="apply-order-title">{{product.title}}</view>
+              <view class="apply-order-meta">规格：{{product.spec || '默认规格'}}</view>
+              <view class="apply-order-meta">订单号：{{product.no}}</view>
+              <view class="apply-order-price">实付金额：￥{{product.price}}</view>
+            </view>
+          </view>
+        </view>
+
+        <view class="apply-card">
+          <view class="apply-section-title">售后类型</view>
+          <view class="type-grid">
+            <view
+              wx:for="{{afterSaleTypeOptions}}"
+              wx:key="value"
+              data-value="{{item.value}}"
+              class="type-item {{selectedAfterSaleType == item.value ? 'active' : ''}}"
+              bindtap="selectAfterSaleType"
+            >
+              <view class="type-icon">{{item.icon}}</view>
+              <view>{{item.label}}</view>
+            </view>
+          </view>
+        </view>
+
+        <view class="apply-card">
+          <view class="apply-section-title">申请原因</view>
+          <picker mode="selector" range="{{currentReasonOptions}}" value="{{reasonIndex}}" bindchange="onReasonOptionChange">
+            <view class="reason-picker">
+              <text>{{currentReasonOptions[reasonIndex]}}</text>
+              <text class="picker-arrow">⌄</text>
+            </view>
+          </picker>
+
+          <view class="apply-section-title small-title">问题描述</view>
+          <textarea
+            class="apply-textarea"
+            placeholder="请补充商品问题、使用情况或期望处理方式"
+            maxlength="300"
+            value="{{reasonText}}"
+            bindinput="onReasonInput"
+          />
+          <view class="text-count">{{reasonTextLength}}/300</view>
+
+          <view class="apply-section-title small-title">上传凭证 <text>最多上传 3 张</text></view>
+          <view class="apply-image-row">
+            <view wx:for="{{reasonImages}}" wx:key="index" class="apply-image-item">
+              <image src="{{item}}" mode="aspectFill" />
+              <text data-index="{{index}}" bindtap="removeReasonImage">×</text>
+            </view>
+            <view wx:if="{{reasonImages.length < 3}}" class="apply-upload" bindtap="chooseReasonImage">
+              <view>＋</view>
+              <text>上传图片</text>
+            </view>
+          </view>
+        </view>
+      </scroll-view>
+
+      <view class="apply-footer {{afterSaleApplyMode == 'modify' ? 'apply-footer-modify' : ''}}">
+        <view wx:if="{{afterSaleApplyMode != 'modify'}}" class="apply-footer-tip">预计 <text>1-3</text> 个工作日处理</view>
+        <button wx:if="{{afterSaleApplyMode == 'modify'}}" class="apply-cancel" bindtap="cancelAfterSale">取消售后申请</button>
+        <button class="apply-submit" bindtap="submitAfterSaleApply">
+          {{afterSaleApplyMode == 'modify' ? '提交修改' : '提交申请'}}
+        </button>
+      </view>
+    </view>
+  </view>
 
   <view wx:if="{{reasonDialogVisible}}" class="reason-mask">
     <view class="reason-dialog">
@@ -146,11 +238,7 @@
         <text>{{afterSaleDetail.appliedAt || '2026.6.29 10:35:23'}}</text>
       </view>
       <view wx:if="{{afterSaleDetail.disputeResultText}}" class="after-sale-tip dispute-result-tip">{{afterSaleDetail.disputeResultTip}}</view>
-      <view wx:elif="{{afterSaleDetail.status === '待审核'}}" class="after-sale-tip">售后申请已提交，商家将在后台审核并处理。你可以返回本页修改售后类型。</view>
-      <view wx:elif="{{afterSaleDetail.status === '处理中'}}" class="after-sale-tip">商家正在处理本次售后申请，请留意后续处理结果。</view>
-      <view wx:elif="{{afterSaleDetail.status === '用户已寄回商品'}}" class="after-sale-tip">退货快递单号已提交，商家收到商品并验收后会继续处理退款。</view>
-      <view wx:elif="{{afterSaleDetail.status === '已完成'}}" class="after-sale-tip">本次售后已完成，处理结果已同步到订单中。</view>
-      <view wx:elif="{{afterSaleDetail.status === '已关闭'}}" class="after-sale-tip">本次售后已关闭，如仍有问题可以重新联系商家确认。</view>
+      <view wx:elif="{{afterSaleDetail.consumerTip}}" class="after-sale-tip">{{afterSaleDetail.consumerTip}}</view>
       <view wx:if="{{afterSaleDetail.status === '已拒绝' && afterSaleDetail.type !== '价保'}}" class="dispute-entry">
         <view class="dispute-entry-title">对商家处理结果有异议？</view>
         <view class="return-tip">你可以填写二次售后表单并联系平台处理，平台管理员将结合双方材料进行裁决。</view>
@@ -243,6 +331,22 @@
           bindinput="onMerchantReviewInput"
         />
       </view>
+      <view class="review-section">
+        <view class="review-section-title review-upload-title">
+          <text>评价图片</text>
+          <text class="review-upload-tip">最多 3 张</text>
+        </view>
+        <view class="review-image-row">
+          <view wx:for="{{reviewImages}}" wx:key="index" class="review-image-item">
+            <image src="{{item}}" mode="aspectFill" />
+            <text data-index="{{index}}" bindtap="removeReviewImage">×</text>
+          </view>
+          <view wx:if="{{reviewImages.length < 3}}" class="review-upload" bindtap="chooseReviewImage">
+            <view>＋</view>
+            <text>上传图片</text>
+          </view>
+        </view>
+      </view>
       <view class="review-actions">
         <button class="review-cancel" bindtap="closeReviewDialog">取消</button>
         <button class="review-submit" bindtap="submitReview">提交评价</button>
@@ -277,6 +381,14 @@
           <text wx:for="{{reviewDetail.serviceStars}}" wx:key="value" class="star {{item.active ? 'star-active' : ''}}">★</text>
         </view>
         <view class="review-detail-content">{{reviewDetail.merchantContent || '暂无评价内容'}}</view>
+      </view>
+      <view class="review-section" wx:if="{{reviewDetail.imageUrls && reviewDetail.imageUrls.length}}">
+        <view class="review-section-title">评价图片</view>
+        <view class="review-image-row review-detail-images">
+          <view wx:for="{{reviewDetail.imageUrls}}" wx:key="index" class="review-image-item readonly">
+            <image src="{{item}}" mode="aspectFill" />
+          </view>
+        </view>
       </view>
       <button class="detail-close-btn" bindtap="closeReviewDetail">知道了</button>
     </view>

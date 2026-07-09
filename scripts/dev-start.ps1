@@ -77,6 +77,22 @@ function Start-HiddenProcess {
   Write-Host "[START] $Name" -ForegroundColor Green
 }
 
+function Resolve-NpmCommand {
+  $command = Get-Command "npm.cmd" -ErrorAction SilentlyContinue
+  if ($command -and $command.Source) {
+    return $command.Source
+  }
+  return "npm.cmd"
+}
+
+function Resolve-NodeCommand {
+  $command = Get-Command "node.exe" -ErrorAction SilentlyContinue
+  if ($command -and $command.Source) {
+    return $command.Source
+  }
+  return "node.exe"
+}
+
 if (-not $SkipAi) {
   Write-Step "AI Service"
   if (Test-Port 9000) {
@@ -126,8 +142,9 @@ if (-not $SkipBackend) {
 
 if (-not $SkipFrontend) {
   Write-Step "Web Frontends"
+  $nodeCommand = Resolve-NodeCommand
   $frontends = @(
-    @{ Name = "Merchant Web"; Port = 5173; Dir = "frontend\merchant-web" },
+    @{ Name = "Merchant Web"; Port = 5177; Dir = "frontend\merchant-web" },
     @{ Name = "Admin Web"; Port = 5175; Dir = "frontend\admin-web" }
   )
 
@@ -137,11 +154,11 @@ if (-not $SkipFrontend) {
       continue
     }
     $appDir = Join-Path $Root $app.Dir
-    $viteCmd = Join-Path $appDir "node_modules\.bin\vite.cmd"
+    $viteEntry = Join-Path $appDir "node_modules\vite\bin\vite.js"
     Start-HiddenProcess `
       -Name $app.Name `
-      -FilePath "cmd.exe" `
-      -ArgumentList @("/c", "`"$viteCmd`" --host 0.0.0.0 --port $($app.Port)") `
+      -FilePath $nodeCommand `
+      -ArgumentList @($viteEntry, "--host", "0.0.0.0", "--port", "$($app.Port)") `
       -WorkingDirectory $appDir `
       -LogName ($app.Name -replace "\s+", "-").ToLower()
   }

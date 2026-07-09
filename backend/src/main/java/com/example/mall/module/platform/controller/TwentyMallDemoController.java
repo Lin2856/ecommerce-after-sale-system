@@ -1509,6 +1509,8 @@ public class TwentyMallDemoController {
               AND b.secondary_account_role = ?
               AND b.bind_status = 'BOUND'
               AND b.deleted = 0
+              AND pa.deleted = 0
+              AND pa.status = 'ACTIVE'
               AND NOT (pa.account_no = ? AND pa.account_type = ?)
             """,
             Long.class,
@@ -2197,12 +2199,14 @@ public class TwentyMallDemoController {
 
     @GetMapping("/merchant/after-sales")
     public ApiResponse<List<TwentyMallAfterSaleResponse>> merchantAfterSales(@RequestParam String accountNo) {
+        ensureExchangeShippingColumns();
         autoRefundExpiredPendingAfterSales();
         PlatformInfo platform = currentPlatform();
         String sql = """
             SELECT a.id, a.after_sale_no, o.order_no, a.after_sale_type, a.reason_type, a.description,
                    a.requested_amount, a.status, a.created_at,
                    a.return_tracking_no, a.return_shipped_at,
+                   a.exchange_tracking_no, a.exchange_shipped_at,
                    i.product_name, ma.display_name AS merchant_name,
                    d.status AS dispute_status
             FROM twenty_mall_after_sale a
@@ -2237,6 +2241,8 @@ public class TwentyMallDemoController {
                 description.evidenceImages(),
                 rs.getString("return_tracking_no"),
                 formatTime(rs.getTimestamp("return_shipped_at")),
+                rs.getString("exchange_tracking_no"),
+                formatTime(rs.getTimestamp("exchange_shipped_at")),
                 disputeStatusText(rs.getString("dispute_status")),
                 null,
                 null
@@ -2321,6 +2327,8 @@ public class TwentyMallDemoController {
                 merchantName,
                 request.description(),
                 evidenceUrls,
+                "",
+                "",
                 "",
                 "",
                 null,
@@ -2427,12 +2435,14 @@ public class TwentyMallDemoController {
 
     @GetMapping("/consumer/after-sales/detail")
     public ApiResponse<TwentyMallAfterSaleResponse> consumerAfterSaleDetail(@RequestParam String orderNo) {
+        ensureExchangeShippingColumns();
         autoRefundExpiredPendingAfterSales();
         autoRefundExpiredAfterSaleDisputes();
         String sql = """
             SELECT a.id, a.after_sale_no, o.order_no, a.after_sale_type, a.reason_type, a.description,
                    a.requested_amount, a.status, a.created_at,
                    a.return_tracking_no, a.return_shipped_at,
+                   a.exchange_tracking_no, a.exchange_shipped_at,
                    i.product_name, ma.platform_code, ma.display_name AS merchant_name,
                    d.status AS dispute_status, d.admin_result AS dispute_admin_result, d.admin_note AS dispute_admin_note
             FROM twenty_mall_after_sale a
@@ -2469,6 +2479,8 @@ public class TwentyMallDemoController {
                 description.evidenceImages(),
                 rs.getString("return_tracking_no"),
                 formatTime(rs.getTimestamp("return_shipped_at")),
+                rs.getString("exchange_tracking_no"),
+                formatTime(rs.getTimestamp("exchange_shipped_at")),
                 disputeStatusText(rs.getString("dispute_status")),
                 rs.getString("dispute_admin_result"),
                 rs.getString("dispute_admin_note")
@@ -2482,9 +2494,9 @@ public class TwentyMallDemoController {
         String afterSaleType = findAfterSaleType(request.afterSaleId());
         String nextStatus = "REJECT".equals(request.result())
             ? "REJECTED"
-            : ("REFUND_ONLY".equals(afterSaleType) ? "PROCESSING" : "WAITING_RETURN");
-        String orderStatus = "REJECT".equals(request.result()) ? "REJECTED" : "AFTER_SALE";
-        String itemStatus = "REJECT".equals(request.result()) ? "REJECTED" : "APPLIED";
+            : ("PRICE_PROTECTION".equals(afterSaleType) ? "COMPLETED" : ("REFUND_ONLY".equals(afterSaleType) ? "PROCESSING" : "WAITING_RETURN"));
+        String orderStatus = "REJECT".equals(request.result()) ? "REJECTED" : ("PRICE_PROTECTION".equals(afterSaleType) ? "COMPLETED" : "AFTER_SALE");
+        String itemStatus = "REJECT".equals(request.result()) ? "REJECTED" : ("PRICE_PROTECTION".equals(afterSaleType) ? "COMPLETED" : "APPLIED");
         int updated = jdbcTemplate.update(
             "UPDATE twenty_mall_after_sale SET status = ?, updated_at = NOW() WHERE id = ? AND deleted = 0 AND status = 'PENDING_REVIEW'",
             nextStatus,
@@ -2766,6 +2778,64 @@ public class TwentyMallDemoController {
         return merchantAfterSaleById(request.afterSaleId());
     }
 
+    @PostMapping("/merchant/after-sales/exchange-shipping")
+    public ApiResponse<TwentyMallAfterSaleResponse> submitExchangeShipping(@Valid @RequestBody TwentyMallExchangeShippingRequest request) {
+        ensureExchangeShippingColumns();
+        String trackingNo = request.trackingNo() == null ? "" : request.trackingNo().trim();
+        if (trackingNo.isBlank()) {
+            return ApiResponse.fail("400", "请填写换货快递单号", traceId());
+        }
+        List<Map<String, String>> rows = jdbcTemplate.query(
+            "SELECT status, after_sale_type FROM twenty_mall_after_sale WHERE id = ? AND deleted = 0 LIMIT 1",
+            (rs, rowNum) -> Map.of(
+                "status", rs.getString("status"),
+                "afterSaleType", rs.getString("after_sale_type")
+            ),
+            request.afterSaleId()
+        );
+        if (rows.isEmpty()) {
+            return ApiResponse.fail("404", "售后申请不存在", traceId());
+        }
+        String currentStatus = rows.get(0).get("status");
+        String afterSaleType = rows.get(0).get("afterSaleType");
+        if (!"EXCHANGE".equals(afterSaleType) || !"RETURN_SHIPPED".equals(currentStatus)) {
+            return ApiResponse.fail("400", "当前售后状态不支持填写换货快递单号", traceId());
+        }
+        jdbcTemplate.update(
+            """
+            UPDATE twenty_mall_after_sale
+            SET exchange_tracking_no = ?,
+                exchange_shipped_at = NOW(),
+                status = 'COMPLETED',
+                updated_at = NOW()
+            WHERE id = ? AND deleted = 0
+            """,
+            trackingNo,
+            request.afterSaleId()
+        );
+        jdbcTemplate.update(
+            """
+            UPDATE twenty_mall_order o
+            JOIN twenty_mall_after_sale a ON a.order_id = o.id
+            SET o.after_sale_status = 'COMPLETED',
+                o.updated_at = NOW()
+            WHERE a.id = ? AND a.deleted = 0
+            """,
+            request.afterSaleId()
+        );
+        jdbcTemplate.update(
+            """
+            UPDATE twenty_mall_order_item i
+            JOIN twenty_mall_after_sale a ON a.order_item_id = i.id
+            SET i.after_sale_status = 'COMPLETED',
+                i.updated_at = NOW()
+            WHERE a.id = ? AND a.deleted = 0
+            """,
+            request.afterSaleId()
+        );
+        return merchantAfterSaleById(request.afterSaleId());
+    }
+
     @PostMapping("/consumer/reviews")
     public ApiResponse<Map<String, Long>> submitConsumerReview(@Valid @RequestBody TwentyMallReviewSubmitRequest request) {
         String sql = """
@@ -2796,18 +2866,20 @@ public class TwentyMallDemoController {
             if (content.isBlank()) {
                 return ApiResponse.fail("400", "请填写产品质量评价和商家服务评价", traceId());
             }
+            List<String> reviewImageUrls = saveEvidenceImages("TMRV-" + request.orderNo(), request.imageUrls());
             jdbcTemplate.update(
                 """
                 INSERT INTO twenty_mall_review (
-                  order_id, product_id, consumer_account_id, product_score, service_score, content, status, reviewed_at
-                ) VALUES (?, ?, ?, ?, ?, ?, 'PUBLISHED', NOW())
+                  order_id, product_id, consumer_account_id, product_score, service_score, content, image_urls, status, reviewed_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 'PUBLISHED', NOW())
                 """,
                 rs.getLong("order_id"),
                 rs.getLong("product_id"),
                 rs.getLong("consumer_account_id"),
                 productScore,
                 serviceScore,
-                content
+                content,
+                toJsonArray(reviewImageUrls)
             );
             long reviewId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
             return ApiResponse.success(Map.of("reviewId", reviewId), traceId());
@@ -2817,7 +2889,8 @@ public class TwentyMallDemoController {
     @GetMapping("/consumer/reviews/detail")
     public ApiResponse<TwentyMallConsumerReviewResponse> consumerReviewDetail(@RequestParam String orderNo) {
         String sql = """
-            SELECT r.id, r.product_score, r.service_score, r.content, COALESCE(r.reviewed_at, r.created_at) AS reviewed_at,
+            SELECT r.id, r.product_score, r.service_score, r.content, r.image_urls,
+                   COALESCE(r.reviewed_at, r.created_at) AS reviewed_at,
                    o.order_no, i.product_name, ma.display_name AS merchant_name
             FROM twenty_mall_review r
             JOIN twenty_mall_order o ON o.id = r.order_id
@@ -2842,6 +2915,7 @@ public class TwentyMallDemoController {
                 contentParts.productContent(),
                 contentParts.merchantContent(),
                 rs.getString("content"),
+                parseStringList(rs.getString("image_urls")),
                 formatTime(rs.getTimestamp("reviewed_at"))
             ), traceId());
         }, orderNo);
@@ -3548,6 +3622,14 @@ public class TwentyMallDemoController {
     ) {
     }
 
+    public record TwentyMallExchangeShippingRequest(
+        @NotNull(message = "售后申请ID不能为空")
+        Long afterSaleId,
+        @NotBlank(message = "换货快递单号不能为空")
+        String trackingNo
+    ) {
+    }
+
     public record TwentyMallAfterSaleDisputeSubmitRequest(
         @NotBlank(message = "订单号不能为空")
         String orderNo,
@@ -3580,7 +3662,8 @@ public class TwentyMallDemoController {
         Integer serviceScore,
         String productContent,
         String merchantContent,
-        String content
+        String content,
+        List<String> imageUrls
     ) {
     }
 
@@ -3594,6 +3677,7 @@ public class TwentyMallDemoController {
         String productContent,
         String merchantContent,
         String content,
+        List<String> imageUrls,
         String reviewedAt
     ) {
     }
@@ -3621,6 +3705,8 @@ public class TwentyMallDemoController {
         List<String> evidenceImages,
         String returnTrackingNo,
         String returnShippedAt,
+        String exchangeTrackingNo,
+        String exchangeShippedAt,
         String disputeStatus,
         String disputeAdminResult,
         String disputeAdminNote
@@ -4398,11 +4484,13 @@ public class TwentyMallDemoController {
     }
 
     private ApiResponse<TwentyMallAfterSaleResponse> merchantAfterSaleById(Long afterSaleId) {
+        ensureExchangeShippingColumns();
         autoRefundExpiredPendingAfterSales();
         String sql = """
             SELECT a.id, a.after_sale_no, o.order_no, a.after_sale_type, a.reason_type, a.description,
                    a.requested_amount, a.status, a.created_at,
                    a.return_tracking_no, a.return_shipped_at,
+                   a.exchange_tracking_no, a.exchange_shipped_at,
                    i.product_name, ma.display_name AS merchant_name,
                    d.status AS dispute_status
             FROM twenty_mall_after_sale a
@@ -4438,6 +4526,8 @@ public class TwentyMallDemoController {
                 description.evidenceImages(),
                 rs.getString("return_tracking_no"),
                 formatTime(rs.getTimestamp("return_shipped_at")),
+                rs.getString("exchange_tracking_no"),
+                formatTime(rs.getTimestamp("exchange_shipped_at")),
                 disputeStatusText(rs.getString("dispute_status")),
                 null,
                 null
@@ -4452,6 +4542,19 @@ public class TwentyMallDemoController {
             afterSaleId
         );
         return rows.isEmpty() ? "" : rows.get(0);
+    }
+
+    private void ensureExchangeShippingColumns() {
+        try {
+            jdbcTemplate.execute("ALTER TABLE twenty_mall_after_sale ADD COLUMN exchange_tracking_no VARCHAR(80) NULL");
+        } catch (Exception ignored) {
+            // The column may already exist in databases that have been upgraded.
+        }
+        try {
+            jdbcTemplate.execute("ALTER TABLE twenty_mall_after_sale ADD COLUMN exchange_shipped_at DATETIME NULL");
+        } catch (Exception ignored) {
+            // The column may already exist in databases that have been upgraded.
+        }
     }
 
     private ApiResponse<TwentyMallAfterSaleDisputeResponse> afterSaleDisputeById(Long disputeId) {

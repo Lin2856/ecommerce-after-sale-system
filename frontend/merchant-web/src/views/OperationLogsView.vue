@@ -9,7 +9,7 @@
     </section>
 
     <section class="panel operation-log-filter">
-      <el-input v-model="keyword" clearable placeholder="搜索操作内容、目标对象或账号" />
+      <el-input v-model="keyword" clearable placeholder="搜索操作内容、订单编号或账号" />
       <el-select v-model="staffFilter" placeholder="客服">
         <el-option label="全部客服" value="ALL" />
         <el-option v-for="item in staffOptions" :key="item.code" :label="item.name" :value="item.code" />
@@ -32,7 +32,9 @@
         <el-table-column prop="primaryAccount" label="一级账号" min-width="150" />
         <el-table-column prop="actionName" label="操作" min-width="160" />
         <el-table-column prop="targetType" label="对象类型" width="130" />
-        <el-table-column prop="targetId" label="对象编号" min-width="150" />
+        <el-table-column label="订单编号" min-width="170">
+          <template #default="{ row }">{{ displayOrderNo(row) }}</template>
+        </el-table-column>
         <el-table-column prop="detail" label="操作内容" min-width="260" show-overflow-tooltip />
         <el-table-column prop="createdAt" label="操作时间" width="180" />
       </el-table>
@@ -76,6 +78,15 @@ const staffAvatars: Record<string, string> = {
   C: staffCAvatar,
   D: staffDAvatar
 }
+const legacyOrderNoFixTimes = new Set([
+  '2026.07.07 15:51:32',
+  '2026.07.07 15:34:39',
+  '2026.07.04 10:19:50',
+  '2026.07.04 10:13:05',
+  '2026.07.04 10:11:16',
+  '2026.07.04 08:53:30',
+  '2026.07.04 08:51:29'
+])
 
 const filteredLogs = computed(() => {
   const key = keyword.value.trim().toLowerCase()
@@ -87,6 +98,7 @@ const filteredLogs = computed(() => {
       item.actionName,
       item.targetType,
       item.targetId,
+      displayOrderNo(item),
       item.detail
     ].join(' ').toLowerCase()
     return staffMatched && (!key || text.includes(key))
@@ -102,6 +114,20 @@ function resetFilters() {
 
 function staffAvatar(code: string) {
   return staffAvatars[code] || staffAAvatar
+}
+
+function displayOrderNo(row: OperationLog) {
+  const targetId = row.targetId || ''
+  if (targetId === '当前操作对象' && legacyOrderNoFixTimes.has(row.createdAt)) {
+    return 'TM222222220005'
+  }
+  if (!targetId || targetId === '当前操作对象') {
+    return '-'
+  }
+  if (row.targetType === '知识库' || targetId.includes('ID：')) {
+    return '-'
+  }
+  return targetId
 }
 
 async function loadLogs() {

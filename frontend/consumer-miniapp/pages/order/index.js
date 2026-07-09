@@ -3,6 +3,11 @@ import { enrichOrderDisplay } from "../../utils/order-display"
 
 const LOCAL_PLATFORM_CODES = ["TWENTY_MALL", "YUEGOU_MARKET"]
 
+const PLATFORM_ICONS = {
+  TWENTY_MALL: "/assets/platforms/wanxiang-mall.png",
+  YUEGOU_MARKET: "/assets/platforms/yuegou-market.svg"
+}
+
 const FILTERS = [
   { key: "ALL", label: "全部" },
   { key: "NONE", label: "未申请" },
@@ -120,6 +125,7 @@ Page({
           }))
           resolve({
             platform: platformName,
+            icon: PLATFORM_ICONS[binding.platformCode] || "/assets/platforms/wanxiang-mall.png",
             accountNo: binding.accountNo,
             orders: groupOrders,
             shops: groupOrdersByMerchant(groupOrders)
@@ -128,6 +134,7 @@ Page({
         fail: () => {
           resolve({
             platform: platformName,
+            icon: PLATFORM_ICONS[binding.platformCode] || "/assets/platforms/wanxiang-mall.png",
             accountNo: binding.accountNo,
             orders: [],
             shops: []

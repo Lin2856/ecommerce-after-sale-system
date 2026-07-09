@@ -10,7 +10,7 @@
 
 ## 本地端口
 
-- 商家端：`http://localhost:5173`
+- 商家端：`http://localhost:5177`
 - 管理员端：`http://localhost:5175`
 - 消费者端：使用微信开发者工具打开 `frontend/consumer-miniapp`
 

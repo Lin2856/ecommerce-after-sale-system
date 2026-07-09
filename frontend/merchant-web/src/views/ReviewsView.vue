@@ -25,7 +25,40 @@
     </section>
 
     <div class="review-toolbar">
-      <el-segmented v-model="risk" :options="riskOptions" />
+      <div class="review-filter-row">
+        <el-segmented v-model="risk" :options="riskOptions" />
+        <el-select
+          v-model="selectedReviewStoreKey"
+          class="review-store-select"
+          placeholder="选择店铺查看评价"
+          filterable
+        >
+          <el-option label="全部店铺" value="ALL">
+            <div class="store-option">
+              <span class="store-option-placeholder"></span>
+              <span>全部店铺</span>
+            </div>
+          </el-option>
+          <el-option
+            v-for="item in reviewStoreOptions"
+            :key="item.key"
+            :label="item.label"
+            :value="item.key"
+          >
+            <div class="store-option">
+              <img :src="item.icon" :alt="item.platformName" />
+              <span>{{ item.label }}</span>
+              <em>{{ item.platformName }}</em>
+            </div>
+          </el-option>
+        </el-select>
+        <el-input
+          v-model="reviewOrderKeyword"
+          class="review-order-search"
+          clearable
+          placeholder="搜索订单编号查看评价"
+        />
+      </div>
       <span>{{ filteredReviews.length }} 条评价</span>
     </div>
 
@@ -194,6 +227,8 @@ import { useRoute } from 'vue-router'
 import { loadSelfBuiltMerchantReviews, recordAiCallLog, submitSelfBuiltReviewDispute } from '../api'
 import { ElMessage } from 'element-plus'
 import { getMerchantBindings, getStoredUser, type MerchantPlatformBinding } from '../utils/auth'
+import twentyMallIcon from '../assets/platforms/twenty-mall.png'
+import yuegouMarketIcon from '../assets/platforms/yuegou-market.svg?url'
 
 type ReviewRow = {
   id: number
@@ -231,6 +266,8 @@ const riskOptions = [
   { label: '已删除', value: 'DELETED' }
 ]
 const reviewData = ref<ReviewRow[]>([])
+const selectedReviewStoreKey = ref('ALL')
+const reviewOrderKeyword = ref('')
 const loading = ref(false)
 const detailVisible = ref(false)
 const selectedReview = ref<ReviewRow | null>(null)
@@ -263,24 +300,64 @@ watch(() => [route.query.risk, route.query.tab], ([riskValue, tabValue]) => {
   risk.value = normalizeRiskRoute(riskValue, tabValue)
 })
 
+watch(reviewOrderKeyword, (value) => {
+  const keyword = value.trim().toLowerCase()
+  if (!keyword) {
+    return
+  }
+  const matched = reviewData.value.find((item) => String(item.orderNo || '').toLowerCase().includes(keyword))
+  if (matched) {
+    selectedReviewStoreKey.value = reviewStoreKey(matched)
+  }
+})
+
+const reviewStoreOptions = computed(() => {
+  const map = new Map<string, { key: string; label: string; icon: string; platformName: string }>()
+  reviewData.value.forEach((item) => {
+    const platformCode = item.platformCode || 'TWENTY_MALL'
+    const accountNo = item.accountNo || ''
+    const merchantName = item.merchantName || `${platformNameByCode(platformCode)}商家`
+    const key = reviewStoreKey(item)
+    if (!map.has(key)) {
+      map.set(key, {
+        key,
+        label: accountNo ? `${merchantName}（${accountNo}）` : merchantName,
+        icon: platformIconByCode(platformCode),
+        platformName: platformNameByCode(platformCode)
+      })
+    }
+  })
+  return Array.from(map.values()).sort(compareStoreOptions)
+})
+
+const baseFilteredReviews = computed(() => {
+  const keyword = reviewOrderKeyword.value.trim().toLowerCase()
+  return reviewData.value.filter((item) => {
+    const storeMatched = selectedReviewStoreKey.value === 'ALL' || reviewStoreKey(item) === selectedReviewStoreKey.value
+    const orderMatched = !keyword || String(item.orderNo || '').toLowerCase().includes(keyword)
+    return storeMatched && orderMatched
+  })
+})
+
 const filteredReviews = computed(() => {
+  const source = baseFilteredReviews.value
   if (risk.value === '全部') {
-    return reviewData.value.filter((item) => !item.deleted)
+    return source.filter((item) => !item.deleted)
   }
   if (risk.value === 'DELETED') {
-    return reviewData.value.filter((item) => item.deleted)
+    return source.filter((item) => item.deleted)
   }
-  return reviewData.value.filter((item) => !item.deleted && item.riskLevel === risk.value)
+  return source.filter((item) => !item.deleted && item.riskLevel === risk.value)
 })
 
 const metricCards = computed(() => {
-  const activeReviews = reviewData.value.filter((item) => !item.deleted)
+  const activeReviews = baseFilteredReviews.value.filter((item) => !item.deleted)
   return [
     { label: '全部评价', value: '全部', count: activeReviews.length, description: '当前展示中的评价' },
     { label: '高风险', value: 'HIGH', count: activeReviews.filter((item) => item.riskLevel === 'HIGH').length, description: '需要优先跟进' },
     { label: '中风险', value: 'MEDIUM', count: activeReviews.filter((item) => item.riskLevel === 'MEDIUM').length, description: '建议主动回访' },
     { label: '低风险', value: 'LOW', count: activeReviews.filter((item) => item.riskLevel === 'LOW').length, description: '可沉淀复盘' },
-    { label: '已删除', value: 'DELETED', count: reviewData.value.filter((item) => item.deleted).length, description: '管理员已处理' }
+    { label: '已删除', value: 'DELETED', count: baseFilteredReviews.value.filter((item) => item.deleted).length, description: '管理员已处理' }
   ]
 })
 
@@ -428,7 +505,8 @@ async function submitDispute() {
       disputeReview.value.id,
       disputeReview.value.accountNo,
       reason,
-      disputeReview.value.platformCode || 'TWENTY_MALL'
+      disputeReview.value.platformCode || 'TWENTY_MALL',
+      disputeReview.value.orderNo
     )
     ElMessage({ type: 'success', message: '评价异议已提交，等待管理员审核' })
     disputeVisible.value = false
@@ -656,6 +734,24 @@ function platformNameByCode(platformCode = 'TWENTY_MALL') {
   return platformCode === 'YUEGOU_MARKET' ? '悦购集市' : '万象商城'
 }
 
+function platformIconByCode(platformCode = 'TWENTY_MALL') {
+  return platformCode === 'YUEGOU_MARKET' ? yuegouMarketIcon : twentyMallIcon
+}
+
+function compareStoreOptions(
+  a: { key: string; label: string; platformName: string },
+  b: { key: string; label: string; platformName: string }
+) {
+  const order: Record<string, number> = { 万象商城: 1, 悦购集市: 2 }
+  const platformDiff = (order[a.platformName] || 99) - (order[b.platformName] || 99)
+  if (platformDiff !== 0) return platformDiff
+  return a.label.localeCompare(b.label, 'zh-Hans-CN')
+}
+
+function reviewStoreKey(item: ReviewRow) {
+  return `${item.platformCode || 'TWENTY_MALL'}:${item.accountNo || item.merchantName || ''}`
+}
+
 function platformCodeByName(platformName = '') {
   return platformName === '悦购集市' ? 'YUEGOU_MARKET' : 'TWENTY_MALL'
 }
@@ -806,10 +902,65 @@ function normalizeRiskRoute(riskValue: unknown, tabValue: unknown) {
   background: #fff;
 }
 
+.review-filter-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-width: 0;
+}
+
+.review-store-select {
+  width: 280px;
+}
+
+.review-order-search {
+  width: 240px;
+}
+
+.store-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.store-option img {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.store-option-placeholder {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: 4px;
+  background: #e8eef7;
+}
+
+.store-option span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.store-option em {
+  flex-shrink: 0;
+  color: #94a3b8;
+  font-size: 12px;
+  font-style: normal;
+}
+
 .review-toolbar span {
   color: #64748b;
   font-size: 13px;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .review-list {
